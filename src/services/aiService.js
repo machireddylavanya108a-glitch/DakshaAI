@@ -1,16 +1,21 @@
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import OpenAI from 'openai';
 
-const genAI = new GoogleGenerativeAI(import.meta.env.VITE_GEMINI_API_KEY);
+const openai = new OpenAI({
+  apiKey: import.meta.env.VITE_GEMINI_API_KEY,
+  baseURL: 'https://openrouter.ai/api/v1',
+  dangerouslyAllowBrowser: true
+});
 
 export async function getDakshaResponse(prompt, language = "English") {
   try {
-    const model = genAI.getGenerativeModel({ 
-      model: "gemini-1.5-flash",
-      systemInstruction: `You are Daksha AI, a universal teacher. Your goal is to teach the user anything they want to learn clearly and simply. You MUST respond entirely in ${language}.`
+    const response = await openai.chat.completions.create({
+      model: 'google/gemini-flash-1.5:free',
+      messages: [
+        { role: 'system', content: `You are Daksha AI, a universal teacher. Your goal is to teach the user anything they want to learn clearly and simply. You MUST respond entirely in ${language}.` },
+        { role: 'user', content: prompt }
+      ]
     });
-    const result = await model.generateContent(prompt);
-    const response = await result.response;
-    return response.text();
+    return response.choices[0].message.content;
   } catch (error) {
     console.error("AI Error:", error);
     return "I am having trouble connecting to my brain right now. Please try again later.";
@@ -19,13 +24,16 @@ export async function getDakshaResponse(prompt, language = "English") {
 
 export async function getDakshaImageResponse(base64Image, mimeType) {
   try {
-    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
-    const result = await model.generateContent([
-      { inlineData: { data: base64Image, mimeType: mimeType } },
-      { text: "Analyze this image. Extract all the knowledge, text, or concepts from it. Explain what this is and teach me about it simply." }
-    ]);
-    const response = await result.response;
-    return response.text();
+    const response = await openai.chat.completions.create({
+      model: 'google/gemini-flash-1.5:free',
+      messages: [
+        { role: 'user', content: [
+          { type: 'text', text: 'Analyze this image. Extract all the knowledge, text, or concepts from it. Explain what this is and teach me about it simply.' },
+          { type: 'image_url', image_url: { url: `data:${mimeType};base64,${base64Image}` } }
+        ] }
+      ]
+    });
+    return response.choices[0].message.content;
   } catch (error) {
     console.error("AI Vision Error:", error);
     return "I couldn't process this image. Please try a clearer photo or a different file.";
@@ -34,11 +42,13 @@ export async function getDakshaImageResponse(base64Image, mimeType) {
 
 export async function getLearningPath(skill) {
   try {
-    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
-    const prompt = `Create a structured learning roadmap for someone who wants to learn ${skill}. Break it down into 5 distinct modules from beginner to advanced. For each module, provide a clear title and a brief 1-2 sentence description of what will be learned. Format the output cleanly in Markdown.`;
-    const result = await model.generateContent(prompt);
-    const response = await result.response;
-    return response.text();
+    const response = await openai.chat.completions.create({
+      model: 'google/gemini-flash-1.5:free',
+      messages: [
+        { role: 'user', content: `Create a structured learning roadmap for someone who wants to learn ${skill}. Break it down into 5 distinct modules from beginner to advanced. For each module, provide a clear title and a brief 1-2 sentence description of what will be learned. Format the output cleanly in Markdown.` }
+      ]
+    });
+    return response.choices[0].message.content;
   } catch (error) {
     console.error("AI Error:", error);
     return "I am having trouble generating a roadmap right now. Please try again later.";
@@ -47,11 +57,13 @@ export async function getLearningPath(skill) {
 
 export async function get3DPartExplanation(partName) {
   try {
-    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
-    const prompt = `The user is viewing a 3D model of the Solar System and just clicked on: ${partName}. Give a brief, engaging, 2-3 sentence explanation of what ${partName} is.`;
-    const result = await model.generateContent(prompt);
-    const response = await result.response;
-    return response.text();
+    const response = await openai.chat.completions.create({
+      model: 'google/gemini-flash-1.5:free',
+      messages: [
+        { role: 'user', content: `The user is viewing a 3D model of the Solar System and just clicked on: ${partName}. Give a brief, engaging, 2-3 sentence explanation of what ${partName} is.` }
+      ]
+    });
+    return response.choices[0].message.content;
   } catch (error) {
     console.error("AI 3D Error:", error);
     return "I couldn't load the information for this part.";
