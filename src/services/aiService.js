@@ -9,7 +9,7 @@ const openai = new OpenAI({
 export async function getDakshaResponse(prompt, language = "English") {
   try {
     const response = await openai.chat.completions.create({
-      model: 'google/gemini-flash-1.5:free',
+      model: 'meta-llama/llama-3-8b-instruct:free',
       messages: [
         { role: 'system', content: `You are Daksha AI, a universal teacher. Your goal is to teach the user anything they want to learn clearly and simply. You MUST respond entirely in ${language}.` },
         { role: 'user', content: prompt }
@@ -25,7 +25,7 @@ export async function getDakshaResponse(prompt, language = "English") {
 export async function getDakshaImageResponse(base64Image, mimeType) {
   try {
     const response = await openai.chat.completions.create({
-      model: 'google/gemini-flash-1.5:free',
+      model: 'meta-llama/llama-3.2-11b-vision-instruct:free',
       messages: [
         { role: 'user', content: [
           { type: 'text', text: 'Analyze this image. Extract all the knowledge, text, or concepts from it. Explain what this is and teach me about it simply.' },
@@ -43,7 +43,7 @@ export async function getDakshaImageResponse(base64Image, mimeType) {
 export async function getLearningPath(skill) {
   try {
     const response = await openai.chat.completions.create({
-      model: 'google/gemini-flash-1.5:free',
+      model: 'meta-llama/llama-3-8b-instruct:free',
       messages: [
         { role: 'user', content: `Create a structured learning roadmap for someone who wants to learn ${skill}. Break it down into 5 distinct modules from beginner to advanced. For each module, provide a clear title and a brief 1-2 sentence description of what will be learned. Format the output cleanly in Markdown.` }
       ]
@@ -58,7 +58,7 @@ export async function getLearningPath(skill) {
 export async function get3DPartExplanation(partName) {
   try {
     const response = await openai.chat.completions.create({
-      model: 'google/gemini-flash-1.5:free',
+      model: 'meta-llama/llama-3-8b-instruct:free',
       messages: [
         { role: 'user', content: `The user is viewing a 3D model of the Solar System and just clicked on: ${partName}. Give a brief, engaging, 2-3 sentence explanation of what ${partName} is.` }
       ]
