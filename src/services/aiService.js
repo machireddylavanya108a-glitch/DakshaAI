@@ -87,3 +87,19 @@ export async function get3DPartExplanation(partName) {
     return 'I couldn\'t load the information for this part.';
   }
 }
+
+export async function getDakshaTextResponse(extractedText) {
+  try {
+    const response = await openai.chat.completions.create({
+      model: 'deepseek/deepseek-chat:free',
+      messages: [
+        { role: 'system', content: 'You are Daksha AI. The user has uploaded a document and extracted the text. Read the text, summarize the key knowledge, and explain what the document is about simply.' },
+        { role: 'user', content: extractedText }
+      ]
+    });
+    return response.choices[0].message.content;
+  } catch (error) {
+    console.error("AI Text Error:", error);
+    return "I couldn't process this document. Please try a different file.";
+  }
+}
