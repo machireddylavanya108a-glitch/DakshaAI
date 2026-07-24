@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { motion } from 'framer-motion'
 import { Play, ChevronDown } from 'lucide-react'
-import HeroSpline from './HeroSpline'
 
 const stats = [
   { label: '100+ languages', value: 'Global' },
@@ -113,7 +112,15 @@ export default function HeroSection() {
             className="relative"
           >
             <div className="absolute -inset-4 rounded-[2.5rem] bg-gradient-to-r from-cyan-400/20 via-transparent to-violet-400/20 blur-3xl opacity-80" />
-            <HeroSpline />
+            <video 
+              autoPlay 
+              loop 
+              muted 
+              playsInline 
+              className="w-full h-full object-cover rounded-2xl border border-slate-800 shadow-2xl shadow-indigo-500/20"
+            >
+              <source src="/videos/design.mp4" type="video/mp4" />
+            </video>
           </motion.div>
         </div>
 
