@@ -1,0 +1,79 @@
+import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { Brain, Home, Search, GraduationCap, MessageSquare, Box, User, LogOut, ShieldCheck } from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
+
+export default function Sidebar() {
+  const location = useLocation();
+  const navigate = useNavigate();
+  const { user, logout } = useAuth();
+  const isAdmin = user?.email === 'nomis108a@gmail.com';
+
+  const navItems = [
+    { name: 'Dashboard', path: '/dashboard', icon: Home },
+    { name: 'Universal Scanner', path: '/scanner', icon: Search },
+    { name: 'Skill Academy', path: '/academy', icon: GraduationCap },
+    { name: 'AI Teacher', path: '/chat', icon: MessageSquare },
+    { name: '3D Learning', path: '/3d-learning', icon: Box },
+  ];
+
+  const isActive = (path) => location.pathname === path;
+
+  return (
+    <aside className="w-64 h-screen bg-slate-950 border-r border-slate-800 flex flex-col fixed left-0 top-0 z-50">
+      <div className="p-6 flex items-center gap-3 border-b border-slate-800">
+        <Brain className="w-8 h-8 text-indigo-500" />
+        <span className="text-2xl font-bold text-white">Daksha AI</span>
+      </div>
+
+      <nav className="flex-1 px-4 py-6 space-y-2 overflow-y-auto">
+        {navItems.map((item) => (
+          <Link
+            key={item.name}
+            to={item.path}
+            className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-colors ${isActive(item.path) ? 'bg-indigo-600 text-white' : 'text-slate-400 hover:bg-slate-900 hover:text-white'}`}
+          >
+            <item.icon className="w-5 h-5" />
+            <span className="font-medium">{item.name}</span>
+          </Link>
+        ))}
+
+        {isAdmin && (
+          <Link
+            to="/admin"
+            className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-colors ${isActive('/admin') ? 'bg-indigo-600 text-white' : 'text-slate-400 hover:bg-slate-900 hover:text-white'}`}
+          >
+            <ShieldCheck className="w-5 h-5" />
+            <span className="font-medium">Admin Control</span>
+          </Link>
+        )}
+      </nav>
+
+      <div className="p-4 border-t border-slate-800">
+        <Link to="/profile" className="flex items-center gap-3 p-2 rounded-xl hover:bg-slate-900 transition-colors mb-3">
+          {user?.photoURL ? (
+            <img src={user.photoURL} alt="User" className="w-10 h-10 rounded-full" />
+          ) : (
+            <div className="w-10 h-10 rounded-full bg-slate-700 flex items-center justify-center">
+              <User className="w-5 h-5" />
+            </div>
+          )}
+          <div className="min-w-0">
+            <p className="text-sm font-medium text-white truncate">{user?.displayName || 'Learner'}</p>
+            <p className="text-xs text-slate-500 truncate">{user?.email}</p>
+          </div>
+        </Link>
+
+        <button
+          onClick={async () => {
+            await logout();
+            navigate('/');
+          }}
+          className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-slate-400 hover:bg-red-500/10 hover:text-red-400 transition-colors"
+        >
+          <LogOut className="w-5 h-5" />
+          <span className="font-medium">Logout</span>
+        </button>
+      </div>
+    </aside>
+  );
+}
