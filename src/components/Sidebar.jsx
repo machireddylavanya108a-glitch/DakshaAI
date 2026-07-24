@@ -2,7 +2,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { Brain, Home, Search, GraduationCap, MessageSquare, Box, User, LogOut, ShieldCheck } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
-export default function Sidebar() {
+export default function Sidebar({ closeSidebar }) {
   const location = useLocation();
   const navigate = useNavigate();
   const { user, logout } = useAuth();
@@ -30,6 +30,7 @@ export default function Sidebar() {
           <Link
             key={item.name}
             to={item.path}
+            onClick={closeSidebar}
             className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-colors ${isActive(item.path) ? 'bg-indigo-600 text-white' : 'text-slate-400 hover:bg-slate-900 hover:text-white'}`}
           >
             <item.icon className="w-5 h-5" />
@@ -40,6 +41,7 @@ export default function Sidebar() {
         {isAdmin && (
           <Link
             to="/admin"
+            onClick={closeSidebar}
             className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-colors ${isActive('/admin') ? 'bg-indigo-600 text-white' : 'text-slate-400 hover:bg-slate-900 hover:text-white'}`}
           >
             <ShieldCheck className="w-5 h-5" />
@@ -49,7 +51,7 @@ export default function Sidebar() {
       </nav>
 
       <div className="p-4 border-t border-slate-800">
-        <Link to="/profile" className="flex items-center gap-3 p-2 rounded-xl hover:bg-slate-900 transition-colors mb-3">
+        <Link to="/profile" onClick={closeSidebar} className="flex items-center gap-3 p-2 rounded-xl hover:bg-slate-900 transition-colors mb-3">
           {user?.photoURL ? (
             <img src={user.photoURL} alt="User" className="w-10 h-10 rounded-full" />
           ) : (
