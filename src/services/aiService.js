@@ -22,10 +22,10 @@ Rules:
 - Ask follow-up questions only when necessary.
 - Think step by step before answering.`;
 
-export async function getDakshaResponse(prompt, language = 'English') {
+export async function getDakshaResponse(prompt, language = "English") {
   try {
     const response = await openai.chat.completions.create({
-      model: 'deepseek/deepseek-chat:free',
+      model: 'deepseek/deepseek-v3:free',
       messages: [
         { role: 'system', content: `${DAKSHA_SYSTEM_PROMPT} You MUST respond entirely in ${language}.` },
         { role: 'user', content: prompt }
@@ -33,8 +33,8 @@ export async function getDakshaResponse(prompt, language = 'English') {
     });
     return response.choices[0].message.content;
   } catch (error) {
-    console.error('AI Error:', error);
-    return 'I am having trouble connecting to my brain right now. Please try again later.';
+    console.error("AI Error:", error);
+    return "I am having trouble connecting to my brain right now. Please try again later.";
   }
 }
 
@@ -51,15 +51,31 @@ export async function getDakshaImageResponse(base64Image, mimeType) {
     });
     return response.choices[0].message.content;
   } catch (error) {
-    console.error('AI Vision Error:', error);
-    return 'I couldn\'t process this image. Please try a clearer photo or a different file.';
+    console.error("AI Vision Error:", error);
+    return "I couldn't process this image. Please try a clearer photo or a different file.";
+  }
+}
+
+export async function getDakshaTextResponse(extractedText) {
+  try {
+    const response = await openai.chat.completions.create({
+      model: 'deepseek/deepseek-v3:free',
+      messages: [
+        { role: 'system', content: 'You are Daksha AI. The user has uploaded a document and extracted the text. Read the text, summarize the key knowledge, and explain what the document is about simply.' },
+        { role: 'user', content: extractedText }
+      ]
+    });
+    return response.choices[0].message.content;
+  } catch (error) {
+    console.error("AI Text Error:", error);
+    return "I couldn't process this document. Please try a different file.";
   }
 }
 
 export async function getLearningPath(skill) {
   try {
     const response = await openai.chat.completions.create({
-      model: 'deepseek/deepseek-chat:free',
+      model: 'deepseek/deepseek-v3:free',
       messages: [
         { role: 'system', content: DAKSHA_SYSTEM_PROMPT },
         { role: 'user', content: `Create a structured learning roadmap for someone who wants to learn ${skill}. Break it down into 5 distinct modules from beginner to advanced. For each module, provide a clear title and a brief 1-2 sentence description of what will be learned. Format the output cleanly in Markdown.` }
@@ -67,15 +83,15 @@ export async function getLearningPath(skill) {
     });
     return response.choices[0].message.content;
   } catch (error) {
-    console.error('AI Error:', error);
-    return 'I am having trouble generating a roadmap right now. Please try again later.';
+    console.error("AI Error:", error);
+    return "I am having trouble generating a roadmap right now. Please try again later.";
   }
 }
 
 export async function get3DPartExplanation(partName) {
   try {
     const response = await openai.chat.completions.create({
-      model: 'deepseek/deepseek-chat:free',
+      model: 'deepseek/deepseek-v3:free',
       messages: [
         { role: 'system', content: DAKSHA_SYSTEM_PROMPT },
         { role: 'user', content: `The user is viewing a 3D model of the Solar System and just clicked on: ${partName}. Give a brief, engaging, 2-3 sentence explanation of what ${partName} is.` }
@@ -83,8 +99,8 @@ export async function get3DPartExplanation(partName) {
     });
     return response.choices[0].message.content;
   } catch (error) {
-    console.error('AI 3D Error:', error);
-    return 'I couldn\'t load the information for this part.';
+    console.error("AI 3D Error:", error);
+    return "I couldn't load the information for this part.";
   }
 }
 

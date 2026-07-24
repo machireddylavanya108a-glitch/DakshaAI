@@ -2,10 +2,11 @@ import { useState } from 'react';
 import { UploadCloud, FileText, Image as ImageIcon, Brain, Sparkles, Loader } from 'lucide-react';
 import { getDakshaImageResponse, getDakshaTextResponse } from '../services/aiService';
 import * as pdfjsLib from 'pdfjs-dist';
+import pdfWorker from "pdfjs-dist/build/pdf.worker.min?url";
 import mammoth from 'mammoth';
 
-// Set up the PDF.js worker for Vite
-pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
+// Set up the PDF.js worker locally for Vite
+pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorker;
 
 export default function Scanner() {
   const [files, setFiles] = useState([]);
@@ -42,7 +43,7 @@ export default function Scanner() {
               const text = await page.getTextContent();
               textContent += text.items.map(item => item.str).join(' ') + ' ';
             }
-            const aiResponse = await getDakshaTextResponse(textContent.substring(0, 10000)); // Limit to 10k chars
+            const aiResponse = await getDakshaTextResponse(textContent.substring(0, 50000)); // Limit to 50k chars
             setExtractedKnowledge(aiResponse);
             setLoading(false);
           };
@@ -53,7 +54,7 @@ export default function Scanner() {
           reader.onloadend = async () => {
             const arrayBuffer = reader.result;
             const result = await mammoth.extractRawText({ arrayBuffer });
-            const aiResponse = await getDakshaTextResponse(result.value.substring(0, 10000));
+            const aiResponse = await getDakshaTextResponse(result.value.substring(0, 50000));
             setExtractedKnowledge(aiResponse);
             setLoading(false);
           };
@@ -63,7 +64,7 @@ export default function Scanner() {
           const reader = new FileReader();
           reader.onloadend = async () => {
             const text = reader.result;
-            const aiResponse = await getDakshaTextResponse(text.substring(0, 10000));
+            const aiResponse = await getDakshaTextResponse(text.substring(0, 50000));
             setExtractedKnowledge(aiResponse);
             setLoading(false);
           };
@@ -92,9 +93,9 @@ export default function Scanner() {
             <div className="flex flex-col items-center justify-center pt-5 pb-6">
               <UploadCloud className="w-12 h-12 text-indigo-500 mb-3" />
               <p className="mb-2 text-sm text-slate-400"><span className="font-semibold text-white">Click to upload</span> a file</p>
-              <p className="text-xs text-slate-500">PDF, DOCX, TXT, PNG, JPG</p>
+              <p className="text-xs text-slate-500">PDF, DOCX, TXT, PNG, JPG, PPTX, MD, CSV</p>
             </div>
-            <input type="file" accept="image/*,.pdf,.docx,.txt" onChange={handleFileChange} className="hidden" />
+            <input type="file" accept="image/*,.pdf,.docx,.txt,.pptx,.md,.csv" onChange={handleFileChange} className="hidden" />
           </label>
         </div>
 
