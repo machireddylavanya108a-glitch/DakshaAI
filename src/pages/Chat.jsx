@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
 import { Send, Bot, User, Mic, Volume2, Square } from 'lucide-react';
-import { getDakshaResponse } from '../services/aiService';
+import { getDakshaResponse, getDakshaLessonPackage } from '../services/aiService';
+import { saveLessonPackage } from '../services/firestoreService';
+import { useAuth } from '../context/AuthContext';
 
 export default function Chat() {
   const [messages, setMessages] = useState([
@@ -10,6 +12,8 @@ export default function Chat() {
   const [loading, setLoading] = useState(false);
   const [isListening, setIsListening] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
+  const [lessonPackage, setLessonPackage] = useState(null);
+  const [lessonStatus, setLessonStatus] = useState('');
   const recognitionRef = useRef(null);
 
   useEffect(() => {
@@ -62,6 +66,22 @@ export default function Chat() {
     setIsSpeaking(true);
   };
 
+  const { user } = useAuth();
+
+  const shouldGenerateLessonPackage = (message) => {
+    const normalized = message.toLowerCase();
+    return [
+      'lesson',
+      'course',
+      'roadmap',
+      'learning plan',
+      'study plan',
+      'teach me',
+      'training',
+      'curriculum'
+    ].some((keyword) => normalized.includes(keyword));
+  };
+
   const handleSend = async (e) => {
     e.preventDefault();
     if (!input.trim() || loading) return;
@@ -70,9 +90,33 @@ export default function Chat() {
     setMessages((prev) => [...prev, { sender: 'user', text: userMessage }]);
     setInput('');
     setLoading(true);
+    setLessonPackage(null);
+    setLessonStatus('');
 
     const aiResponse = await getDakshaResponse(userMessage, 'English');
     setMessages((prev) => [...prev, { sender: 'ai', text: aiResponse }]);
+
+    if (shouldGenerateLessonPackage(userMessage)) {
+      try {
+        const packageResult = await getDakshaLessonPackage(userMessage, 'topic', 'Chat lesson package');
+        setLessonPackage(packageResult);
+        setLessonStatus('Lesson package generated.');
+
+        if (user) {
+          setLessonStatus('Saving lesson package...');
+          await saveLessonPackage(user.uid, {
+            sourceName: 'Chat Lesson Package',
+            sourceType: 'topic',
+            sourceText: userMessage
+          }, packageResult);
+          setLessonStatus('Lesson package saved to Firebase.');
+        }
+      } catch (error) {
+        console.error('Lesson generate error:', error);
+        setLessonStatus('Unable to generate lesson package right now.');
+      }
+    }
+
     setLoading(false);
   };
 
@@ -124,6 +168,44 @@ export default function Chat() {
               </div>
               <div className="p-4 rounded-3xl bg-slate-800 text-slate-400 animate-pulse">
                 Daksha is thinking...
+              </div>
+            </div>
+          )}
+
+          {lessonPackage && (
+            <div className="rounded-3xl border border-slate-800 bg-slate-950 p-6 mt-6">
+              <div className="flex items-center justify-between mb-4 gap-4">
+                <div>
+                  <h2 className="text-xl font-semibold">Generated Lesson Package</h2>
+                  <p className="text-slate-400">A structured course package based on your topic request.</p>
+                </div>
+                <span className="text-slate-300 text-sm">{lessonStatus}</span>
+              </div>
+              <div className="grid gap-4 lg:grid-cols-2">
+                {lessonPackage.completeCourse && (
+                  <div className="rounded-3xl border border-slate-800 bg-slate-900 p-4">
+                    <h3 className="text-lg font-semibold mb-2">Complete Course</h3>
+                    <p className="text-slate-300 whitespace-pre-wrap">{lessonPackage.completeCourse}</p>
+                  </div>
+                )}
+                {lessonPackage.learningRoadmap && (
+                  <div className="rounded-3xl border border-slate-800 bg-slate-900 p-4">
+                    <h3 className="text-lg font-semibold mb-2">Learning Roadmap</h3>
+                    <p className="text-slate-300 whitespace-pre-wrap">{lessonPackage.learningRoadmap}</p>
+                  </div>
+                )}
+                {lessonPackage.cheatSheet && (
+                  <div className="rounded-3xl border border-slate-800 bg-slate-900 p-4">
+                    <h3 className="text-lg font-semibold mb-2">Cheat Sheet</h3>
+                    <p className="text-slate-300 whitespace-pre-wrap">{lessonPackage.cheatSheet}</p>
+                  </div>
+                )}
+                {lessonPackage.flashcards && (
+                  <div className="rounded-3xl border border-slate-800 bg-slate-900 p-4">
+                    <h3 className="text-lg font-semibold mb-2">Flashcards</h3>
+                    <p className="text-slate-300 whitespace-pre-wrap">{typeof lessonPackage.flashcards === 'string' ? lessonPackage.flashcards : JSON.stringify(lessonPackage.flashcards, null, 2)}</p>
+                  </div>
+                )}
               </div>
             </div>
           )}

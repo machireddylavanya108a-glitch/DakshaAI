@@ -22,6 +22,22 @@ Rules:
 - Ask follow-up questions only when necessary.
 - Think step by step before answering.`;
 
+function parseJsonResponse(content) {
+  try {
+    return JSON.parse(content);
+  } catch (error) {
+    const jsonMatch = content.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+      try {
+        return JSON.parse(jsonMatch[0]);
+      } catch (innerError) {
+        console.error('JSON parse fallback failed:', innerError);
+      }
+    }
+    return null;
+  }
+}
+
 export async function getDakshaResponse(prompt, language = "English") {
   try {
     const response = await openai.chat.completions.create({
@@ -72,6 +88,186 @@ export async function getDakshaTextResponse(extractedText) {
   }
 }
 
+export async function getDakshaDocumentAnalysis(extractedText, fileName = 'document', fileType = 'unknown') {
+  try {
+    const prompt = `You are Daksha AI, a professional document understanding engine.
+Analyze the text from the uploaded document and detect headings, chapters, tables, images, diagrams, formulas, code blocks, and lists.
+Extract the main topics, keywords, definitions, important points, summary, and difficulty level.
+Return only valid JSON with the following keys: overview, summary, topics, keywords, definitions, importantPoints, difficulty, detectedElements, quiz, flashcards.
+
+The uploaded file is: ${fileName} (${fileType}).
+
+Text to analyze:
+${extractedText}`;
+
+    const response = await openai.chat.completions.create({
+      model: 'deepseek/deepseek-v3:free',
+      messages: [
+        { role: 'system', content: `${DAKSHA_SYSTEM_PROMPT} You MUST return only valid JSON for document analysis.` },
+        { role: 'user', content: prompt }
+      ]
+    });
+
+    const content = response.choices[0].message.content;
+    const parsed = parseJsonResponse(content);
+    if (parsed) {
+      return parsed;
+    }
+
+    return {
+      overview: content,
+      summary: content,
+      topics: [],
+      keywords: [],
+      definitions: [],
+      importantPoints: [],
+      difficulty: 'Unknown',
+      detectedElements: {
+        headings: [],
+        chapters: [],
+        tables: 0,
+        images: 0,
+        diagrams: 0,
+        formulas: [],
+        codeBlocks: [],
+        lists: []
+      },
+      quiz: [],
+      flashcards: []
+    };
+  } catch (error) {
+    console.error("AI Document Analysis Error:", error);
+    return {
+      overview: "I couldn't analyze this document. Please try a different file or upload a simpler version.",
+      summary: "I couldn't analyze this document.",
+      topics: [],
+      keywords: [],
+      definitions: [],
+      importantPoints: [],
+      difficulty: 'Unknown',
+      detectedElements: {
+        headings: [],
+        chapters: [],
+        tables: 0,
+        images: 0,
+        diagrams: 0,
+        formulas: [],
+        codeBlocks: [],
+        lists: []
+      },
+      quiz: [],
+      flashcards: []
+    };
+  }
+}
+
+export async function getDakshaLessonPackage(sourceText, context = 'topic', sourceName = 'topic') {
+  try {
+    const prompt = `You are Daksha AI, a premium lesson generator for learners.
+Create a complete course package based on the following source: ${sourceName} (${context}).
+Generate the following sections automatically:
+- completeCourse
+- beginnerExplanation
+- intermediateExplanation
+- advancedExplanation
+- realWorldExamples
+- interviewQuestions
+- practiceQuestions
+- quiz
+- flashcards
+- revisionNotes
+- cheatSheet
+- mindMap
+- learningRoadmap
+
+Return only valid JSON with these exact keys. Keep each section clear and learner-focused.
+
+Source content:
+${sourceText}`;
+
+    const response = await openai.chat.completions.create({
+      model: 'deepseek/deepseek-v3:free',
+      messages: [
+        { role: 'system', content: `${DAKSHA_SYSTEM_PROMPT} You MUST return only valid JSON for the lesson package.` },
+        { role: 'user', content: prompt }
+      ]
+    });
+
+    const content = response.choices[0].message.content;
+    const parsed = parseJsonResponse(content);
+    if (parsed) {
+      return parsed;
+    }
+
+    return {
+      completeCourse: content,
+      beginnerExplanation: content,
+      intermediateExplanation: '',
+      advancedExplanation: '',
+      realWorldExamples: [],
+      interviewQuestions: [],
+      practiceQuestions: [],
+      quiz: [],
+      flashcards: [],
+      revisionNotes: '',
+      cheatSheet: '',
+      mindMap: '',
+      learningRoadmap: ''
+    };
+  } catch (error) {
+    console.error("AI Lesson Package Error:", error);
+    return {
+      completeCourse: "I couldn't generate the lesson package. Please try again later.",
+      beginnerExplanation: "I couldn't generate the lesson package.",
+      intermediateExplanation: "",
+      advancedExplanation: "",
+      realWorldExamples: [],
+      interviewQuestions: [],
+      practiceQuestions: [],
+      quiz: [],
+      flashcards: [],
+      revisionNotes: "",
+      cheatSheet: "",
+      mindMap: "",
+      learningRoadmap: ""
+    };
+  }
+}
+
+export async function generateLessonSuite(topic) {
+  try {
+    const response = await openai.chat.completions.create({
+      model: 'deepseek/deepseek-v3:free',
+      messages: [
+        { role: 'system', content: 'You are an expert educational AI. Generate a complete lesson suite for the given topic. Return ONLY a valid JSON object. Do not include markdown formatting or extra text.' },
+        { role: 'user', content: `Generate a lesson suite for: "${topic}". 
+        Return a JSON object with exactly these keys:
+        "course_title" (string), 
+        "beginner" (string), "intermediate" (string), "advanced" (string), 
+        "examples" (array of strings), "interview_questions" (array of strings), 
+        "practice_questions" (array of strings), 
+        "quiz" (array of objects with "question" (string), "options" (array of 4 strings), "answer" (string)), 
+        "flashcards" (array of objects with "front" (string), "back" (string)), 
+        "revision_notes" (string), "cheat_sheet" (string), "mind_map" (string), 
+        "roadmap" (array of strings).` }
+      ]
+    });
+
+    let content = response.choices[0].message.content;
+    content = content.replace(/```json/g, '').replace(/```/g, '').trim();
+
+    const parsed = JSON.parse(content);
+    if (!parsed || !parsed.course_title || !parsed.beginner) {
+      throw new Error('Missing required keys in AI JSON response');
+    }
+
+    return parsed;
+  } catch (error) {
+    console.error('Lesson Suite Generation/Parse Error:', error);
+    return null;
+  }
+}
+
 export async function getLearningPath(skill) {
   try {
     const response = await openai.chat.completions.create({
@@ -101,21 +297,5 @@ export async function get3DPartExplanation(partName) {
   } catch (error) {
     console.error("AI 3D Error:", error);
     return "I couldn't load the information for this part.";
-  }
-}
-
-export async function getDakshaTextResponse(extractedText) {
-  try {
-    const response = await openai.chat.completions.create({
-      model: 'deepseek/deepseek-chat:free',
-      messages: [
-        { role: 'system', content: 'You are Daksha AI. The user has uploaded a document and extracted the text. Read the text, summarize the key knowledge, and explain what the document is about simply.' },
-        { role: 'user', content: extractedText }
-      ]
-    });
-    return response.choices[0].message.content;
-  } catch (error) {
-    console.error("AI Text Error:", error);
-    return "I couldn't process this document. Please try a different file.";
   }
 }
