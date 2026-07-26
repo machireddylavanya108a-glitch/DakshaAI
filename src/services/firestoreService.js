@@ -219,6 +219,55 @@ export async function saveQuizScore(userId, topic, score, total) {
   }
 }
 
+export async function savePdfLearningRecord(userId, fileName, analysis, lesson, summary, quiz = [], flashcards = []) {
+  try {
+    const recordId = `${userId}_${Date.now()}`;
+    await setDoc(doc(db, 'pdfLearning', recordId), {
+      userId,
+      fileName,
+      analysis,
+      lesson,
+      summary,
+      quiz,
+      flashcards,
+      createdAt: serverTimestamp()
+    });
+    return true;
+  } catch (error) {
+    console.error('Error saving PDF learning record:', error);
+    return false;
+  }
+}
+
+export async function getUserPdfLearning(userId) {
+  try {
+    const q = query(collection(db, 'pdfLearning'), where('userId', '==', userId));
+    const querySnapshot = await getDocs(q);
+    const records = [];
+    querySnapshot.forEach((docSnapshot) => {
+      records.push({ id: docSnapshot.id, ...docSnapshot.data() });
+    });
+    return records.sort((a, b) => {
+      const aTime = a.createdAt?.toMillis ? a.createdAt.toMillis() : 0;
+      const bTime = b.createdAt?.toMillis ? b.createdAt.toMillis() : 0;
+      return bTime - aTime;
+    });
+  } catch (error) {
+    console.error('Error fetching PDF learning records:', error);
+    return [];
+  }
+}
+
+export async function deletePdfLearningRecord(userId, recordId) {
+  try {
+    await deleteDoc(doc(db, 'pdfLearning', recordId));
+    return true;
+  } catch (error) {
+    console.error('Error deleting PDF learning record:', error);
+    return false;
+  }
+}
+
 export async function saveFlashcardDeck(userId, topic, difficulty, deck) {
   try {
     const deckId = `${userId}_${Date.now()}`;
