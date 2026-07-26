@@ -1,5 +1,5 @@
 import { Suspense, lazy } from 'react';
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
 import RequireAuth from './components/RequireAuth';
 import AdminRoute from './components/AdminRoute';
@@ -74,6 +74,7 @@ export default function App() {
               <Route path="/profile" element={<Profile />} />
               <Route path="/admin" element={<AdminRoute><Admin /></AdminRoute>} />
               <Route path="/admin-panel" element={<AdminRoute><AdminPanel /></AdminRoute>} />
+              <Route path="/app/*" element={<Navigate to="/dashboard" replace />} />
             </Route>
             <Route path="*" element={<NotFound />} />
           </Routes>

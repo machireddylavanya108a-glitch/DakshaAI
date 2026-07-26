@@ -1,5 +1,6 @@
 import OpenAI from 'openai';
 import { compressImageDataUrl, getCachedValue, setCachedValue } from '../utils/cache';
+import { sanitizePrompt } from '../utils/security';
 
 const openai = new OpenAI({
   apiKey: import.meta.env.VITE_OPENROUTER_API_KEY,
@@ -52,11 +53,12 @@ export async function getDakshaResponse(prompt, language = "English") {
   const cached = getCachedValue(cacheKey, 1000 * 60 * 10);
   if (cached) return cached;
   try {
+    const safePrompt = sanitizePrompt(prompt);
     const response = await openai.chat.completions.create({
       model: 'deepseek/deepseek-v3:free',
       messages: [
         { role: 'system', content: `${DAKSHA_SYSTEM_PROMPT} You MUST respond entirely in ${language}.` },
-        { role: 'user', content: optimizeTextPayload(prompt, 12000) }
+        { role: 'user', content: optimizeTextPayload(safePrompt, 12000) }
       ]
     });
     const content = response.choices[0].message.content;
@@ -129,7 +131,7 @@ Return only valid JSON with the following keys: overview, summary, topics, keywo
 The uploaded file is: ${fileName} (${fileType}).
 
 Text to analyze:
-${optimizeTextPayload(extractedText, 18000)}`;
+${optimizeTextPayload(sanitizePrompt(extractedText), 18000)}`;
 
     const response = await openai.chat.completions.create({
       model: 'deepseek/deepseek-v3:free',
@@ -145,7 +147,7 @@ ${optimizeTextPayload(extractedText, 18000)}`;
       return parsed;
     }
 
-    return {
+    const fallback = {
       overview: content,
       summary: content,
       topics: [],
@@ -220,7 +222,7 @@ Generate the following sections automatically:
 Return only valid JSON with these exact keys. Keep each section clear and learner-focused.
 
 Source content:
-${optimizeTextPayload(sourceText, 18000)}`;
+${optimizeTextPayload(sanitizePrompt(sourceText), 18000)}`;
 
     const response = await openai.chat.completions.create({
       model: 'deepseek/deepseek-v3:free',
@@ -236,7 +238,7 @@ ${optimizeTextPayload(sourceText, 18000)}`;
       return parsed;
     }
 
-    return {
+    const fallback = {
       completeCourse: content,
       beginnerExplanation: content,
       intermediateExplanation: '',

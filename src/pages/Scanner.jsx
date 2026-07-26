@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { validateUploadFile } from '../utils/security';
 import { UploadCloud, FileText, Image as ImageIcon, Brain, Sparkles, Loader } from 'lucide-react';
 import { getDakshaImageResponse, getDakshaDocumentAnalysis, getDakshaLessonPackage } from '../services/aiService';
 import { saveDocumentAnalysis, saveLessonPackage } from '../services/firestoreService';
@@ -113,6 +114,13 @@ export default function Scanner() {
   const handleFileChange = async (e) => {
     if (e.target.files && e.target.files.length > 0) {
       const file = e.target.files[0];
+      const uploadCheck = validateUploadFile(file);
+      if (!uploadCheck.valid) {
+        setAnalysisResult(null);
+        setFilePreview(uploadCheck.reason);
+        setSaveStatus(uploadCheck.reason);
+        return;
+      }
       setFiles([file]);
       setActiveTab('Overview');
       setAnalysisResult(null);

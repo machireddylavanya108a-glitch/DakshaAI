@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://daksha-ai.vercel.app/sitemap.xml

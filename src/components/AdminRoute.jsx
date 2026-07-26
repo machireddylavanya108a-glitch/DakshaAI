@@ -2,8 +2,7 @@ import { Navigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
 export default function AdminRoute({ children }) {
-  const { user, loading } = useAuth();
-  const adminEmail = "nomis108a@gmail.com";
+  const { user, loading, role } = useAuth();
 
   if (loading) {
     return (
@@ -13,7 +12,7 @@ export default function AdminRoute({ children }) {
     );
   }
 
-  if (!user || user.email !== adminEmail) {
+  if (!user || !['Admin', 'Super Admin', 'Enterprise'].includes(role)) {
     return <Navigate to="/dashboard" replace />;
   }
 
