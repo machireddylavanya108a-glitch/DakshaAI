@@ -268,6 +268,212 @@ export async function generateLessonSuite(topic) {
   }
 }
 
+export async function generatePptLearningPackage(fileName, pptModel, userId = 'guest') {
+  try {
+    const prompt = `You are Daksha AI, a premium presentation-to-course generator.
+Create a structured learning package from this PPT content.
+Return ONLY valid JSON with these exact keys:
+{
+  "title": "",
+  "summary": "",
+  "beginnerLesson": "",
+  "intermediateLesson": "",
+  "advancedLesson": "",
+  "keyConcepts": [],
+  "importantDefinitions": [],
+  "examples": [],
+  "realWorldApplications": [],
+  "revisionNotes": [],
+  "cheatSheet": [],
+  "flashcards": [{"front": "", "back": ""}],
+  "quiz": [{"question": "", "options": ["", "", "", ""], "answer": ""}],
+  "mindMap": "",
+  "learningRoadmap": []
+}
+
+Document file name: ${fileName}
+User id: ${userId}
+Presentation title: ${pptModel?.title || 'Untitled'}
+Overview: ${pptModel?.overview || ''}
+Slides: ${JSON.stringify(pptModel?.slides || [])}
+Charts: ${JSON.stringify(pptModel?.charts || [])}
+Images: ${JSON.stringify(pptModel?.images || [])}
+Tables: ${JSON.stringify(pptModel?.tables || [])}
+Diagrams: ${JSON.stringify(pptModel?.diagrams || [])}
+Notes: ${JSON.stringify(pptModel?.notes || [])}`;
+
+    const response = await openai.chat.completions.create({
+      model: 'deepseek/deepseek-v3:free',
+      messages: [
+        { role: 'system', content: `${DAKSHA_SYSTEM_PROMPT} You MUST return only valid JSON for presentation learning generation.` },
+        { role: 'user', content: prompt }
+      ]
+    });
+
+    const content = response.choices[0].message.content;
+    const parsed = parseJsonResponse(content);
+    if (parsed) {
+      return parsed;
+    }
+
+    return {
+      title: pptModel?.title || fileName,
+      summary: 'A structured lesson package was generated from your presentation.',
+      beginnerLesson: 'Start by understanding the central message and the first few slides.',
+      intermediateLesson: 'Connect the ideas across slides and understand the supporting evidence.',
+      advancedLesson: 'Compare the structure, evaluate the arguments, and apply the ideas in context.',
+      keyConcepts: [],
+      importantDefinitions: [],
+      examples: [],
+      realWorldApplications: [],
+      revisionNotes: [],
+      cheatSheet: [],
+      flashcards: [],
+      quiz: [],
+      mindMap: 'Core message → important slides → applications',
+      learningRoadmap: []
+    };
+  } catch (error) {
+    console.error('PPT Learning Package Error:', error);
+    return {
+      title: fileName,
+      summary: 'I could not generate the PPT learning package right now.',
+      beginnerLesson: 'Start by reading the slides carefully.',
+      intermediateLesson: 'Break the deck into sections and relate the ideas.',
+      advancedLesson: 'Go deeper into the supporting data and examples.',
+      keyConcepts: [],
+      importantDefinitions: [],
+      examples: [],
+      realWorldApplications: [],
+      revisionNotes: [],
+      cheatSheet: [],
+      flashcards: [],
+      quiz: [],
+      mindMap: 'Core message → important slides → applications',
+      learningRoadmap: []
+    };
+  }
+}
+
+export async function generateDocxLearningPackage(fileName, docxModel, userId = 'guest') {
+  try {
+    const prompt = `You are Daksha AI, a premium document-to-course generator.
+Create a structured learning package from this DOCX content.
+Return ONLY valid JSON with these exact keys:
+{
+  "title": "",
+  "summary": "",
+  "level": "Beginner",
+  "objectives": [],
+  "outline": {
+    "sections": [{"title": ""}],
+    "definitions": [{"term": "", "meaning": ""}],
+    "tables": [{"title": ""}],
+    "concepts": [{"title": ""}],
+    "bookmarks": [{"title": ""}]
+  },
+  "lessons": [{"title": "", "content": ""}],
+  "beginnerLesson": "",
+  "intermediateLesson": "",
+  "advancedLesson": "",
+  "keyConcepts": [],
+  "importantDefinitions": [],
+  "examples": [],
+  "realWorldApplications": [],
+  "revisionNotes": [],
+  "cheatSheet": [],
+  "flashcards": [{"front": "", "back": ""}],
+  "quiz": [{"question": "", "options": ["", "", "", ""], "answer": ""}],
+  "mindMap": "",
+  "learningRoadmap": []
+}
+
+Document file name: ${fileName}
+User id: ${userId}
+Document title: ${docxModel?.title || 'Untitled'}
+Overview: ${docxModel?.overview || ''}
+Sections: ${JSON.stringify(docxModel?.sections || [])}
+Subsections: ${JSON.stringify(docxModel?.subSections || [])}
+Tables: ${JSON.stringify(docxModel?.tables || [])}
+Lists: ${JSON.stringify(docxModel?.lists || [])}
+Definitions: ${JSON.stringify(docxModel?.definitions || [])}
+Formulas: ${JSON.stringify(docxModel?.formulas || [])}
+Highlights: ${JSON.stringify(docxModel?.highlights || [])}
+Extracted text: ${docxModel?.extractedText || ''}`;
+
+    const response = await openai.chat.completions.create({
+      model: 'deepseek/deepseek-v3:free',
+      messages: [
+        { role: 'system', content: `${DAKSHA_SYSTEM_PROMPT} You MUST return only valid JSON for DOCX learning generation.` },
+        { role: 'user', content: prompt }
+      ]
+    });
+
+    const content = response.choices[0].message.content;
+    const parsed = parseJsonResponse(content);
+    if (parsed) {
+      return parsed;
+    }
+
+    return {
+      title: docxModel?.title || fileName,
+      summary: 'A structured learning package was generated from your document.',
+      level: 'Beginner',
+      objectives: ['Understand the core ideas', 'Learn the most important concepts'],
+      outline: {
+        sections: [],
+        definitions: [],
+        tables: [],
+        concepts: [],
+        bookmarks: []
+      },
+      lessons: [],
+      beginnerLesson: 'Start with the main ideas in the document.',
+      intermediateLesson: 'Connect the ideas with examples and practical context.',
+      advancedLesson: 'Go deeper into nuance, compare concepts, and evaluate the document.',
+      keyConcepts: [],
+      importantDefinitions: [],
+      examples: [],
+      realWorldApplications: [],
+      revisionNotes: [],
+      cheatSheet: [],
+      flashcards: [],
+      quiz: [],
+      mindMap: 'Core idea → supporting sections → application',
+      learningRoadmap: []
+    };
+  } catch (error) {
+    console.error('DOCX Learning Package Error:', error);
+    return {
+      title: fileName,
+      summary: 'I could not generate the DOCX learning package right now.',
+      level: 'Beginner',
+      objectives: ['Review the document structure', 'Learn the key ideas'],
+      outline: {
+        sections: [],
+        definitions: [],
+        tables: [],
+        concepts: [],
+        bookmarks: []
+      },
+      lessons: [],
+      beginnerLesson: 'Start by reading the document carefully.',
+      intermediateLesson: 'Break the document into smaller ideas.',
+      advancedLesson: 'Compare the concepts and test your understanding.',
+      keyConcepts: [],
+      importantDefinitions: [],
+      examples: [],
+      realWorldApplications: [],
+      revisionNotes: [],
+      cheatSheet: [],
+      flashcards: [],
+      quiz: [],
+      mindMap: 'Core idea → supporting sections → application',
+      learningRoadmap: []
+    };
+  }
+}
+
 export async function generateSkillRoadmap(skill) {
   try {
     const response = await openai.chat.completions.create({

@@ -268,6 +268,113 @@ export async function deletePdfLearningRecord(userId, recordId) {
   }
 }
 
+export async function savePptLearningRecord(userId, payload) {
+  try {
+    const recordId = payload?.id || `${userId}_${Date.now()}`;
+    await setDoc(doc(db, 'pptLearning', recordId), {
+      userId,
+      fileName: payload?.fileName || 'presentation.pptx',
+      slides: payload?.slides || [],
+      analysis: payload?.analysis || {},
+      lesson: payload?.lesson || {},
+      summary: payload?.summary || '',
+      quiz: payload?.quiz || [],
+      flashcards: payload?.flashcards || [],
+      createdAt: payload?.createdAt ? new Date(payload.createdAt) : serverTimestamp(),
+    });
+    return true;
+  } catch (error) {
+    console.error('Error saving PPT learning record:', error);
+    return false;
+  }
+}
+
+export async function getUserPptLearning(userId) {
+  try {
+    const q = query(collection(db, 'pptLearning'), where('userId', '==', userId));
+    const querySnapshot = await getDocs(q);
+    const records = [];
+    querySnapshot.forEach((docSnapshot) => {
+      records.push({ id: docSnapshot.id, ...docSnapshot.data() });
+    });
+    return records.sort((a, b) => {
+      const aTime = a.createdAt?.toMillis ? a.createdAt.toMillis() : 0;
+      const bTime = b.createdAt?.toMillis ? b.createdAt.toMillis() : 0;
+      return bTime - aTime;
+    });
+  } catch (error) {
+    console.error('Error fetching PPT learning records:', error);
+    return [];
+  }
+}
+
+export async function deletePptLearningRecord(userId, recordId) {
+  try {
+    await deleteDoc(doc(db, 'pptLearning', recordId));
+    return true;
+  } catch (error) {
+    console.error('Error deleting PPT learning record:', error);
+    return false;
+  }
+}
+
+export async function renamePptLearningRecord(userId, recordId, newName) {
+  try {
+    const recordRef = doc(db, 'pptLearning', recordId);
+    await setDoc(recordRef, { fileName: newName }, { merge: true });
+    return true;
+  } catch (error) {
+    console.error('Error renaming PPT learning record:', error);
+    return false;
+  }
+}
+
+export async function saveDocxLearningRecord(userId, payload) {
+  try {
+    const recordId = payload?.id || `${userId}_${Date.now()}`;
+    await setDoc(doc(db, 'docxLearning', recordId), {
+      userId,
+      fileName: payload?.fileName || 'document.docx',
+      createdAt: payload?.createdAt ? new Date(payload.createdAt) : serverTimestamp(),
+      package: payload?.package || {},
+      previewText: payload?.previewText || '',
+    });
+    return true;
+  } catch (error) {
+    console.error('Error saving DOCX learning record:', error);
+    return false;
+  }
+}
+
+export async function getUserDocxLearning(userId) {
+  try {
+    const q = query(collection(db, 'docxLearning'), where('userId', '==', userId));
+    const querySnapshot = await getDocs(q);
+    const records = [];
+    querySnapshot.forEach((docSnapshot) => {
+      records.push({ id: docSnapshot.id, ...docSnapshot.data() });
+    });
+    return records.sort((a, b) => {
+      const aTime = a.createdAt?.toMillis ? a.createdAt.toMillis() : 0;
+      const bTime = b.createdAt?.toMillis ? b.createdAt.toMillis() : 0;
+      return bTime - aTime;
+    });
+  } catch (error) {
+    console.error('Error fetching DOCX learning records:', error);
+    return [];
+  }
+}
+
+export async function deleteDocxLearningRecord(userId, recordId) {
+  try {
+    await deleteDoc(doc(db, 'docxLearning', recordId));
+    return true;
+  } catch (error) {
+    console.error('Error deleting DOCX learning record:', error);
+    return false;
+  }
+}
+
 export async function saveFlashcardDeck(userId, topic, difficulty, deck) {
   try {
     const deckId = `${userId}_${Date.now()}`;
