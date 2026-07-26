@@ -246,7 +246,7 @@ export async function generateLessonSuite(topic) {
         "beginner" (string), "intermediate" (string), "advanced" (string), 
         "examples" (array of strings), "interview_questions" (array of strings), 
         "practice_questions" (array of strings), 
-        "quiz" (array of objects with "question" (string), "options" (array of 4 strings), "answer" (string)), 
+        "quiz" (array of exactly 10 objects with "question" (string), "options" (array of 4 strings), "answer" (string)), 
         "flashcards" (array of objects with "front" (string), "back" (string)), 
         "revision_notes" (string), "cheat_sheet" (string), "mind_map" (string), 
         "roadmap" (array of strings).` }
@@ -268,6 +268,78 @@ export async function generateLessonSuite(topic) {
   }
 }
 
+export async function generateSkillRoadmap(skill) {
+  try {
+    const response = await openai.chat.completions.create({
+      model: 'deepseek/deepseek-v3:free',
+      messages: [
+        { role: 'system', content: `${DAKSHA_SYSTEM_PROMPT} You MUST return only valid JSON for a professional skill roadmap.` },
+        { role: 'user', content: `Create a professional skill roadmap for: ${skill}. Return ONLY valid JSON with this exact structure:
+{
+  "skill": "${skill}",
+  "skillOverview": "<overview>",
+  "beginnerRoadmap": ["<step 1>", "<step 2>", "<step 3>"],
+  "intermediateRoadmap": ["<step 1>", "<step 2>", "<step 3>"],
+  "advancedRoadmap": ["<step 1>", "<step 2>", "<step 3>"],
+  "dailyStudyPlan": ["<plan item 1>", "<plan item 2>", "<plan item 3>"],
+  "weeklyGoals": ["<goal 1>", "<goal 2>", "<goal 3>"],
+  "monthlyGoals": ["<goal 1>", "<goal 2>", "<goal 3>"],
+  "requiredTools": ["<tool 1>", "<tool 2>"],
+  "freeResources": ["<resource 1>", "<resource 2>"],
+  "paidResources": ["<resource 1>", "<resource 2>"],
+  "bestYouTubeChannels": ["<channel 1>", "<channel 2>"],
+  "bestBooks": ["<book 1>", "<book 2>"],
+  "bestWebsites": ["<website 1>", "<website 2>"],
+  "projects": ["<project 1>", "<project 2>"],
+  "portfolioIdeas": ["<idea 1>", "<idea 2>"],
+  "internshipPreparation": ["<prep 1>", "<prep 2>"],
+  "jobPreparation": ["<prep 1>", "<prep 2>"],
+  "freelancingGuide": ["<step 1>", "<step 2>"],
+  "businessOpportunities": ["<opportunity 1>", "<opportunity 2>"],
+  "futureScope": ["<scope 1>", "<scope 2>"],
+  "salaryInformation": "<salary summary>",
+  "finalChecklist": ["<check item 1>", "<check item 2>"]
+}` }
+      ]
+    });
+
+    const content = response.choices[0].message.content;
+    const parsed = parseJsonResponse(content);
+    if (parsed) {
+      return parsed;
+    }
+
+    return {
+      skill,
+      skillOverview: `A practical roadmap for learning ${skill} with strong fundamentals, portfolio projects, and career growth.`,
+      beginnerRoadmap: [`Learn the core concepts of ${skill}`],
+      intermediateRoadmap: [`Practice real examples of ${skill}`],
+      advancedRoadmap: [`Build professional work in ${skill}`],
+      dailyStudyPlan: ['Study consistently for 45-60 minutes', 'Practice one small skill each day'],
+      weeklyGoals: ['Complete one learning milestone'],
+      monthlyGoals: ['Build a portfolio project'],
+      requiredTools: ['Laptop', 'Reliable internet'],
+      freeResources: ['Official documentation', 'YouTube tutorials'],
+      paidResources: ['Premium courses'],
+      bestYouTubeChannels: ['Educational channels'],
+      bestBooks: ['Foundational books'],
+      bestWebsites: ['Official websites'],
+      projects: [`Create a project around ${skill}`],
+      portfolioIdeas: ['Create a case study'],
+      internshipPreparation: ['Prepare a polished resume'],
+      jobPreparation: ['Practice interview answers'],
+      freelancingGuide: ['Create a simple service offer'],
+      businessOpportunities: ['Explore niche opportunities'],
+      futureScope: ['Follow industry growth'],
+      salaryInformation: 'Salary depends on level, location, and specialization.',
+      finalChecklist: ['Practice regularly', 'Build portfolio work']
+    };
+  } catch (error) {
+    console.error('Skill Roadmap Generation Error:', error);
+    return null;
+  }
+}
+
 export async function getLearningPath(skill) {
   try {
     const response = await openai.chat.completions.create({
@@ -281,6 +353,50 @@ export async function getLearningPath(skill) {
   } catch (error) {
     console.error("AI Error:", error);
     return "I am having trouble generating a roadmap right now. Please try again later.";
+  }
+}
+
+export async function generateTeacherLesson(topic) {
+  try {
+    const response = await openai.chat.completions.create({
+      model: 'deepseek/deepseek-v3:free',
+      messages: [
+        { role: 'system', content: `${DAKSHA_SYSTEM_PROMPT} You MUST return only valid JSON for a teacher lesson.` },
+        { role: 'user', content: `Create a polished teacher-style lesson for the topic: ${topic}. Return only valid JSON with this exact structure:
+{
+  "title": "<lesson title>",
+  "beginner": "<clear beginner explanation>",
+  "intermediate": "<medium-depth explanation>",
+  "advanced": "<advanced explanation>",
+  "examples": ["<example 1>", "<example 2>", "<example 3>"],
+  "important_points": ["<point 1>", "<point 2>", "<point 3>"],
+  "common_mistakes": ["<mistake 1>", "<mistake 2>", "<mistake 3>"],
+  "summary": "<short summary>",
+  "difficulty": "Beginner|Intermediate|Advanced"
+}` }
+      ]
+    });
+
+    const content = response.choices[0].message.content;
+    const parsed = parseJsonResponse(content);
+    if (parsed) {
+      return parsed;
+    }
+
+    return {
+      title: `${topic} Lesson`,
+      beginner: `Start by understanding the core idea behind ${topic}.`,
+      intermediate: `Build on that by exploring practical applications of ${topic}.`,
+      advanced: `Go deeper by analyzing nuance, trade-offs, and advanced uses of ${topic}.`,
+      examples: [`A simple example for ${topic}.`],
+      important_points: ['Understand the fundamentals first.'],
+      common_mistakes: ['Skipping the basics.'],
+      summary: `A strong summary of ${topic} should connect the basics with real-world use.`,
+      difficulty: 'Beginner'
+    };
+  } catch (error) {
+    console.error('Teacher Lesson Generation Error:', error);
+    return null;
   }
 }
 

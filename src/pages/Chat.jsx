@@ -5,15 +5,14 @@ import { saveLessonPackage } from '../services/firestoreService';
 import { useAuth } from '../context/AuthContext';
 
 export default function Chat() {
-  const [messages, setMessages] = useState([
-    { sender: 'ai', text: 'Hello! I am Daksha AI. What would you like to learn today?' }
-  ]);
+  const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [isListening, setIsListening] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [lessonPackage, setLessonPackage] = useState(null);
   const [lessonStatus, setLessonStatus] = useState('');
+  const [lastUserPrompt, setLastUserPrompt] = useState('');
   const recognitionRef = useRef(null);
 
   useEffect(() => {
@@ -34,6 +33,11 @@ export default function Chat() {
     recognition.onerror = () => setIsListening(false);
     recognition.onend = () => setIsListening(false);
     recognitionRef.current = recognition;
+
+    return () => {
+      recognition.stop();
+      recognitionRef.current = null;
+    };
   }, []);
 
   const handleListen = () => {
@@ -82,12 +86,20 @@ export default function Chat() {
     ].some((keyword) => normalized.includes(keyword));
   };
 
-  const handleSend = async (e) => {
-    e.preventDefault();
-    if (!input.trim() || loading) return;
+  const sendMessage = async (text, options = {}) => {
+    if (!text?.trim() || loading) return;
 
-    const userMessage = input.trim();
-    setMessages((prev) => [...prev, { sender: 'user', text: userMessage }]);
+    const userMessage = text.trim();
+    const isFollowUp = options.isFollowUp || false;
+
+    if (!isFollowUp) {
+      setMessages((prev) => [...prev, { sender: 'user', text: userMessage }]);
+      setLastUserPrompt(userMessage);
+    } else {
+      setMessages((prev) => [...prev, { sender: 'user', text: options.displayText || userMessage }]);
+      setLastUserPrompt(userMessage);
+    }
+
     setInput('');
     setLoading(true);
     setLessonPackage(null);
@@ -120,6 +132,33 @@ export default function Chat() {
     setLoading(false);
   };
 
+  const handleSend = async (e) => {
+    e.preventDefault();
+    await sendMessage(input);
+  };
+
+  const handleFollowUpAction = async (action) => {
+    const context = lastUserPrompt || messages[messages.length - 1]?.text || '';
+    const prompts = {
+      learning: `Continue learning from this topic. Build on the previous explanation with the next practical step and a short challenge. Topic: ${context}`,
+      simpler: `Explain this topic in much simpler language. Keep it clear and concise. Topic: ${context}`,
+      example: `Give one practical example that makes this topic easy to understand. Topic: ${context}`,
+      translate: `Translate the main idea of this topic into simple English. Keep the wording clear and easy to read. Topic: ${context}`
+    };
+
+    const actionText = {
+      learning: 'Continue Learning',
+      simpler: 'Explain Simpler',
+      example: 'Give Example',
+      translate: 'Translate'
+    };
+
+    await sendMessage(prompts[action], {
+      isFollowUp: true,
+      displayText: actionText[action]
+    });
+  };
+
   return (
     <div className="min-h-[calc(100vh-4rem)] bg-slate-950 text-white px-8 py-8 max-w-6xl mx-auto flex flex-col">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between mb-8">
@@ -150,12 +189,22 @@ export default function Chat() {
               <div className={`p-4 rounded-3xl max-w-[72%] ${msg.sender === 'user' ? 'bg-indigo-600 text-white' : 'bg-slate-800 text-slate-200'}`}>
                 <p className="whitespace-pre-wrap leading-relaxed">{msg.text}</p>
                 {msg.sender === 'ai' && (
-                  <button
-                    onClick={() => speak(msg.text)}
-                    className="mt-3 inline-flex items-center gap-2 text-sm text-slate-300 hover:text-white"
-                  >
-                    <Volume2 className="w-4 h-4" /> Listen
-                  </button>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <button
+                      onClick={() => speak(msg.text)}
+                      className="inline-flex items-center gap-2 text-sm text-slate-300 hover:text-white"
+                    >
+                      <Volume2 className="w-4 h-4" /> Listen
+                    </button>
+                    {index === messages.length - 1 && !loading && (
+                      <>
+                        <button onClick={() => handleFollowUpAction('learning')} className="rounded-full border border-slate-700 bg-slate-900 px-3 py-1 text-sm text-slate-200 hover:border-indigo-500">Continue Learning</button>
+                        <button onClick={() => handleFollowUpAction('simpler')} className="rounded-full border border-slate-700 bg-slate-900 px-3 py-1 text-sm text-slate-200 hover:border-indigo-500">Explain Simpler</button>
+                        <button onClick={() => handleFollowUpAction('example')} className="rounded-full border border-slate-700 bg-slate-900 px-3 py-1 text-sm text-slate-200 hover:border-indigo-500">Give Example</button>
+                        <button onClick={() => handleFollowUpAction('translate')} className="rounded-full border border-slate-700 bg-slate-900 px-3 py-1 text-sm text-slate-200 hover:border-indigo-500">Translate</button>
+                      </>
+                    )}
+                  </div>
                 )}
               </div>
             </div>

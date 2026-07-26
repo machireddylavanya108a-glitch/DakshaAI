@@ -1,5 +1,5 @@
 import { db } from '../firebase/firebaseConfig';
-import { doc, setDoc, collection, addDoc, query, where, getDocs, orderBy, serverTimestamp } from 'firebase/firestore';
+import { doc, setDoc, collection, addDoc, query, where, getDocs, serverTimestamp, deleteDoc } from 'firebase/firestore';
 
 export async function saveRoadmap(userId, skill, roadmapText) {
   try {
@@ -12,6 +12,51 @@ export async function saveRoadmap(userId, skill, roadmapText) {
     return true;
   } catch (error) {
     console.error("Error saving roadmap:", error);
+    return false;
+  }
+}
+
+export async function saveSkillRoadmap(userId, skill, roadmapPayload) {
+  try {
+    const roadmapId = `${userId}_${skill.replace(/\s+/g, '_').toLowerCase()}`;
+    await setDoc(doc(db, 'skillRoadmaps', roadmapId), {
+      userId,
+      skill,
+      roadmap: roadmapPayload,
+      createdAt: serverTimestamp()
+    });
+    return true;
+  } catch (error) {
+    console.error('Error saving skill roadmap:', error);
+    return false;
+  }
+}
+
+export async function getUserSkillRoadmaps(userId) {
+  try {
+    const q = query(collection(db, 'skillRoadmaps'), where('userId', '==', userId));
+    const querySnapshot = await getDocs(q);
+    const roadmaps = [];
+    querySnapshot.forEach((docSnapshot) => {
+      roadmaps.push({ id: docSnapshot.id, ...docSnapshot.data() });
+    });
+    return roadmaps.sort((a, b) => {
+      const aTime = a.createdAt?.toMillis ? a.createdAt.toMillis() : 0;
+      const bTime = b.createdAt?.toMillis ? b.createdAt.toMillis() : 0;
+      return bTime - aTime;
+    });
+  } catch (error) {
+    console.error('Error fetching skill roadmaps:', error);
+    return [];
+  }
+}
+
+export async function deleteSkillRoadmap(userId, roadmapId) {
+  try {
+    await deleteDoc(doc(db, 'skillRoadmaps', roadmapId));
+    return true;
+  } catch (error) {
+    console.error('Error deleting skill roadmap:', error);
     return false;
   }
 }
@@ -73,14 +118,15 @@ export async function saveLessonSuite(userId, topic, suiteData) {
   try {
     const suiteId = `${userId}_${topic.replace(/\s+/g, '_').toLowerCase()}`;
     await setDoc(doc(db, 'lessonSuites', suiteId), {
-      userId: userId,
-      topic: topic,
+      userId,
+      topic,
+      roadmap: Array.isArray(suiteData?.roadmap) ? suiteData.roadmap : [],
       suite: suiteData,
-      createdAt: new Date()
+      createdAt: serverTimestamp()
     });
     return true;
   } catch (error) {
-    console.error("Error saving lesson suite:", error);
+    console.error('Error saving lesson suite:', error);
     return false;
   }
 }
@@ -93,40 +139,154 @@ export async function getUserLessonSuites(userId) {
     querySnapshot.forEach((doc) => {
       suites.push({ id: doc.id, ...doc.data() });
     });
-    return suites;
+
+    return suites.sort((a, b) => {
+      const aTime = a.createdAt?.toMillis ? a.createdAt.toMillis() : 0;
+      const bTime = b.createdAt?.toMillis ? b.createdAt.toMillis() : 0;
+      return bTime - aTime;
+    });
   } catch (error) {
-    console.error("Error fetching lesson suites:", error);
+    console.error('Error fetching lesson suites:', error);
     return [];
   }
 }
 
-export async function saveLessonSuite(userId, topic, suiteData) {
+export async function saveQuizScore(userId, topic, score, total) {
   try {
-    const suiteId = `${userId}_${topic.replace(/\s+/g, '_').toLowerCase()}`;
-    await setDoc(doc(db, 'lessonSuites', suiteId), {
-      userId: userId,
-      topic: topic,
-      suite: suiteData,
-      createdAt: new Date()
+    await addDoc(collection(db, 'quizScores'), {
+      userId,
+      topic,
+      score,
+      total,
+      createdAt: serverTimestamp()
     });
     return true;
   } catch (error) {
-    console.error("Error saving lesson suite:", error);
+    console.error('Error saving quiz score:', error);
     return false;
   }
 }
 
-export async function getUserLessonSuites(userId) {
+export async function saveFlashcards(userId, topic, flashcards) {
   try {
-    const q = query(collection(db, 'lessonSuites'), where('userId', '==', userId));
-    const querySnapshot = await getDocs(q);
-    const suites = [];
-    querySnapshot.forEach((doc) => {
-      suites.push({ id: doc.id, ...doc.data() });
+    await addDoc(collection(db, 'flashcards'), {
+      userId,
+      topic,
+      flashcards,
+      createdAt: serverTimestamp()
     });
-    return suites;
+    return true;
   } catch (error) {
-    console.error("Error fetching lesson suites:", error);
+    console.error('Error saving flashcards:', error);
+    return false;
+  }
+}
+
+export async function savePracticalExercises(userId, topic, exercises) {
+  try {
+    const progressId = `${userId}_${topic.replace(/\s+/g, '_').toLowerCase()}`;
+    await setDoc(doc(db, 'exerciseProgress', progressId), {
+      userId,
+      topic,
+      exercises,
+      updatedAt: serverTimestamp()
+    });
+    return true;
+  } catch (error) {
+    console.error('Error saving practical exercises:', error);
+    return false;
+  }
+}
+
+export async function saveInterviewHistory(userId, topic, category, question, answer) {
+  try {
+    await addDoc(collection(db, 'interviewHistory'), {
+      userId,
+      topic,
+      category,
+      question,
+      answer,
+      createdAt: serverTimestamp()
+    });
+    return true;
+  } catch (error) {
+    console.error('Error saving interview history:', error);
+    return false;
+  }
+}
+
+export async function getUserInterviewHistory(userId) {
+  try {
+    const q = query(collection(db, 'interviewHistory'), where('userId', '==', userId));
+    const querySnapshot = await getDocs(q);
+    const history = [];
+    querySnapshot.forEach((docSnapshot) => {
+      history.push({ id: docSnapshot.id, ...docSnapshot.data() });
+    });
+    return history.sort((a, b) => {
+      const aTime = a.createdAt?.toMillis ? a.createdAt.toMillis() : 0;
+      const bTime = b.createdAt?.toMillis ? b.createdAt.toMillis() : 0;
+      return bTime - aTime;
+    });
+  } catch (error) {
+    console.error('Error fetching interview history:', error);
+    return [];
+  }
+}
+
+export async function getUserExerciseProgress(userId) {
+  try {
+    const q = query(collection(db, 'exerciseProgress'), where('userId', '==', userId));
+    const querySnapshot = await getDocs(q);
+    const progress = [];
+    querySnapshot.forEach((docSnapshot) => {
+      progress.push({ id: docSnapshot.id, ...docSnapshot.data() });
+    });
+    return progress.sort((a, b) => {
+      const aTime = a.updatedAt?.toMillis ? a.updatedAt.toMillis() : 0;
+      const bTime = b.updatedAt?.toMillis ? b.updatedAt.toMillis() : 0;
+      return bTime - aTime;
+    });
+  } catch (error) {
+    console.error('Error fetching exercise progress:', error);
+    return [];
+  }
+}
+
+export async function getUserDocumentAnalyses(userId) {
+  try {
+    const q = query(collection(db, 'documentAnalyses'), where('userId', '==', userId));
+    const querySnapshot = await getDocs(q);
+    const analyses = [];
+    querySnapshot.forEach((docSnapshot) => {
+      analyses.push({ id: docSnapshot.id, ...docSnapshot.data() });
+    });
+    return analyses.sort((a, b) => {
+      const aTime = a.createdAt?.toMillis ? a.createdAt.toMillis() : 0;
+      const bTime = b.createdAt?.toMillis ? b.createdAt.toMillis() : 0;
+      return bTime - aTime;
+    });
+  } catch (error) {
+    console.error('Error fetching document analyses:', error);
+    return [];
+  }
+}
+
+export async function getUserQuizScores(userId) {
+  try {
+    const q = query(collection(db, 'quizScores'), where('userId', '==', userId));
+    const querySnapshot = await getDocs(q);
+    const scores = [];
+    querySnapshot.forEach((docSnapshot) => {
+      scores.push({ id: docSnapshot.id, ...docSnapshot.data() });
+    });
+    return scores.sort((a, b) => {
+      const aTime = a.createdAt?.toMillis ? a.createdAt.toMillis() : 0;
+      const bTime = b.createdAt?.toMillis ? b.createdAt.toMillis() : 0;
+      return bTime - aTime;
+    });
+  } catch (error) {
+    console.error('Error fetching quiz scores:', error);
     return [];
   }
 }

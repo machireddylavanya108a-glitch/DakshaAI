@@ -12,7 +12,7 @@ export default function Sidebar({ closeSidebar }) {
     { name: 'Dashboard', path: '/dashboard', icon: Home },
     { name: 'Universal Scanner', path: '/scanner', icon: Search },
     { name: 'Skill Academy', path: '/academy', icon: GraduationCap },
-    { name: 'AI Teacher', path: '/chat', icon: MessageSquare },
+    { name: 'AI Teacher', path: '/app/teacher', icon: MessageSquare },
     { name: '3D Learning', path: '/3d-learning', icon: Box },
   ];
 

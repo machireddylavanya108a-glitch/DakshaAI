@@ -10,4 +10,27 @@ export default defineConfig({
     strictPort: false,
     open: true,
   },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (id.includes('pdfjs-dist')) {
+            return 'pdfjs';
+          }
+          if (id.includes('mammoth') || id.includes('jszip')) {
+            return 'doc-parsers';
+          }
+          if (id.includes('three') || id.includes('@react-three')) {
+            return 'three-core';
+          }
+          if (id.includes('openai')) {
+            return 'ai-core';
+          }
+          if (id.includes('node_modules')) {
+            return 'vendor';
+          }
+        }
+      }
+    }
+  }
 })

@@ -529,8 +529,6 @@ export default function Scanner() {
             </div>
           </div>
         )}
-          </div>
-        </div>
       </div>
     </div>
   );

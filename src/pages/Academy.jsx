@@ -1,250 +1,327 @@
-import { useState, useEffect } from 'react';
-import { Search, Loader, BookOpen, Brain, GraduationCap, Briefcase, PenTool, HelpCircle, Layers, StickyNote, FileText, Network, Save, CheckCircle, Code, Music, HeartPulse, Wrench, Camera, ArrowRight } from 'lucide-react';
-import { generateLessonSuite, getLearningPath } from '../services/aiService';
-import { saveLessonSuite, getUserLessonSuites, saveRoadmap, getUserRoadmaps } from '../services/firestoreService';
+import { useMemo, useState, useEffect } from 'react';
+import { Search, Loader, BookOpen, Brain, GraduationCap, Briefcase, PenTool, HelpCircle, Layers, StickyNote, FileText, Network, Save, CheckCircle, Code, Music, HeartPulse, Wrench, Camera, ArrowRight, Trophy, Sparkles, RotateCcw, Copy, Download, Target, TrendingUp, BriefcaseBusiness, ShieldCheck, BadgeCheck } from 'lucide-react';
+import { generateSkillRoadmap } from '../services/aiService';
+import { saveSkillRoadmap, getUserSkillRoadmaps, deleteSkillRoadmap } from '../services/firestoreService';
 import { useAuth } from '../context/AuthContext';
-import LessonCard from '../components/lessons/LessonCard';
-import QuizCard from '../components/lessons/QuizCard';
-import FlashcardCard from '../components/lessons/FlashcardCard';
-import RoadmapCard from '../components/lessons/RoadmapCard';
+import SkillCard from '../components/academy/SkillCard';
+import SkillSection from '../components/academy/SkillSection';
+import RoadmapTimeline from '../components/academy/RoadmapTimeline';
+import SkillProgress from '../components/academy/SkillProgress';
+import SkillHeader from '../components/academy/SkillHeader';
+import LoadingAcademy from '../components/academy/LoadingAcademy';
+import { normalizeSkillRoadmap } from '../utils/skillAcademyUtils';
 
-const skills = [
-  { icon: Code, title: 'Programming', desc: 'Python, JavaScript, AI, Machine Learning, Web Dev' },
-  { icon: Music, title: 'Music & Arts', desc: 'Guitar, Piano, Singing, Painting, Music Production' },
-  { icon: HeartPulse, title: 'Medical', desc: 'Anatomy, Surgery, Diagnostics, Medicine' },
-  { icon: Brain, title: 'Science', desc: 'Quantum Physics, Biology, Chemistry, Mathematics' },
-  { icon: Wrench, title: 'Engineering', desc: 'Mechanical, Civil, Electrical, Car Repair' },
-  { icon: Camera, title: 'Creativity', desc: 'Photography, Video Editing, Graphic Design' },
+const skillCards = [
+  { icon: Code, title: 'Python', description: 'Build automation, web apps, AI tools, and data workflows.' },
+  { icon: Code, title: 'React', description: 'Create modern interfaces and production-ready frontend experiences.' },
+  { icon: Brain, title: 'AI', description: 'Understand prompt design, model workflows, and practical AI products.' },
+  { icon: ShieldCheck, title: 'Cybersecurity', description: 'Learn defense, analysis, and security operations fundamentals.' },
+  { icon: TrendingUp, title: 'Trading', description: 'Explore strategy, risk management, and market analysis.' },
+  { icon: Camera, title: 'Graphic Design', description: 'Create visual systems, branding, and portfolio work.' },
+  { icon: Camera, title: 'Video Editing', description: 'Edit stories, create reels, and master modern production tools.' },
+  { icon: BriefcaseBusiness, title: 'Business', description: 'Learn strategy, operations, growth, and startup thinking.' },
 ];
 
 export default function Academy() {
   const { user } = useAuth();
   const [searchQuery, setSearchQuery] = useState('');
-  const [suite, setSuite] = useState(null);
   const [loading, setLoading] = useState(false);
-  const [savedSuites, setSavedSuites] = useState([]);
-  const [savedRoadmaps, setSavedRoadmaps] = useState([]);
-  const [selectedSkill, setSelectedSkill] = useState(null);
-  const [roadmap, setRoadmap] = useState('');
-  const [isSuiteSaved, setIsSuiteSaved] = useState(false);
-  const [isRoadmapSaved, setIsRoadmapSaved] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
+  const [skillRoadmap, setSkillRoadmap] = useState(null);
+  const [savedRoadmaps, setSavedRoadmaps] = useState([]);
+  const [activeSkill, setActiveSkill] = useState('Python');
+  const [savedStatus, setSavedStatus] = useState('');
 
-  useEffect(() => {
-    if (user) {
-      getUserLessonSuites(user.uid).then(setSavedSuites);
-      getUserRoadmaps(user.uid).then(setSavedRoadmaps);
-    }
-  }, [user]);
-
-  const handleGenerate = async (e) => {
-    e.preventDefault();
-    if (!searchQuery.trim() || loading) return;
-
-    setLoading(true);
-    setSuite(null);
-    setIsSuiteSaved(false);
-    setErrorMessage('');
-
-    const generatedSuite = await generateLessonSuite(searchQuery);
-    setLoading(false);
-
-    if (!generatedSuite) {
-      setErrorMessage('Could not generate course. The AI response was invalid.');
+  const loadSavedRoadmaps = async () => {
+    if (!user) {
+      setSavedRoadmaps([]);
       return;
     }
 
-    setSuite(generatedSuite);
+    const roadmaps = await getUserSkillRoadmaps(user.uid);
+    setSavedRoadmaps(roadmaps);
+  };
 
-    if (user) {
-      const saved = await saveLessonSuite(user.uid, searchQuery, generatedSuite);
-      if (saved) {
-        setIsSuiteSaved(true);
-        const updatedSuites = await getUserLessonSuites(user.uid);
-        setSavedSuites(updatedSuites);
+  useEffect(() => {
+    loadSavedRoadmaps();
+  }, [user]);
+
+  const trendingSkills = useMemo(() => skillCards.slice(0, 4), []);
+
+  const canSubmit = searchQuery.trim().length > 0 && !loading;
+
+  const handleGenerate = async (event) => {
+    event.preventDefault();
+    const topic = searchQuery.trim();
+    if (!topic) {
+      setErrorMessage('Please enter a skill or topic to generate a roadmap.');
+      return;
+    }
+
+    setLoading(true);
+    setErrorMessage('');
+    setSavedStatus('');
+    setSkillRoadmap(null);
+
+    try {
+      const payload = await generateSkillRoadmap(topic);
+      const normalized = normalizeSkillRoadmap(payload, topic);
+      setSkillRoadmap(normalized);
+      setActiveSkill(normalized.skill);
+
+      if (user) {
+        const saved = await saveSkillRoadmap(user.uid, topic, normalized);
+        if (saved) {
+          setSavedStatus('Roadmap saved to Firebase.');
+          await loadSavedRoadmaps();
+        } else {
+          setSavedStatus('Roadmap generated, but saving failed.');
+        }
       }
+    } catch (error) {
+      console.error('Skill roadmap generation error:', error);
+      setErrorMessage('The skill engine could not generate a roadmap right now. Please try again.');
+    } finally {
+      setLoading(false);
     }
   };
 
-  const handleSkillClick = async (skillTitle) => {
-    setSelectedSkill(skillTitle);
+  const handleQuickGenerate = async (skill) => {
+    setSearchQuery(skill);
+    setActiveSkill(skill);
     setLoading(true);
-    setRoadmap('');
-    setIsRoadmapSaved(false);
     setErrorMessage('');
+    setSavedStatus('');
+    setSkillRoadmap(null);
 
-    const path = await getLearningPath(skillTitle);
-    setRoadmap(path);
-    setLoading(false);
-
-    if (user) {
-      const saved = await saveRoadmap(user.uid, skillTitle, path);
-      if (saved) {
-        setIsRoadmapSaved(true);
-        const updatedRoadmaps = await getUserRoadmaps(user.uid);
-        setSavedRoadmaps(updatedRoadmaps);
+    try {
+      const payload = await generateSkillRoadmap(skill);
+      const normalized = normalizeSkillRoadmap(payload, skill);
+      setSkillRoadmap(normalized);
+      if (user) {
+        const saved = await saveSkillRoadmap(user.uid, skill, normalized);
+        if (saved) {
+          setSavedStatus('Roadmap saved to Firebase.');
+          await loadSavedRoadmaps();
+        }
       }
+    } catch (error) {
+      console.error('Quick skill generation error:', error);
+      setErrorMessage('The skill engine could not generate a roadmap right now. Please try again.');
+    } finally {
+      setLoading(false);
     }
+  };
+
+  const handleSaveCurrent = async () => {
+    if (!skillRoadmap || !user) return;
+    const saved = await saveSkillRoadmap(user.uid, skillRoadmap.skill, skillRoadmap);
+    if (saved) {
+      setSavedStatus('Current roadmap saved to Firebase.');
+      await loadSavedRoadmaps();
+    } else {
+      setSavedStatus('Could not save the current roadmap.');
+    }
+  };
+
+  const handleDelete = async (roadmapId) => {
+    if (!user) return;
+    const deleted = await deleteSkillRoadmap(user.uid, roadmapId);
+    if (deleted) {
+      setSavedStatus('Roadmap deleted.');
+      await loadSavedRoadmaps();
+    }
+  };
+
+  const handleRegenerate = async () => {
+    if (!skillRoadmap?.skill) return;
+    await handleQuickGenerate(skillRoadmap.skill);
+  };
+
+  const handleLoad = (item) => {
+    setSkillRoadmap(item.roadmap);
+    setActiveSkill(item.skill);
+    setSavedStatus('Loaded from Firebase.');
+    setErrorMessage('');
   };
 
   return (
-    <div className="min-h-[calc(100vh-4rem)] bg-slate-950 text-white px-8 py-8 max-w-7xl mx-auto">
-      <h1 className="text-3xl font-bold mb-2">Universal Knowledge Engine</h1>
-      <p className="text-slate-400 mb-8">Type any topic to instantly generate a complete course, quizzes, flashcards, and more.</p>
+    <div className="min-h-[calc(100vh-4rem)] bg-slate-950 text-white">
+      <div className="mx-auto flex max-w-7xl flex-col gap-8 px-4 py-6 sm:px-6 lg:px-8">
+        <SkillHeader title="Professional Skill Academy" subtitle="Generate world-class roadmaps for any skill, from absolute beginner to expert-level mastery, then save and revisit them whenever you need to grow." />
 
-      <form onSubmit={handleGenerate} className="mb-12 flex gap-2">
-        <input
-          type="text"
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          placeholder="Search a topic to generate a lesson suite"
-          className="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-indigo-500"
-          disabled={loading}
-        />
-        <button type="submit" className="bg-indigo-600 hover:bg-indigo-700 px-6 py-3 rounded-lg font-medium flex items-center gap-2 transition-colors disabled:opacity-50" disabled={loading}>
-          {loading ? <Loader className="w-5 h-5 animate-spin" /> : <Search className="w-5 h-5" />}
-          Generate Course
-        </button>
-      </form>
+        <form onSubmit={handleGenerate} className="mx-auto flex w-full max-w-4xl flex-col gap-3 rounded-[2rem] border border-slate-800/70 bg-slate-900/70 p-3 shadow-2xl shadow-slate-950/40 backdrop-blur-xl sm:flex-row">
+          <div className="flex flex-1 items-center gap-3 rounded-[1.4rem] border border-slate-800 bg-slate-950/70 px-4 py-3">
+            <Search className="h-5 w-5 text-indigo-400" />
+            <input value={searchQuery} onChange={(event) => setSearchQuery(event.target.value)} placeholder="Try Python, React, AI, Trading, Graphic Design..." className="w-full bg-transparent text-white outline-none placeholder:text-slate-500" />
+          </div>
+          <button type="submit" disabled={!canSubmit} className="inline-flex items-center justify-center gap-2 rounded-[1.4rem] bg-gradient-to-r from-indigo-500 to-cyan-500 px-5 py-3 font-semibold text-white transition hover:scale-[1.01] disabled:opacity-60">
+            {loading ? <Loader className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+            {loading ? 'Generating...' : 'Generate Roadmap'}
+          </button>
+        </form>
 
-      {errorMessage && (
-        <div className="mb-8 rounded-2xl border border-red-600 bg-red-600/10 p-5 text-red-200">
-          {errorMessage}
-        </div>
-      )}
+        {errorMessage && <div className="rounded-[1.6rem] border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-300">{errorMessage}</div>}
+        {savedStatus && <div className="rounded-[1.6rem] border border-emerald-500/20 bg-emerald-500/10 p-4 text-sm text-emerald-300">{savedStatus}</div>}
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-12">
-        {skills.map((skill, index) => (
-          <div
-            key={index}
-            onClick={() => handleSkillClick(skill.title)}
-            className={`bg-slate-900 p-8 rounded-2xl border transition-all cursor-pointer group ${selectedSkill === skill.title ? 'border-indigo-500' : 'border-slate-800 hover:border-indigo-500'}`}
-          >
-            <div className="flex items-center justify-between mb-4">
-              <skill.icon className="w-10 h-10 text-indigo-500" />
-              <ArrowRight className="w-6 h-6 text-slate-600 group-hover:text-indigo-500 group-hover:translate-x-1 transition-all" />
+        <SkillSection title="Trending Skills" description="Tap any skill to generate a polished plan and start building momentum immediately.">
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+            {skillCards.map((card) => (
+              <SkillCard key={card.title} icon={card.icon} title={card.title} description={card.description} onClick={() => handleQuickGenerate(card.title)} active={activeSkill === card.title} />
+            ))}
+          </div>
+        </SkillSection>
+
+        {loading && <LoadingAcademy />}
+
+        {skillRoadmap && !loading && (
+          <div className="space-y-6">
+            <SkillSection title={`${skillRoadmap.skill} Roadmap`} description="A complete professional learning blueprint from foundation to execution.">
+              <div className="grid gap-4 lg:grid-cols-3">
+                <SkillProgress value={25} label="Foundation" />
+                <SkillProgress value={55} label="Practice" />
+                <SkillProgress value={85} label="Career Readiness" />
+              </div>
+              <div className="mt-6 flex flex-wrap gap-3">
+                <button onClick={handleSaveCurrent} className="inline-flex items-center gap-2 rounded-2xl border border-slate-700 bg-slate-950/70 px-4 py-2 text-sm text-slate-200 hover:border-indigo-500"> <Save className="h-4 w-4" /> Save Roadmap</button>
+                <button onClick={handleRegenerate} className="inline-flex items-center gap-2 rounded-2xl border border-slate-700 bg-slate-950/70 px-4 py-2 text-sm text-slate-200 hover:border-indigo-500"> <RotateCcw className="h-4 w-4" /> Regenerate</button>
+                <button onClick={() => navigator.clipboard?.writeText(JSON.stringify(skillRoadmap, null, 2))} className="inline-flex items-center gap-2 rounded-2xl border border-slate-700 bg-slate-950/70 px-4 py-2 text-sm text-slate-200 hover:border-indigo-500"> <Copy className="h-4 w-4" /> Copy JSON</button>
+              </div>
+            </SkillSection>
+
+            <div className="grid gap-6 lg:grid-cols-2">
+              <SkillSection title="Skill Overview" description="The big picture and why this skill matters.">
+                <p className="text-sm leading-8 text-slate-300">{skillRoadmap.skillOverview}</p>
+              </SkillSection>
+              <SkillSection title="Daily Study Plan" description="A practical routine for steady progress.">
+                <RoadmapTimeline items={skillRoadmap.dailyStudyPlan} />
+              </SkillSection>
             </div>
-            <h3 className="text-xl font-bold mb-2">{skill.title}</h3>
-            <p className="text-slate-400">{skill.desc}</p>
+
+            <div className="grid gap-6 lg:grid-cols-2">
+              <SkillSection title="Beginner Roadmap" description="The foundation phase for confident first steps.">
+                <RoadmapTimeline items={skillRoadmap.beginnerRoadmap} />
+              </SkillSection>
+              <SkillSection title="Intermediate Roadmap" description="Move from concepts to real application and output.">
+                <RoadmapTimeline items={skillRoadmap.intermediateRoadmap} />
+              </SkillSection>
+            </div>
+
+            <SkillSection title="Advanced Roadmap" description="How to grow into an expert and stand out professionally.">
+              <RoadmapTimeline items={skillRoadmap.advancedRoadmap} />
+            </SkillSection>
+
+            <div className="grid gap-6 lg:grid-cols-2">
+              <SkillSection title="Weekly Goals" description="Targets to hit with consistency.">
+                <RoadmapTimeline items={skillRoadmap.weeklyGoals} />
+              </SkillSection>
+              <SkillSection title="Monthly Goals" description="Longer-term milestones for growth.">
+                <RoadmapTimeline items={skillRoadmap.monthlyGoals} />
+              </SkillSection>
+            </div>
+
+            <div className="grid gap-6 lg:grid-cols-2">
+              <SkillSection title="Required Tools" description="What you need to begin learning effectively.">
+                <RoadmapTimeline items={skillRoadmap.requiredTools} />
+              </SkillSection>
+              <SkillSection title="Resources" description="Free and paid options to learn faster.">
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="rounded-2xl border border-slate-800 bg-slate-950/70 p-4">
+                    <h4 className="mb-3 font-semibold text-white">Free Resources</h4>
+                    <RoadmapTimeline items={skillRoadmap.freeResources} />
+                  </div>
+                  <div className="rounded-2xl border border-slate-800 bg-slate-950/70 p-4">
+                    <h4 className="mb-3 font-semibold text-white">Paid Resources</h4>
+                    <RoadmapTimeline items={skillRoadmap.paidResources} />
+                  </div>
+                </div>
+              </SkillSection>
+            </div>
+
+            <div className="grid gap-6 lg:grid-cols-2">
+              <SkillSection title="Best YouTube Channels" description="Channels worth following for practice and guidance.">
+                <RoadmapTimeline items={skillRoadmap.bestYouTubeChannels} />
+              </SkillSection>
+              <SkillSection title="Best Books & Websites" description="Reliable mentors and references to deepen your learning.">
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="rounded-2xl border border-slate-800 bg-slate-950/70 p-4">
+                    <h4 className="mb-3 font-semibold text-white">Books</h4>
+                    <RoadmapTimeline items={skillRoadmap.bestBooks} />
+                  </div>
+                  <div className="rounded-2xl border border-slate-800 bg-slate-950/70 p-4">
+                    <h4 className="mb-3 font-semibold text-white">Websites</h4>
+                    <RoadmapTimeline items={skillRoadmap.bestWebsites} />
+                  </div>
+                </div>
+              </SkillSection>
+            </div>
+
+            <div className="grid gap-6 lg:grid-cols-2">
+              <SkillSection title="Projects" description="Build tangible work to make your learning visible.">
+                <RoadmapTimeline items={skillRoadmap.projects} />
+              </SkillSection>
+              <SkillSection title="Portfolio Ideas" description="Ways to turn your work into compelling proof of growth.">
+                <RoadmapTimeline items={skillRoadmap.portfolioIdeas} />
+              </SkillSection>
+            </div>
+
+            <div className="grid gap-6 lg:grid-cols-2">
+              <SkillSection title="Internship Preparation" description="How to become internship-ready.">
+                <RoadmapTimeline items={skillRoadmap.internshipPreparation} />
+              </SkillSection>
+              <SkillSection title="Job Preparation" description="Stand out in interviews and applications.">
+                <RoadmapTimeline items={skillRoadmap.jobPreparation} />
+              </SkillSection>
+            </div>
+
+            <div className="grid gap-6 lg:grid-cols-2">
+              <SkillSection title="Freelancing Guide" description="How to turn skill into income.">
+                <RoadmapTimeline items={skillRoadmap.freelancingGuide} />
+              </SkillSection>
+              <SkillSection title="Business Opportunities" description="How to create value and build momentum.">
+                <RoadmapTimeline items={skillRoadmap.businessOpportunities} />
+              </SkillSection>
+            </div>
+
+            <div className="grid gap-6 lg:grid-cols-2">
+              <SkillSection title="Future Scope" description="Where this skill is heading next.">
+                <RoadmapTimeline items={skillRoadmap.futureScope} />
+              </SkillSection>
+              <SkillSection title="Salary Information" description="A realistic view of earning potential.">
+                <p className="text-sm leading-8 text-slate-300">{skillRoadmap.salaryInformation}</p>
+              </SkillSection>
+            </div>
+
+            <SkillSection title="Final Checklist" description="A compact finish line to track your readiness.">
+              <RoadmapTimeline items={skillRoadmap.finalChecklist} />
+            </SkillSection>
           </div>
-        ))}
-      </div>
+        )}
 
-      {loading && !suite && (
-        <div className="text-center py-20">
-          <Loader className="w-10 h-10 animate-spin text-indigo-500 mx-auto mb-4" />
-          <p className="text-slate-400">Daksha AI is generating your course or roadmap. This may take a moment.</p>
-        </div>
-      )}
-
-      {suite && (
-        <div className="space-y-6 mb-12">
-          <div className="flex justify-between items-center mb-6">
-            <h2 className="text-2xl font-bold flex items-center gap-3">
-              <BookOpen className="w-6 h-6 text-indigo-500" /> {suite.course_title || searchQuery}
-            </h2>
-            {isSuiteSaved && (
-              <span className="flex items-center gap-2 text-sm text-green-400 bg-green-400/10 px-3 py-1 rounded-full">
-                <CheckCircle className="w-4 h-4" /> Saved to Profile
-              </span>
-            )}
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <LessonCard icon={GraduationCap} title="Beginner" content={suite.beginner} />
-            <LessonCard icon={Brain} title="Intermediate" content={suite.intermediate} />
-            <LessonCard icon={Layers} title="Advanced" content={suite.advanced} />
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <ListCard icon={Briefcase} title="Real-World Examples" items={suite.examples} />
-            <ListCard icon={HelpCircle} title="Interview Questions" items={suite.interview_questions} />
-            <ListCard icon={PenTool} title="Practice Questions" items={suite.practice_questions} />
-            <RoadmapCard roadmap={suite.roadmap} />
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <FlashcardCard flashcards={suite.flashcards} />
-            <QuizCard quiz={suite.quiz} />
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <LessonCard icon={FileText} title="Revision Notes" content={suite.revision_notes} />
-            <LessonCard icon={StickyNote} title="Cheat Sheet" content={suite.cheat_sheet} />
-          </div>
-
-          <LessonCard icon={Network} title="Mind Map (Text Representation)" content={suite.mind_map} />
-        </div>
-      )}
-
-      {selectedSkill && (
-        <div className="mt-12 bg-slate-900 p-8 rounded-2xl border border-slate-800 mb-12">
-          <div className="flex justify-between items-center mb-6">
-            <h3 className="text-2xl font-bold flex items-center gap-3">
-              <BookOpen className="w-6 h-6 text-indigo-500" /> Pathway: {selectedSkill}
-            </h3>
-            {isRoadmapSaved && (
-              <span className="flex items-center gap-2 text-sm text-green-400 bg-green-400/10 px-3 py-1 rounded-full">
-                <CheckCircle className="w-4 h-4" /> Saved to Profile
-              </span>
-            )}
-          </div>
-          {loading ? (
-            <div className="flex items-center gap-3 text-indigo-400 animate-pulse">
-              <Loader className="w-5 h-5 animate-spin" />
-              <span>Daksha AI is designing your personalized roadmap...</span>
+        <SkillSection title="Saved Roadmaps" description="Your most recent skill roadmaps stored in Firebase.">
+          {savedRoadmaps.length > 0 ? (
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+              {savedRoadmaps.map((item) => (
+                <div key={item.id} className="rounded-[1.6rem] border border-slate-800 bg-slate-950/70 p-5">
+                  <div className="mb-3 flex items-center justify-between gap-3">
+                    <div>
+                      <h4 className="font-semibold text-white">{item.skill}</h4>
+                      <p className="text-sm text-slate-400">Saved roadmap</p>
+                    </div>
+                    <BadgeCheck className="h-5 w-5 text-indigo-400" />
+                  </div>
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    <button onClick={() => handleLoad(item)} className="rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-200 hover:border-indigo-500">Load</button>
+                    <button onClick={() => handleDelete(item.id)} className="rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-200 hover:border-red-500">Delete</button>
+                  </div>
+                </div>
+              ))}
             </div>
           ) : (
-            <div className="text-slate-300 whitespace-pre-wrap leading-relaxed font-mono text-sm bg-slate-950 p-6 rounded-xl border border-slate-800">
-              {roadmap}
-            </div>
+            <p className="text-sm text-slate-400">No saved roadmaps yet. Generate one to begin building your portfolio.</p>
           )}
-        </div>
-      )}
-
-      {!loading && savedSuites.length > 0 && (
-        <div className="mt-12">
-          <h3 className="text-2xl font-bold mb-6 flex items-center gap-3">
-            <Save className="w-6 h-6 text-indigo-500" /> Your Generated Courses
-          </h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {savedSuites.map((item) => (
-              <div key={item.id} className="bg-slate-900 p-6 rounded-2xl border border-slate-800 hover:border-indigo-500 transition-all cursor-pointer" onClick={() => { setSuite(item.suite); setSearchQuery(item.topic); window.scrollTo({ top: 0, behavior: 'smooth' }); }}>
-                <h4 className="text-xl font-bold mb-2 text-indigo-400">{item.topic}</h4>
-                <p className="text-slate-400 text-sm">Click to view full course suite</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {!loading && savedRoadmaps.length > 0 && (
-        <div className="mt-12">
-          <h3 className="text-2xl font-bold mb-6 flex items-center gap-3">
-            <Save className="w-6 h-6 text-indigo-500" /> Your Saved Roadmaps
-          </h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {savedRoadmaps.map((item) => (
-              <div key={item.id} className="bg-slate-900 p-6 rounded-2xl border border-slate-800 hover:border-indigo-500 transition-all cursor-pointer" onClick={() => { setSelectedSkill(item.skill); setRoadmap(item.roadmap); window.scrollTo({ top: 0, behavior: 'smooth' }); }}>
-                <h4 className="text-xl font-bold mb-2 text-indigo-400">{item.skill}</h4>
-                <p className="text-slate-400 text-sm truncate">{item.roadmap.substring(0, 100)}...</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-function ListCard({ icon: Icon, title, items }) {
-  if (!items || items.length === 0) return null;
-  return (
-    <div className="bg-slate-900 p-6 rounded-2xl border border-slate-800">
-      <h3 className="text-xl font-bold mb-3 flex items-center gap-2"><Icon className="w-5 h-5 text-indigo-500" /> {title}</h3>
-      <ul className="space-y-2 text-slate-300 text-sm list-disc list-inside">
-        {items.map((item, i) => <li key={i}>{item}</li>)}
-      </ul>
+        </SkillSection>
+      </div>
     </div>
   );
 }
