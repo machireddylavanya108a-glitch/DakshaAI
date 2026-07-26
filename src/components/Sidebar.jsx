@@ -1,5 +1,5 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { Brain, Home, Search, GraduationCap, MessageSquare, Box, User, LogOut, ShieldCheck, NotebookPen, BookOpen, FileText, FileStack, Presentation, Youtube } from 'lucide-react';
+import { Brain, Home, Search, GraduationCap, MessageSquare, Box, User, LogOut, ShieldCheck, NotebookPen, BookOpen, FileText, FileStack, Presentation, Youtube, Globe2 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
 export default function Sidebar({ closeSidebar }) {
@@ -18,6 +18,7 @@ export default function Sidebar({ closeSidebar }) {
     { name: 'DOCX Learning Engine', path: '/docx-learning', icon: FileStack },
     { name: 'PPT Learning Engine', path: '/ppt-learning', icon: Presentation },
     { name: 'YouTube Learning Engine', path: '/youtube-learning', icon: Youtube },
+    { name: 'Website Learning Engine', path: '/website-learning', icon: Globe2 },
     { name: 'AI Teacher', path: '/app/teacher', icon: MessageSquare },
     { name: '3D Learning', path: '/3d-learning', icon: Box },
   ];

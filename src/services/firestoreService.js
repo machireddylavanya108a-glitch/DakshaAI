@@ -405,6 +405,82 @@ export async function saveYouTubeBookmark(userId, bookmark) {
   }
 }
 
+export async function saveWebsiteLearningRecord(userId, payload) {
+  try {
+    const recordId = payload?.id || `${userId}_${Date.now()}`;
+    await setDoc(doc(db, 'websiteLearning', recordId), {
+      userId,
+      url: payload?.url || '',
+      title: payload?.title || 'Website lesson',
+      content: payload?.content || '',
+      analysis: payload?.analysis || {},
+      lesson: payload?.lesson || {},
+      summary: payload?.summary || '',
+      quiz: payload?.quiz || [],
+      flashcards: payload?.flashcards || [],
+      createdAt: payload?.createdAt ? new Date(payload.createdAt) : serverTimestamp(),
+    });
+    return true;
+  } catch (error) {
+    console.error('Error saving website learning record:', error);
+    return false;
+  }
+}
+
+export async function getUserWebsiteLearning(userId) {
+  try {
+    const q = query(collection(db, 'websiteLearning'), where('userId', '==', userId));
+    const querySnapshot = await getDocs(q);
+    const records = [];
+    querySnapshot.forEach((docSnapshot) => {
+      records.push({ id: docSnapshot.id, ...docSnapshot.data() });
+    });
+    return records.sort((a, b) => {
+      const aTime = a.createdAt?.toMillis ? a.createdAt.toMillis() : 0;
+      const bTime = b.createdAt?.toMillis ? b.createdAt.toMillis() : 0;
+      return bTime - aTime;
+    });
+  } catch (error) {
+    console.error('Error fetching website learning records:', error);
+    return [];
+  }
+}
+
+export async function deleteWebsiteLearningRecord(userId, recordId) {
+  try {
+    await deleteDoc(doc(db, 'websiteLearning', recordId));
+    return true;
+  } catch (error) {
+    console.error('Error deleting website learning record:', error);
+    return false;
+  }
+}
+
+export async function renameWebsiteLearningRecord(userId, recordId, newName) {
+  try {
+    await setDoc(doc(db, 'websiteLearning', recordId), { title: newName }, { merge: true });
+    return true;
+  } catch (error) {
+    console.error('Error renaming website learning record:', error);
+    return false;
+  }
+}
+
+export async function saveWebsiteBookmark(userId, bookmark) {
+  try {
+    const bookmarkId = `${userId}_${Date.now()}`;
+    await setDoc(doc(db, 'websiteBookmarks', bookmarkId), {
+      userId,
+      ...bookmark,
+      createdAt: serverTimestamp(),
+    });
+    return true;
+  } catch (error) {
+    console.error('Error saving website bookmark:', error);
+    return false;
+  }
+}
+
 export async function saveDocxLearningRecord(userId, payload) {
   try {
     const recordId = payload?.id || `${userId}_${Date.now()}`;

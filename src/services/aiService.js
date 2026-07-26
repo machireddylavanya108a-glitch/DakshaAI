@@ -442,6 +442,94 @@ Formulas: ${JSON.stringify(videoModel?.formulas || [])}`;
   }
 }
 
+export async function generateWebsiteLearningPackage(url, websiteModel, userId = 'guest') {
+  try {
+    const prompt = `You are Daksha AI, a premium website-to-course generator.
+Create a structured learning package from this webpage content.
+Return ONLY valid JSON with these exact keys:
+{
+  "title": "",
+  "summary": "",
+  "beginnerLesson": "",
+  "intermediateLesson": "",
+  "advancedLesson": "",
+  "keyConcepts": [],
+  "importantDefinitions": [],
+  "examples": [],
+  "realWorldApplications": [],
+  "revisionNotes": [],
+  "cheatSheet": [],
+  "flashcards": [{"front": "", "back": ""}],
+  "quiz": [{"question": "", "options": ["", "", "", ""], "answer": ""}],
+  "mindMap": "",
+  "learningRoadmap": []
+}
+
+Website url: ${url}
+User id: ${userId}
+Page title: ${websiteModel?.title || 'Untitled'}
+Content: ${websiteModel?.content || ''}
+Headings: ${JSON.stringify(websiteModel?.headings || [])}
+Subheadings: ${JSON.stringify(websiteModel?.subheadings || [])}
+Code blocks: ${JSON.stringify(websiteModel?.codeBlocks || [])}
+Tables: ${JSON.stringify(websiteModel?.tables || [])}
+Images: ${JSON.stringify(websiteModel?.images || [])}
+Formulas: ${JSON.stringify(websiteModel?.formulas || [])}
+Concepts: ${JSON.stringify(websiteModel?.concepts || [])}`;
+
+    const response = await openai.chat.completions.create({
+      model: 'deepseek/deepseek-v3:free',
+      messages: [
+        { role: 'system', content: `${DAKSHA_SYSTEM_PROMPT} You MUST return only valid JSON for website learning generation.` },
+        { role: 'user', content: prompt }
+      ]
+    });
+
+    const content = response.choices[0].message.content;
+    const parsed = parseJsonResponse(content);
+    if (parsed) {
+      return parsed;
+    }
+
+    return {
+      title: websiteModel?.title || 'Web learning lesson',
+      summary: 'A structured lesson package was generated from the webpage.',
+      beginnerLesson: 'Start with the main purpose and the most important section of the page.',
+      intermediateLesson: 'Connect the headings with the supporting examples and details.',
+      advancedLesson: 'Go deeper into the concepts and evaluate how the ideas fit together.',
+      keyConcepts: [],
+      importantDefinitions: [],
+      examples: [],
+      realWorldApplications: [],
+      revisionNotes: [],
+      cheatSheet: [],
+      flashcards: [],
+      quiz: [],
+      mindMap: 'Core topic → supporting sections → applications',
+      learningRoadmap: []
+    };
+  } catch (error) {
+    console.error('Website Learning Package Error:', error);
+    return {
+      title: websiteModel?.title || 'Web learning lesson',
+      summary: 'I could not generate the website learning package right now.',
+      beginnerLesson: 'Start by reviewing the page carefully.',
+      intermediateLesson: 'Break the content into smaller sections.',
+      advancedLesson: 'Go deeper into the supporting details and examples.',
+      keyConcepts: [],
+      importantDefinitions: [],
+      examples: [],
+      realWorldApplications: [],
+      revisionNotes: [],
+      cheatSheet: [],
+      flashcards: [],
+      quiz: [],
+      mindMap: 'Core topic → supporting sections → applications',
+      learningRoadmap: []
+    };
+  }
+}
+
 export async function generateDocxLearningPackage(fileName, docxModel, userId = 'guest') {
   try {
     const prompt = `You are Daksha AI, a premium document-to-course generator.
