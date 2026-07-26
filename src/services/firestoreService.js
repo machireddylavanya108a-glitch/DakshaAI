@@ -151,6 +151,58 @@ export async function getUserLessonSuites(userId) {
   }
 }
 
+export async function saveQuizRecord(userId, topic, difficulty, quiz, result, timeTaken) {
+  try {
+    const recordId = `${userId}_${Date.now()}`;
+    await setDoc(doc(db, 'quizzes', recordId), {
+      userId,
+      topic,
+      difficulty,
+      questions: quiz?.questions || [],
+      score: result?.score || 0,
+      percentage: result?.percentage || 0,
+      correctAnswers: result?.correctAnswers || 0,
+      wrongAnswers: result?.wrongAnswers || 0,
+      grade: result?.grade || 'F',
+      timeTaken,
+      createdAt: serverTimestamp()
+    });
+    return true;
+  } catch (error) {
+    console.error('Error saving quiz record:', error);
+    return false;
+  }
+}
+
+export async function getUserQuizRecords(userId) {
+  try {
+    const q = query(collection(db, 'quizzes'), where('userId', '==', userId));
+    const querySnapshot = await getDocs(q);
+    const records = [];
+    querySnapshot.forEach((docSnapshot) => {
+      records.push({ id: docSnapshot.id, ...docSnapshot.data() });
+    });
+    return records.sort((a, b) => {
+      const aTime = a.createdAt?.toMillis ? a.createdAt.toMillis() : 0;
+      const bTime = b.createdAt?.toMillis ? b.createdAt.toMillis() : 0;
+      return bTime - aTime;
+    });
+  } catch (error) {
+    console.error('Error fetching quiz records:', error);
+    return [];
+  }
+}
+
+export async function deleteQuizRecord(userId, quizId) {
+  try {
+    await deleteDoc(doc(db, 'quizzes', quizId));
+    return true;
+  } catch (error) {
+    console.error('Error deleting quiz record:', error);
+    return false;
+  }
+}
+
 export async function saveQuizScore(userId, topic, score, total) {
   try {
     await addDoc(collection(db, 'quizScores'), {

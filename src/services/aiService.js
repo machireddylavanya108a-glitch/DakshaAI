@@ -340,6 +340,65 @@ export async function generateSkillRoadmap(skill) {
   }
 }
 
+export async function generateQuizEngine(topic, difficulty = 'Medium', questionCount = 10) {
+  try {
+    const response = await openai.chat.completions.create({
+      model: 'deepseek/deepseek-v3:free',
+      messages: [
+        { role: 'system', content: `${DAKSHA_SYSTEM_PROMPT} You MUST return only valid JSON for a professional quiz generator.` },
+        { role: 'user', content: `Create a professional quiz about: ${topic}. Use the difficulty level: ${difficulty}. Create exactly ${questionCount} questions. Return ONLY valid JSON with this exact structure:
+{
+  "title": "<quiz title>",
+  "difficulty": "${difficulty}",
+  "questions": [
+    {
+      "question": "<question>",
+      "options": ["<option 1>", "<option 2>", "<option 3>", "<option 4>"],
+      "answer": "<correct answer>",
+      "explanation": "<explanation>",
+      "type": "multiple-choice"
+    }
+  ]
+}
+
+Rules:
+- Use a mix of question types when appropriate, but keep the output consistent and valid.
+- For true/false use options ["True", "False"].
+- For fill-in-the-blank, short-answer, or match-the-following, options can be empty arrays.
+- Keep the answer and explanation clear and educational.
+- Do not include markdown or extra text.` }
+      ]
+    });
+
+    const content = response.choices[0].message.content;
+    const parsed = parseJsonResponse(content);
+    if (parsed) {
+      return parsed;
+    }
+
+    return {
+      title: `${topic} Quiz`,
+      difficulty,
+      questions: [
+        {
+          question: `What is the main idea of ${topic}?`,
+          options: ['A core concept', 'An unrelated idea', 'A random fact', 'A missing answer'],
+          answer: 'A core concept',
+          explanation: 'This is a basic concept check about the topic.',
+          type: 'multiple-choice',
+        }
+      ],
+    };
+  } catch (error) {
+    console.error('Quiz Generation Error:', error);
+    return {
+      title: `${topic} Quiz`,
+      difficulty,
+      questions: [],
+    };
+  }
+}
+
 export async function getLearningPath(skill) {
   try {
     const response = await openai.chat.completions.create({
