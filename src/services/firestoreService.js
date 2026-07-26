@@ -279,6 +279,78 @@ export async function renameCameraLearningRecord(userId, recordId, newName) {
   }
 }
 
+export async function saveVoiceLesson(userId, payload) {
+  try {
+    const lessonId = `${userId}_${Date.now()}`;
+    await setDoc(doc(db, 'voiceLessons', lessonId), {
+      userId,
+      topic: payload?.topic || 'Voice lesson',
+      conversation: payload?.conversation || [],
+      language: payload?.language || 'English',
+      teacherMode: payload?.teacherMode || 'friendly',
+      createdAt: payload?.createdAt ? new Date(payload.createdAt) : serverTimestamp(),
+    });
+    return true;
+  } catch (error) {
+    console.error('Error saving voice lesson:', error);
+    return false;
+  }
+}
+
+export async function getUserVoiceLessons(userId) {
+  try {
+    const q = query(collection(db, 'voiceLessons'), where('userId', '==', userId));
+    const querySnapshot = await getDocs(q);
+    const records = [];
+    querySnapshot.forEach((docSnapshot) => {
+      records.push({ id: docSnapshot.id, ...docSnapshot.data() });
+    });
+    return records.sort((a, b) => {
+      const aTime = a.createdAt?.toMillis ? a.createdAt.toMillis() : 0;
+      const bTime = b.createdAt?.toMillis ? b.createdAt.toMillis() : 0;
+      return bTime - aTime;
+    });
+  } catch (error) {
+    console.error('Error fetching voice lessons:', error);
+    return [];
+  }
+}
+
+export async function deleteVoiceLesson(userId, lessonId) {
+  try {
+    await deleteDoc(doc(db, 'voiceLessons', lessonId));
+    return true;
+  } catch (error) {
+    console.error('Error deleting voice lesson:', error);
+    return false;
+  }
+}
+
+export async function renameVoiceLesson(userId, lessonId, newName) {
+  try {
+    await setDoc(doc(db, 'voiceLessons', lessonId), { topic: newName }, { merge: true });
+    return true;
+  } catch (error) {
+    console.error('Error renaming voice lesson:', error);
+    return false;
+  }
+}
+
+export async function bookmarkVoiceLesson(userId, payload) {
+  try {
+    const bookmarkId = `${userId}_${Date.now()}`;
+    await setDoc(doc(db, 'voiceBookmarks', bookmarkId), {
+      userId,
+      ...payload,
+      createdAt: serverTimestamp(),
+    });
+    return true;
+  } catch (error) {
+    console.error('Error saving voice bookmark:', error);
+    return false;
+  }
+}
+
 export async function saveCameraBookmark(userId, bookmark) {
   try {
     const bookmarkId = `${userId}_${Date.now()}`;
