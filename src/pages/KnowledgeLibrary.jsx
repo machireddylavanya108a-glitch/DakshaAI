@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { addDoc, collection, getDocs, query, where } from 'firebase/firestore';
 import { Brain, Search, Sparkles, BookOpen, Bookmark, History, Star, Layers3, Mic, Languages, TrendingUp } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { db } from '../firebase/firebaseConfig';
+import { getIndexedDBItem, setIndexedDBItem } from '../utils/cache';
 import LibraryDashboard from '../components/library/LibraryDashboard';
 import UniversalSearch from '../components/library/UniversalSearch';
 import SearchFilters from '../components/library/SearchFilters';
@@ -47,6 +48,7 @@ export default function KnowledgeLibrary() {
   const [loading, setLoading] = useState(true);
   const [offline, setOffline] = useState(false);
   const [status, setStatus] = useState('Ready to explore knowledge');
+  const [visibleCount, setVisibleCount] = useState(4);
 
   useEffect(() => {
     const timer = setTimeout(() => setLoading(false), 400);
@@ -55,23 +57,33 @@ export default function KnowledgeLibrary() {
 
   useEffect(() => {
     const loadLibrary = async () => {
-      if (!user?.uid) {
-        const stored = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+      const stored = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+      if (stored[0]) {
         setLibraryItems(stored);
-        if (stored[0]) setSelectedItem(stored[0]);
+        setSelectedItem(stored[0]);
+      }
+
+      if (!user?.uid) {
         return;
       }
 
       try {
+        const cachedEntries = await getIndexedDBItem('library', user.uid);
+        if (cachedEntries?.length) {
+          setLibraryItems(cachedEntries);
+          if (cachedEntries[0]) setSelectedItem(cachedEntries[0]);
+        }
+
         const q = query(collection(db, 'knowledgeLibrary'), where('userId', '==', user.uid));
         const snapshot = await getDocs(q);
         const entries = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
-        setLibraryItems(entries);
-        if (entries[0]) setSelectedItem(entries[0]);
+        const merged = entries.length ? entries : (stored.length ? stored : []);
+        setLibraryItems(merged);
+        await setIndexedDBItem('library', user.uid, merged);
+        if (merged[0]) setSelectedItem(merged[0]);
       } catch (error) {
         console.error('Unable to load knowledge library:', error);
         setOffline(true);
-        const stored = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
         setLibraryItems(stored);
         if (stored[0]) setSelectedItem(stored[0]);
       }
@@ -89,14 +101,33 @@ export default function KnowledgeLibrary() {
     });
   }, [libraryItems, search, filter]);
 
-  const addItem = () => {
+  const visibleItems = useMemo(() => filteredItems.slice(0, visibleCount), [filteredItems, visibleCount]);
+  const favoriteItems = useMemo(() => libraryItems.filter((item) => item.favorite), [libraryItems]);
+
+  useEffect(() => {
+    setVisibleCount(4);
+  }, [search, filter]);
+
+  useEffect(() => {
+    const handleScroll = () => {
+      const nearBottom = window.innerHeight + window.scrollY >= document.body.offsetHeight - 300;
+      if (nearBottom) {
+        setVisibleCount((prev) => Math.min(prev + 4, filteredItems.length || prev));
+      }
+    };
+
+    window.addEventListener('scroll', handleScroll);
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, [filteredItems.length]);
+
+  const addItem = useCallback(() => {
     const entry = createEntry('New Topic', 'User Input', 'General', ['ai', 'knowledge']);
     setLibraryItems((prev) => [entry, ...prev]);
     setSelectedItem(entry);
     setStatus('Knowledge entry added');
-  };
+  }, []);
 
-  const saveItem = async () => {
+  const saveItem = useCallback(async () => {
     if (!selectedItem) return;
     const updated = { ...selectedItem, updatedAt: new Date().toISOString() };
 
@@ -107,6 +138,7 @@ export default function KnowledgeLibrary() {
       const stored = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
       const nextItems = [updated, ...stored.filter((item) => item.id !== updated.id)].slice(0, 10);
       localStorage.setItem(STORAGE_KEY, JSON.stringify(nextItems));
+      if (user?.uid) await setIndexedDBItem('library', user.uid, nextItems);
       setLibraryItems(nextItems);
       setOffline(false);
       setStatus('Saved to Knowledge Library');
@@ -115,11 +147,11 @@ export default function KnowledgeLibrary() {
       setOffline(true);
       setStatus('Saved locally');
     }
-  };
+  }, [selectedItem, user?.uid]);
 
-  const toggleFavorite = (itemId) => {
+  const toggleFavorite = useCallback((itemId) => {
     setLibraryItems((prev) => prev.map((item) => (item.id === itemId ? { ...item, favorite: !item.favorite } : item)));
-  };
+  }, []);
 
   if (loading) return <LoadingLibrary />;
 
@@ -159,7 +191,7 @@ export default function KnowledgeLibrary() {
               <Collections />
             </div>
             <div className="rounded-[2rem] border border-white/10 bg-slate-900/80 p-4 shadow-2xl shadow-slate-950/40 backdrop-blur-xl">
-              <Bookmarks items={libraryItems.filter((item) => item.favorite)} />
+              <Bookmarks items={favoriteItems} />
             </div>
             <div className="rounded-[2rem] border border-white/10 bg-slate-900/80 p-4 shadow-2xl shadow-slate-950/40 backdrop-blur-xl">
               <RecentItems items={libraryItems.slice(0, 4)} />
@@ -190,7 +222,7 @@ export default function KnowledgeLibrary() {
             </div>
             <div className="rounded-[2rem] border border-white/10 bg-slate-900/80 p-5 shadow-2xl shadow-slate-950/40 backdrop-blur-xl">
               <div className="grid gap-4 lg:grid-cols-2">
-                {filteredItems.slice(0, 4).map((item) => (
+                {visibleItems.map((item) => (
                   <KnowledgeCard key={item.id} item={item} onSelect={setSelectedItem} onFavorite={toggleFavorite} />
                 ))}
               </div>

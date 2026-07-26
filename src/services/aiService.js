@@ -1,4 +1,5 @@
 import OpenAI from 'openai';
+import { compressImageDataUrl, getCachedValue, setCachedValue } from '../utils/cache';
 
 const openai = new OpenAI({
   apiKey: import.meta.env.VITE_OPENROUTER_API_KEY,
@@ -38,16 +39,29 @@ function parseJsonResponse(content) {
   }
 }
 
+function optimizeTextPayload(text, maxCharacters = 24000) {
+  return String(text || '').replace(/\s+/g, ' ').trim().slice(0, maxCharacters);
+}
+
+function getCacheKey(prefix, payload) {
+  return `${prefix}:${String(payload || '').slice(0, 180)}`;
+}
+
 export async function getDakshaResponse(prompt, language = "English") {
+  const cacheKey = getCacheKey(`ai-response:${language}`, prompt);
+  const cached = getCachedValue(cacheKey, 1000 * 60 * 10);
+  if (cached) return cached;
   try {
     const response = await openai.chat.completions.create({
       model: 'deepseek/deepseek-v3:free',
       messages: [
         { role: 'system', content: `${DAKSHA_SYSTEM_PROMPT} You MUST respond entirely in ${language}.` },
-        { role: 'user', content: prompt }
+        { role: 'user', content: optimizeTextPayload(prompt, 12000) }
       ]
     });
-    return response.choices[0].message.content;
+    const content = response.choices[0].message.content;
+    setCachedValue(cacheKey, content, 1000 * 60 * 10);
+    return content;
   } catch (error) {
     console.error("AI Error:", error);
     return "I am having trouble connecting to my brain right now. Please try again later.";
@@ -55,17 +69,24 @@ export async function getDakshaResponse(prompt, language = "English") {
 }
 
 export async function getDakshaImageResponse(base64Image, mimeType) {
+  const cacheKey = getCacheKey('ai-image', `${mimeType}:${base64Image?.slice(0, 120)}`);
+  const cached = getCachedValue(cacheKey, 1000 * 60 * 20);
+  if (cached) return cached;
+
   try {
+    const optimizedImage = base64Image?.startsWith('data:image') ? await compressImageDataUrl(base64Image, 0.8, 1200) : base64Image;
     const response = await openai.chat.completions.create({
       model: 'meta-llama/llama-3.2-11b-vision-instruct:free',
       messages: [
         { role: 'user', content: [
           { type: 'text', text: 'Analyze this image. Extract all the knowledge, text, or concepts from it. Explain what this is and teach me about it simply.' },
-          { type: 'image_url', image_url: { url: `data:${mimeType};base64,${base64Image}` } }
+          { type: 'image_url', image_url: { url: `data:${mimeType};base64,${optimizedImage}` } }
         ] }
       ]
     });
-    return response.choices[0].message.content;
+    const content = response.choices[0].message.content;
+    setCachedValue(cacheKey, content, 1000 * 60 * 20);
+    return content;
   } catch (error) {
     console.error("AI Vision Error:", error);
     return "I couldn't process this image. Please try a clearer photo or a different file.";
@@ -73,15 +94,21 @@ export async function getDakshaImageResponse(base64Image, mimeType) {
 }
 
 export async function getDakshaTextResponse(extractedText) {
+  const cacheKey = getCacheKey('ai-text', extractedText);
+  const cached = getCachedValue(cacheKey, 1000 * 60 * 15);
+  if (cached) return cached;
+
   try {
     const response = await openai.chat.completions.create({
       model: 'deepseek/deepseek-v3:free',
       messages: [
         { role: 'system', content: 'You are Daksha AI. The user has uploaded a document and extracted the text. Read the text, summarize the key knowledge, and explain what the document is about simply.' },
-        { role: 'user', content: extractedText }
+        { role: 'user', content: optimizeTextPayload(extractedText, 18000) }
       ]
     });
-    return response.choices[0].message.content;
+    const content = response.choices[0].message.content;
+    setCachedValue(cacheKey, content, 1000 * 60 * 15);
+    return content;
   } catch (error) {
     console.error("AI Text Error:", error);
     return "I couldn't process this document. Please try a different file.";
@@ -89,6 +116,10 @@ export async function getDakshaTextResponse(extractedText) {
 }
 
 export async function getDakshaDocumentAnalysis(extractedText, fileName = 'document', fileType = 'unknown') {
+  const cacheKey = getCacheKey('ai-document-analysis', `${fileName}:${fileType}:${extractedText?.slice(0, 120)}`);
+  const cached = getCachedValue(cacheKey, 1000 * 60 * 20);
+  if (cached) return cached;
+
   try {
     const prompt = `You are Daksha AI, a professional document understanding engine.
 Analyze the text from the uploaded document and detect headings, chapters, tables, images, diagrams, formulas, code blocks, and lists.
@@ -98,7 +129,7 @@ Return only valid JSON with the following keys: overview, summary, topics, keywo
 The uploaded file is: ${fileName} (${fileType}).
 
 Text to analyze:
-${extractedText}`;
+${optimizeTextPayload(extractedText, 18000)}`;
 
     const response = await openai.chat.completions.create({
       model: 'deepseek/deepseek-v3:free',
@@ -135,6 +166,8 @@ ${extractedText}`;
       quiz: [],
       flashcards: []
     };
+    setCachedValue(cacheKey, fallback, 1000 * 60 * 20);
+    return fallback;
   } catch (error) {
     console.error("AI Document Analysis Error:", error);
     return {
@@ -162,6 +195,10 @@ ${extractedText}`;
 }
 
 export async function getDakshaLessonPackage(sourceText, context = 'topic', sourceName = 'topic') {
+  const cacheKey = getCacheKey('ai-lesson-package', `${context}:${sourceName}:${sourceText?.slice(0, 120)}`);
+  const cached = getCachedValue(cacheKey, 1000 * 60 * 20);
+  if (cached) return cached;
+
   try {
     const prompt = `You are Daksha AI, a premium lesson generator for learners.
 Create a complete course package based on the following source: ${sourceName} (${context}).
@@ -183,7 +220,7 @@ Generate the following sections automatically:
 Return only valid JSON with these exact keys. Keep each section clear and learner-focused.
 
 Source content:
-${sourceText}`;
+${optimizeTextPayload(sourceText, 18000)}`;
 
     const response = await openai.chat.completions.create({
       model: 'deepseek/deepseek-v3:free',
@@ -214,6 +251,8 @@ ${sourceText}`;
       mindMap: '',
       learningRoadmap: ''
     };
+    setCachedValue(cacheKey, fallback, 1000 * 60 * 20);
+    return fallback;
   } catch (error) {
     console.error("AI Lesson Package Error:", error);
     return {

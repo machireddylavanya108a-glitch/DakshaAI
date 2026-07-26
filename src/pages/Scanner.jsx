@@ -266,27 +266,27 @@ export default function Scanner() {
   const currentAnalysis = analysisResult;
 
   return (
-    <div className="min-h-[calc(100vh-4rem)] bg-slate-950 text-white p-8">
-      <div className="max-w-7xl mx-auto">
+    <div className="min-h-[calc(100vh-4rem)] bg-slate-950 text-white p-4 sm:p-6 lg:p-8">
+      <div className="mx-auto max-w-7xl">
         <div className="mb-8">
-          <h1 className="text-4xl font-bold mb-2">Daksha AI Document Intelligence</h1>
-          <p className="text-slate-400 max-w-3xl">Upload documents, slides, text files, or images and get professional AI-driven document understanding with headings, tables, topics, quiz questions, flashcards, and more.</p>
+          <h1 className="mb-2 text-3xl font-bold sm:text-4xl">Daksha AI Document Intelligence</h1>
+          <p className="max-w-3xl text-sm text-slate-400 sm:text-base">Upload documents, slides, text files, or images and get professional AI-driven document understanding with headings, tables, topics, quiz questions, flashcards, and more.</p>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-[1fr_0.95fr] gap-8">
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_0.95fr] lg:gap-8">
           <div className="space-y-6">
-            <label className="flex flex-col items-center justify-center w-full min-h-[20rem] border-2 border-dashed border-slate-700 rounded-3xl cursor-pointer bg-slate-900 hover:border-indigo-500 transition-colors">
+            <label className="flex min-h-[18rem] w-full cursor-pointer flex-col items-center justify-center rounded-3xl border-2 border-dashed border-slate-700 bg-slate-900 p-4 transition-colors hover:border-indigo-500 sm:min-h-[20rem] sm:p-6">
               <div className="flex flex-col items-center justify-center pt-10 pb-10 px-6 text-center">
                 <UploadCloud className="w-14 h-14 text-indigo-500 mb-4" />
                 <p className="mb-2 text-lg font-semibold text-white">Upload a file</p>
-                <p className="text-slate-400">PDF, DOCX, TXT, PPTX, MD, CSV, HTML, PNG, JPG</p>
+                <p className="text-sm text-slate-400 sm:text-base">PDF, DOCX, TXT, PPTX, MD, CSV, HTML, PNG, JPG</p>
               </div>
               <input type="file" accept="image/*,.pdf,.docx,.txt,.pptx,.md,.csv,.html" onChange={handleFileChange} className="hidden" />
             </label>
 
             {files.length > 0 && (
-              <div className="bg-slate-900 rounded-3xl border border-slate-800 p-6 shadow-xl shadow-slate-950/20">
-                <h2 className="text-2xl font-semibold mb-4">Current Upload</h2>
+              <div className="rounded-3xl border border-slate-800 bg-slate-900 p-4 shadow-xl shadow-slate-950/20 sm:p-6">
+                <h2 className="mb-4 text-xl font-semibold sm:text-2xl">Current Upload</h2>
                 {files.map((file, index) => (
                   <div key={index} className="space-y-2">
                     <div className="flex items-center gap-4">
@@ -312,8 +312,8 @@ export default function Scanner() {
           </div>
 
           <div className="space-y-6">
-            <div className="bg-slate-900 rounded-3xl border border-slate-800 p-6 shadow-xl shadow-slate-950/20">
-              <div className="flex items-center justify-between gap-4 mb-6">
+            <div className="rounded-3xl border border-slate-800 bg-slate-900 p-4 shadow-xl shadow-slate-950/20 sm:p-6">
+              <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div>
                   <h2 className="text-2xl font-semibold">Document Intelligence</h2>
                   <p className="text-slate-400">Analyze the content and explore structured insights with premium tabs.</p>
@@ -325,7 +325,7 @@ export default function Scanner() {
                 )}
               </div>
 
-              <div className="flex flex-wrap gap-2 border-b border-slate-800 pb-4 mb-4">
+              <div className="mb-4 flex flex-wrap gap-2 border-b border-slate-800 pb-4">
                 {tabs.map((tab) => (
                   <button
                     key={tab}

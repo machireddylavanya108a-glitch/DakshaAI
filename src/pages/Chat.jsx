@@ -160,8 +160,8 @@ export default function Chat() {
   };
 
   return (
-    <div className="min-h-[calc(100vh-4rem)] bg-slate-950 text-white px-8 py-8 max-w-6xl mx-auto flex flex-col">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between mb-8">
+    <div className="mx-auto flex min-h-[calc(100vh-4rem)] max-w-6xl flex-col bg-slate-950 px-4 py-4 text-white sm:px-6 sm:py-8 lg:px-8">
+      <div className="mb-6 flex flex-col gap-4 sm:mb-8 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-3xl font-bold">AI Teacher</h1>
           <p className="text-slate-400 mt-2">Talk, type, or listen to Daksha's guided learning experience.</p>
@@ -176,7 +176,7 @@ export default function Chat() {
         )}
       </div>
 
-      <div className="flex-1 bg-slate-900 rounded-3xl border border-slate-800 p-6 mb-6 overflow-y-auto shadow-lg shadow-slate-950/20">
+      <div className="mb-6 flex-1 overflow-y-auto rounded-3xl border border-slate-800 bg-slate-900 p-4 shadow-lg shadow-slate-950/20 sm:p-6">
         <div className="space-y-4">
           {messages.map((msg, index) => (
             <div
@@ -261,11 +261,11 @@ export default function Chat() {
         </div>
       </div>
 
-      <form onSubmit={handleSend} className="grid gap-3 md:grid-cols-[auto_1fr_auto] items-center">
+      <form onSubmit={handleSend} className="grid items-center gap-3 sm:grid-cols-[auto_1fr_auto]">
         <button
           type="button"
           onClick={handleListen}
-          className={`rounded-2xl p-4 transition ${isListening ? 'bg-indigo-500/20 text-indigo-200' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'}`}
+          className={`rounded-2xl p-3 transition sm:p-4 ${isListening ? 'bg-indigo-500/20 text-indigo-200' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'}`}
         >
           <Mic className="w-5 h-5" />
         </button>
@@ -275,14 +275,14 @@ export default function Chat() {
           value={input}
           onChange={(e) => setInput(e.target.value)}
           placeholder={isListening ? 'Listening...' : 'Ask Daksha anything...'}
-          className="w-full rounded-2xl border border-slate-800 bg-slate-900 px-5 py-4 text-white outline-none focus:border-indigo-500"
+          className="w-full rounded-2xl border border-slate-800 bg-slate-900 px-4 py-3 text-white outline-none focus:border-indigo-500 sm:px-5 sm:py-4"
           disabled={loading || isListening}
         />
 
         <button
           type="submit"
           disabled={loading || !input.trim()}
-          className="rounded-2xl bg-indigo-600 px-5 py-4 text-white transition hover:bg-indigo-500 disabled:cursor-not-allowed disabled:opacity-50"
+          className="rounded-2xl bg-indigo-600 px-4 py-3 text-white transition hover:bg-indigo-500 disabled:cursor-not-allowed disabled:opacity-50 sm:px-5 sm:py-4"
         >
           <Send className="w-5 h-5" />
         </button>

@@ -33,7 +33,9 @@ const AINotes = lazy(() => import('./pages/AINotes'));
 const MindMaps = lazy(() => import('./pages/MindMaps'));
 const Whiteboard = lazy(() => import('./pages/Whiteboard'));
 const KnowledgeLibrary = lazy(() => import('./pages/KnowledgeLibrary'));
+const MobileOptimization = lazy(() => import('./pages/MobileOptimization'));
 const Admin = lazy(() => import('./pages/Admin'));
+const AdminPanel = lazy(() => import('./pages/AdminPanel'));
 
 export default function App() {
   return (
@@ -68,8 +70,10 @@ export default function App() {
               <Route path="/mind-maps" element={<MindMaps />} />
               <Route path="/whiteboard" element={<Whiteboard />} />
               <Route path="/knowledge-library" element={<KnowledgeLibrary />} />
+              <Route path="/mobile-optimization" element={<MobileOptimization />} />
               <Route path="/profile" element={<Profile />} />
               <Route path="/admin" element={<AdminRoute><Admin /></AdminRoute>} />
+              <Route path="/admin-panel" element={<AdminRoute><AdminPanel /></AdminRoute>} />
             </Route>
             <Route path="*" element={<NotFound />} />
           </Routes>

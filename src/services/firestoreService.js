@@ -1,5 +1,17 @@
 import { db } from '../firebase/firebaseConfig';
 import { doc, setDoc, collection, addDoc, query, where, getDocs, serverTimestamp, deleteDoc } from 'firebase/firestore';
+import { getCachedValue, setCachedValue } from '../utils/cache';
+
+const FIRESTORE_CACHE_TTL = 1000 * 60 * 3;
+
+async function readCachedCollection(collectionName, userId, loader, ttl = FIRESTORE_CACHE_TTL) {
+  const cacheKey = `firestore:${collectionName}:${userId}`;
+  const cached = getCachedValue(cacheKey, ttl);
+  if (cached) return cached;
+  const result = await loader();
+  setCachedValue(cacheKey, result, ttl);
+  return result;
+}
 
 export async function saveUserMemoryProfile(userId, profile) {
   try {
@@ -41,11 +53,13 @@ export async function saveDashboardStats(userId, stats) {
 
 export async function getUserDashboardStats(userId) {
   try {
-    const q = query(collection(db, 'dashboardStats'), where('userId', '==', userId));
-    const querySnapshot = await getDocs(q);
-    const stats = [];
-    querySnapshot.forEach((docSnapshot) => stats.push({ id: docSnapshot.id, ...docSnapshot.data() }));
-    return stats[0] || null;
+    return await readCachedCollection('dashboardStats', userId, async () => {
+      const q = query(collection(db, 'dashboardStats'), where('userId', '==', userId));
+      const querySnapshot = await getDocs(q);
+      const stats = [];
+      querySnapshot.forEach((docSnapshot) => stats.push({ id: docSnapshot.id, ...docSnapshot.data() }));
+      return stats[0] || null;
+    });
   } catch (error) {
     console.error('Error fetching dashboard stats:', error);
     return null;
@@ -54,11 +68,13 @@ export async function getUserDashboardStats(userId) {
 
 export async function getUserMemoryProfile(userId) {
   try {
-    const q = query(collection(db, 'userMemory'), where('userId', '==', userId));
-    const querySnapshot = await getDocs(q);
-    const profiles = [];
-    querySnapshot.forEach((docSnapshot) => profiles.push({ id: docSnapshot.id, ...docSnapshot.data() }));
-    return profiles[0] || null;
+    return await readCachedCollection('userMemory', userId, async () => {
+      const q = query(collection(db, 'userMemory'), where('userId', '==', userId));
+      const querySnapshot = await getDocs(q);
+      const profiles = [];
+      querySnapshot.forEach((docSnapshot) => profiles.push({ id: docSnapshot.id, ...docSnapshot.data() }));
+      return profiles[0] || null;
+    });
   } catch (error) {
     console.error('Error fetching memory profile:', error);
     return null;
@@ -112,16 +128,18 @@ export async function saveSkillRoadmap(userId, skill, roadmapPayload) {
 
 export async function getUserSkillRoadmaps(userId) {
   try {
-    const q = query(collection(db, 'skillRoadmaps'), where('userId', '==', userId));
-    const querySnapshot = await getDocs(q);
-    const roadmaps = [];
-    querySnapshot.forEach((docSnapshot) => {
-      roadmaps.push({ id: docSnapshot.id, ...docSnapshot.data() });
-    });
-    return roadmaps.sort((a, b) => {
-      const aTime = a.createdAt?.toMillis ? a.createdAt.toMillis() : 0;
-      const bTime = b.createdAt?.toMillis ? b.createdAt.toMillis() : 0;
-      return bTime - aTime;
+    return await readCachedCollection('skillRoadmaps', userId, async () => {
+      const q = query(collection(db, 'skillRoadmaps'), where('userId', '==', userId));
+      const querySnapshot = await getDocs(q);
+      const roadmaps = [];
+      querySnapshot.forEach((docSnapshot) => {
+        roadmaps.push({ id: docSnapshot.id, ...docSnapshot.data() });
+      });
+      return roadmaps.sort((a, b) => {
+        const aTime = a.createdAt?.toMillis ? a.createdAt.toMillis() : 0;
+        const bTime = b.createdAt?.toMillis ? b.createdAt.toMillis() : 0;
+        return bTime - aTime;
+      });
     });
   } catch (error) {
     console.error('Error fetching skill roadmaps:', error);
@@ -211,17 +229,19 @@ export async function saveLessonSuite(userId, topic, suiteData) {
 
 export async function getUserLessonSuites(userId) {
   try {
-    const q = query(collection(db, 'lessonSuites'), where('userId', '==', userId));
-    const querySnapshot = await getDocs(q);
-    const suites = [];
-    querySnapshot.forEach((doc) => {
-      suites.push({ id: doc.id, ...doc.data() });
-    });
+    return await readCachedCollection('lessonSuites', userId, async () => {
+      const q = query(collection(db, 'lessonSuites'), where('userId', '==', userId));
+      const querySnapshot = await getDocs(q);
+      const suites = [];
+      querySnapshot.forEach((doc) => {
+        suites.push({ id: doc.id, ...doc.data() });
+      });
 
-    return suites.sort((a, b) => {
-      const aTime = a.createdAt?.toMillis ? a.createdAt.toMillis() : 0;
-      const bTime = b.createdAt?.toMillis ? b.createdAt.toMillis() : 0;
-      return bTime - aTime;
+      return suites.sort((a, b) => {
+        const aTime = a.createdAt?.toMillis ? a.createdAt.toMillis() : 0;
+        const bTime = b.createdAt?.toMillis ? b.createdAt.toMillis() : 0;
+        return bTime - aTime;
+      });
     });
   } catch (error) {
     console.error('Error fetching lesson suites:', error);

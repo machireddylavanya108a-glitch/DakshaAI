@@ -1,0 +1,16 @@
+{
+  "name": "Daksha AI",
+  "short_name": "Daksha",
+  "description": "Enterprise AI learning platform",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#020617",
+  "theme_color": "#020617",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ]
+}

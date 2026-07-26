@@ -11,6 +11,8 @@
 
 html {
   scroll-behavior: smooth;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
 }
 
 body {
@@ -20,6 +22,8 @@ body {
     radial-gradient(circle at 80% 15%, rgba(168, 85, 247, 0.12), transparent 18%),
     linear-gradient(180deg, #020617 0%, #050816 100%);
   overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-y: none;
 }
 
 * {
@@ -48,8 +52,67 @@ select {
   font: inherit;
 }
 
+img {
+  max-width: 100%;
+  height: auto;
+  display: block;
+}
+
+h1 {
+  font-size: clamp(1.75rem, 2.8vw, 2.75rem);
+  line-height: 1.15;
+}
+
+h2 {
+  font-size: clamp(1.35rem, 2.2vw, 2rem);
+  line-height: 1.2;
+}
+
+h3 {
+  font-size: clamp(1.1rem, 1.65vw, 1.4rem);
+  line-height: 1.25;
+}
+
+p,
+li,
+label,
+span,
+button {
+  font-size: clamp(0.93rem, 1.2vw, 1rem);
+}
+
+button,
+a {
+  min-height: 44px;
+}
+
+:focus-visible {
+  outline: 2px solid rgba(34, 211, 238, 0.9);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+@media (prefers-contrast: more) {
+  body {
+    background: #000;
+    color: #fff;
+  }
+}
+
 @layer utilities {
   .shadow-glass {
     box-shadow: 0 40px 120px rgba(15, 23, 42, 0.3);
+  }
+
+  .mobile-safe-bottom {
+    padding-bottom: calc(1.5rem + env(safe-area-inset-bottom));
   }
 }

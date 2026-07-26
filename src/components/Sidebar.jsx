@@ -1,14 +1,15 @@
+import { memo, useMemo } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { Brain, Home, Search, GraduationCap, MessageSquare, Box, User, LogOut, ShieldCheck, NotebookPen, BookOpen, FileText, FileStack, Presentation, Youtube, Globe2, Camera, Mic, BrainCircuit, FlaskConical, Target, Award, GitBranch, PanelsTopLeft } from 'lucide-react';
+import { Brain, Home, Search, GraduationCap, MessageSquare, Box, User, LogOut, ShieldCheck, NotebookPen, BookOpen, FileText, FileStack, Presentation, Youtube, Globe2, Camera, Mic, BrainCircuit, FlaskConical, Target, Award, GitBranch, PanelsTopLeft, Smartphone, LayoutGrid } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
-export default function Sidebar({ closeSidebar }) {
+const Sidebar = memo(function Sidebar({ closeSidebar }) {
   const location = useLocation();
   const navigate = useNavigate();
   const { user, logout } = useAuth();
   const isAdmin = user?.email === 'nomis108a@gmail.com';
 
-  const navItems = [
+  const navItems = useMemo(() => [
     { name: 'Dashboard', path: '/dashboard', icon: Home },
     { name: 'Universal Scanner', path: '/scanner', icon: Search },
     { name: 'Skill Academy', path: '/academy', icon: GraduationCap },
@@ -33,12 +34,13 @@ export default function Sidebar({ closeSidebar }) {
     { name: 'AI Mind Maps', path: '/mind-maps', icon: GitBranch },
     { name: 'AI Whiteboard', path: '/whiteboard', icon: PanelsTopLeft },
     { name: 'Knowledge Library', path: '/knowledge-library', icon: BookOpen },
-  ];
+    { name: 'Mobile Optimization', path: '/mobile-optimization', icon: Smartphone },
+  ], []);
 
   const isActive = (path) => location.pathname === path;
 
   return (
-    <aside className="w-64 h-screen bg-slate-950 border-r border-slate-800 flex flex-col fixed left-0 top-0 z-50">
+    <aside className="flex h-screen w-[85vw] max-w-[18rem] flex-col border-r border-slate-800 bg-slate-950 fixed left-0 top-0 z-50 sm:w-72 md:w-64">
       <div className="p-6 flex items-center gap-3 border-b border-slate-800">
         <Brain className="w-8 h-8 text-indigo-500" />
         <span className="text-2xl font-bold text-white">Daksha AI</span>
@@ -58,14 +60,24 @@ export default function Sidebar({ closeSidebar }) {
         ))}
 
         {isAdmin && (
-          <Link
-            to="/admin"
-            onClick={closeSidebar}
-            className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-colors ${isActive('/admin') ? 'bg-indigo-600 text-white' : 'text-slate-400 hover:bg-slate-900 hover:text-white'}`}
-          >
-            <ShieldCheck className="w-5 h-5" />
-            <span className="font-medium">Admin Control</span>
-          </Link>
+          <>
+            <Link
+              to="/admin"
+              onClick={closeSidebar}
+              className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-colors ${isActive('/admin') ? 'bg-indigo-600 text-white' : 'text-slate-400 hover:bg-slate-900 hover:text-white'}`}
+            >
+              <ShieldCheck className="w-5 h-5" />
+              <span className="font-medium">Admin Control</span>
+            </Link>
+            <Link
+              to="/admin-panel"
+              onClick={closeSidebar}
+              className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-colors ${isActive('/admin-panel') ? 'bg-indigo-600 text-white' : 'text-slate-400 hover:bg-slate-900 hover:text-white'}`}
+            >
+              <LayoutGrid className="w-5 h-5" />
+              <span className="font-medium">Admin Panel</span>
+            </Link>
+          </>
         )}
       </nav>
 
@@ -97,4 +109,6 @@ export default function Sidebar({ closeSidebar }) {
       </div>
     </aside>
   );
-}
+});
+
+export default Sidebar;

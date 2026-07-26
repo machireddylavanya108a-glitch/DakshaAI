@@ -11,6 +11,10 @@ export default defineConfig({
     open: true,
   },
   build: {
+    target: 'es2022',
+    cssCodeSplit: true,
+    sourcemap: false,
+    chunkSizeWarningLimit: 1000,
     rollupOptions: {
       output: {
         manualChunks(id) {
