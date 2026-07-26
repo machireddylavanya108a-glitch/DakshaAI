@@ -8,6 +8,7 @@ import Home from '../pages/Home.jsx'
 import Login from '../pages/Login.jsx'
 import Dashboard from '../pages/Dashboard.jsx'
 import Teacher from '../pages/Teacher.jsx'
+import PracticeMode from '../pages/PracticeMode.jsx'
 import NotFound from '../pages/NotFound.jsx'
 
 export default function AppRoutes() {
@@ -31,6 +32,7 @@ export default function AppRoutes() {
             >
               <Route index element={<Dashboard />} />
               <Route path="teacher" element={<Teacher />} />
+              <Route path="practice" element={<PracticeMode />} />
             </Route>
 
             <Route path="*" element={<NotFound />} />

@@ -1,5 +1,5 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { Brain, Home, Search, GraduationCap, MessageSquare, Box, User, LogOut, ShieldCheck, NotebookPen, BookOpen, FileText, FileStack, Presentation, Youtube, Globe2, Camera, Mic, BrainCircuit } from 'lucide-react';
+import { Brain, Home, Search, GraduationCap, MessageSquare, Box, User, LogOut, ShieldCheck, NotebookPen, BookOpen, FileText, FileStack, Presentation, Youtube, Globe2, Camera, Mic, BrainCircuit, FlaskConical, Target } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
 export default function Sidebar({ closeSidebar }) {
@@ -26,6 +26,8 @@ export default function Sidebar({ closeSidebar }) {
     { name: '3D Learning', path: '/3d-learning', icon: Box },
     { name: 'Virtual Labs', path: '/virtual-labs', icon: FlaskConical },
     { name: 'AI Tutor', path: '/ai-tutor', icon: Brain },
+    { name: 'Practice Engine', path: '/practice', icon: Target },
+    { name: 'Examinations', path: '/examinations', icon: NotebookPen },
   ];
 
   const isActive = (path) => location.pathname === path;
