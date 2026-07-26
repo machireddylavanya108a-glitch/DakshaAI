@@ -329,6 +329,82 @@ export async function renamePptLearningRecord(userId, recordId, newName) {
   }
 }
 
+export async function saveYouTubeLearningRecord(userId, payload) {
+  try {
+    const recordId = payload?.id || `${userId}_${Date.now()}`;
+    await setDoc(doc(db, 'youtubeLearning', recordId), {
+      userId,
+      videoUrl: payload?.videoUrl || '',
+      videoTitle: payload?.videoTitle || 'YouTube lesson',
+      transcript: payload?.transcript || [],
+      analysis: payload?.analysis || {},
+      lesson: payload?.lesson || {},
+      summary: payload?.summary || '',
+      quiz: payload?.quiz || [],
+      flashcards: payload?.flashcards || [],
+      createdAt: payload?.createdAt ? new Date(payload.createdAt) : serverTimestamp(),
+    });
+    return true;
+  } catch (error) {
+    console.error('Error saving YouTube learning record:', error);
+    return false;
+  }
+}
+
+export async function getUserYouTubeLearning(userId) {
+  try {
+    const q = query(collection(db, 'youtubeLearning'), where('userId', '==', userId));
+    const querySnapshot = await getDocs(q);
+    const records = [];
+    querySnapshot.forEach((docSnapshot) => {
+      records.push({ id: docSnapshot.id, ...docSnapshot.data() });
+    });
+    return records.sort((a, b) => {
+      const aTime = a.createdAt?.toMillis ? a.createdAt.toMillis() : 0;
+      const bTime = b.createdAt?.toMillis ? b.createdAt.toMillis() : 0;
+      return bTime - aTime;
+    });
+  } catch (error) {
+    console.error('Error fetching YouTube learning records:', error);
+    return [];
+  }
+}
+
+export async function deleteYouTubeLearningRecord(userId, recordId) {
+  try {
+    await deleteDoc(doc(db, 'youtubeLearning', recordId));
+    return true;
+  } catch (error) {
+    console.error('Error deleting YouTube learning record:', error);
+    return false;
+  }
+}
+
+export async function renameYouTubeLearningRecord(userId, recordId, newName) {
+  try {
+    await setDoc(doc(db, 'youtubeLearning', recordId), { videoTitle: newName }, { merge: true });
+    return true;
+  } catch (error) {
+    console.error('Error renaming YouTube learning record:', error);
+    return false;
+  }
+}
+
+export async function saveYouTubeBookmark(userId, bookmark) {
+  try {
+    const bookmarkId = `${userId}_${Date.now()}`;
+    await setDoc(doc(db, 'youtubeBookmarks', bookmarkId), {
+      userId,
+      ...bookmark,
+      createdAt: serverTimestamp(),
+    });
+    return true;
+  } catch (error) {
+    console.error('Error saving YouTube bookmark:', error);
+    return false;
+  }
+}
+
 export async function saveDocxLearningRecord(userId, payload) {
   try {
     const recordId = payload?.id || `${userId}_${Date.now()}`;

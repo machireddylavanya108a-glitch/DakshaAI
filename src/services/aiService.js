@@ -355,6 +355,93 @@ Notes: ${JSON.stringify(pptModel?.notes || [])}`;
   }
 }
 
+export async function generateYouTubeLearningPackage(videoUrl, videoModel, userId = 'guest') {
+  try {
+    const prompt = `You are Daksha AI, a premium YouTube-to-course generator.
+Create a structured learning package from this video content.
+Return ONLY valid JSON with these exact keys:
+{
+  "title": "",
+  "summary": "",
+  "beginnerLesson": "",
+  "intermediateLesson": "",
+  "advancedLesson": "",
+  "keyConcepts": [],
+  "importantDefinitions": [],
+  "examples": [],
+  "realWorldApplications": [],
+  "revisionNotes": [],
+  "cheatSheet": [],
+  "flashcards": [{"front": "", "back": ""}],
+  "quiz": [{"question": "", "options": ["", "", "", ""], "answer": ""}],
+  "mindMap": "",
+  "learningRoadmap": []
+}
+
+Video url: ${videoUrl}
+User id: ${userId}
+Video title: ${videoModel?.title || 'Untitled'}
+Transcript: ${JSON.stringify(videoModel?.transcript || [])}
+Chapters: ${JSON.stringify(videoModel?.chapters || [])}
+Topics: ${JSON.stringify(videoModel?.topics || [])}
+Definitions: ${JSON.stringify(videoModel?.definitions || [])}
+Important concepts: ${JSON.stringify(videoModel?.importantConcepts || [])}
+Code snippets: ${JSON.stringify(videoModel?.codeSnippets || [])}
+Formulas: ${JSON.stringify(videoModel?.formulas || [])}`;
+
+    const response = await openai.chat.completions.create({
+      model: 'deepseek/deepseek-v3:free',
+      messages: [
+        { role: 'system', content: `${DAKSHA_SYSTEM_PROMPT} You MUST return only valid JSON for YouTube learning generation.` },
+        { role: 'user', content: prompt }
+      ]
+    });
+
+    const content = response.choices[0].message.content;
+    const parsed = parseJsonResponse(content);
+    if (parsed) {
+      return parsed;
+    }
+
+    return {
+      title: videoModel?.title || 'YouTube lesson',
+      summary: 'A structured lesson package was generated from your video.',
+      beginnerLesson: 'Start by understanding the main idea and the first part of the video.',
+      intermediateLesson: 'Connect the main ideas with examples and supporting details.',
+      advancedLesson: 'Compare the concepts, evaluate the applications, and build deeper understanding.',
+      keyConcepts: [],
+      importantDefinitions: [],
+      examples: [],
+      realWorldApplications: [],
+      revisionNotes: [],
+      cheatSheet: [],
+      flashcards: [],
+      quiz: [],
+      mindMap: 'Core idea → examples → applications',
+      learningRoadmap: []
+    };
+  } catch (error) {
+    console.error('YouTube Learning Package Error:', error);
+    return {
+      title: videoModel?.title || 'YouTube lesson',
+      summary: 'I could not generate the YouTube learning package right now.',
+      beginnerLesson: 'Start by reviewing the transcript carefully.',
+      intermediateLesson: 'Break the lesson into smaller sections and connect the ideas.',
+      advancedLesson: 'Go deeper into the theory and practice the key concepts.',
+      keyConcepts: [],
+      importantDefinitions: [],
+      examples: [],
+      realWorldApplications: [],
+      revisionNotes: [],
+      cheatSheet: [],
+      flashcards: [],
+      quiz: [],
+      mindMap: 'Core idea → examples → applications',
+      learningRoadmap: []
+    };
+  }
+}
+
 export async function generateDocxLearningPackage(fileName, docxModel, userId = 'guest') {
   try {
     const prompt = `You are Daksha AI, a premium document-to-course generator.

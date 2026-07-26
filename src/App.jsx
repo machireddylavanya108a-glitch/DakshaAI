@@ -16,6 +16,7 @@ const Flashcards = lazy(() => import('./pages/Flashcards'));
 const PDFLearning = lazy(() => import('./pages/PDFLearning'));
 const DOCXLearning = lazy(() => import('./pages/DOCXLearning'));
 const PPTLearning = lazy(() => import('./pages/PPTLearning'));
+const YouTubeLearning = lazy(() => import('./pages/YouTubeLearning'));
 const Profile = lazy(() => import('./pages/Profile'));
 const NotFound = lazy(() => import('./pages/NotFound'));
 const Learn3D = lazy(() => import('./pages/Learn3D'));
@@ -39,6 +40,7 @@ export default function App() {
               <Route path="/pdf-learning" element={<PDFLearning />} />
               <Route path="/docx-learning" element={<DOCXLearning />} />
               <Route path="/ppt-learning" element={<PPTLearning />} />
+              <Route path="/youtube-learning" element={<YouTubeLearning />} />
               <Route path="/3d-learning" element={<Learn3D />} />
               <Route path="/profile" element={<Profile />} />
               <Route path="/admin" element={<AdminRoute><Admin /></AdminRoute>} />
