@@ -25,6 +25,7 @@ export default function Sidebar({ closeSidebar }) {
     { name: 'AI Teacher', path: '/app/teacher', icon: MessageSquare },
     { name: '3D Learning', path: '/3d-learning', icon: Box },
     { name: 'Virtual Labs', path: '/virtual-labs', icon: FlaskConical },
+    { name: 'AI Tutor', path: '/ai-tutor', icon: Brain },
   ];
 
   const isActive = (path) => location.pathname === path;

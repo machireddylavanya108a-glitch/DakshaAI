@@ -25,6 +25,7 @@ const Profile = lazy(() => import('./pages/Profile'));
 const NotFound = lazy(() => import('./pages/NotFound'));
 const Learn3D = lazy(() => import('./pages/Learning3D'));
 const VirtualLabs = lazy(() => import('./pages/VirtualLabs'));
+const AITutor = lazy(() => import('./pages/AITutor'));
 const Admin = lazy(() => import('./pages/Admin'));
 
 export default function App() {
@@ -52,6 +53,7 @@ export default function App() {
               <Route path="/memory-dashboard" element={<MemoryDashboard />} />
               <Route path="/3d-learning" element={<Learn3D />} />
               <Route path="/virtual-labs" element={<VirtualLabs />} />
+              <Route path="/ai-tutor" element={<AITutor />} />
               <Route path="/profile" element={<Profile />} />
               <Route path="/admin" element={<AdminRoute><Admin /></AdminRoute>} />
             </Route>
