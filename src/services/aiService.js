@@ -442,6 +442,191 @@ Formulas: ${JSON.stringify(videoModel?.formulas || [])}`;
   }
 }
 
+export async function generateCameraLearningPackage(extractedText, imageName = 'camera-image', previewUrl = '', userId = 'guest') {
+  try {
+    const prompt = `You are Daksha AI, a premium camera OCR-to-learning engine.
+Create a complete learning package from the extracted OCR text and image context.
+Return ONLY valid JSON with these exact keys:
+{
+  "title": "",
+  "ocrText": "",
+  "summary": "",
+  "beginnerLesson": "",
+  "intermediateLesson": "",
+  "advancedLesson": "",
+  "keyConcepts": [],
+  "importantDefinitions": [],
+  "examples": [],
+  "realWorldApplications": [],
+  "revisionNotes": [],
+  "cheatSheet": [],
+  "flashcards": [{"front": "", "back": ""}],
+  "quiz": [{"question": "", "options": ["", "", "", ""], "answer": ""}],
+  "mindMap": "",
+  "learningRoadmap": [],
+  "analysis": {
+    "detectedElements": {
+      "headings": [],
+      "paragraphs": [],
+      "tables": [],
+      "handwrittenText": [],
+      "formulas": [],
+      "diagrams": [],
+      "codeSnippets": [],
+      "concepts": []
+    },
+    "keyConcepts": [],
+    "definitions": [],
+    "formulas": [],
+    "diagrams": [],
+    "qualityWarnings": []
+  },
+  "lesson": {
+    "title": "",
+    "summary": "",
+    "beginnerLesson": "",
+    "intermediateLesson": "",
+    "advancedLesson": "",
+    "keyConcepts": [],
+    "importantDefinitions": [],
+    "examples": [],
+    "realWorldApplications": [],
+    "revisionNotes": [],
+    "cheatSheet": [],
+    "flashcards": [],
+    "quiz": [],
+    "mindMap": "",
+    "learningRoadmap": []
+  }
+}
+
+Image name: ${imageName}
+User id: ${userId}
+Extracted OCR text: ${extractedText}`;
+
+    const response = await openai.chat.completions.create({
+      model: 'deepseek/deepseek-v3:free',
+      messages: [
+        { role: 'system', content: `${DAKSHA_SYSTEM_PROMPT} You MUST return only valid JSON for camera OCR learning.` },
+        { role: 'user', content: prompt }
+      ]
+    });
+
+    const content = response.choices[0].message.content;
+    const parsed = parseJsonResponse(content);
+    if (parsed) {
+      return parsed;
+    }
+
+    return {
+      title: imageName || 'OCR learning session',
+      ocrText: extractedText,
+      summary: 'The OCR text has been converted into a structured learning package.',
+      beginnerLesson: 'Begin by understanding the central idea in the image.',
+      intermediateLesson: 'Connect the extracted details into a coherent explanation.',
+      advancedLesson: 'Deepen the understanding by exploring deeper implications and examples.',
+      keyConcepts: [],
+      importantDefinitions: [],
+      examples: [],
+      realWorldApplications: [],
+      revisionNotes: [],
+      cheatSheet: [],
+      flashcards: [],
+      quiz: [],
+      mindMap: 'Core idea → supporting text → applications',
+      learningRoadmap: [],
+      analysis: {
+        detectedElements: {
+          headings: [],
+          paragraphs: [],
+          tables: [],
+          handwrittenText: [],
+          formulas: [],
+          diagrams: [],
+          codeSnippets: [],
+          concepts: []
+        },
+        keyConcepts: [],
+        definitions: [],
+        formulas: [],
+        diagrams: [],
+        qualityWarnings: []
+      },
+      lesson: {
+        title: imageName || 'OCR learning session',
+        summary: 'The OCR text has been converted into a structured learning package.',
+        beginnerLesson: 'Begin by understanding the central idea in the image.',
+        intermediateLesson: 'Connect the extracted details into a coherent explanation.',
+        advancedLesson: 'Deepen the understanding by exploring deeper implications and examples.',
+        keyConcepts: [],
+        importantDefinitions: [],
+        examples: [],
+        realWorldApplications: [],
+        revisionNotes: [],
+        cheatSheet: [],
+        flashcards: [],
+        quiz: [],
+        mindMap: 'Core idea → supporting text → applications',
+        learningRoadmap: []
+      }
+    };
+  } catch (error) {
+    console.error('Camera OCR Learning Package Error:', error);
+    return {
+      title: imageName || 'OCR learning session',
+      ocrText: extractedText,
+      summary: 'I could not generate the camera OCR lesson package right now.',
+      beginnerLesson: 'Review the extracted text carefully.',
+      intermediateLesson: 'Group the information into sections.',
+      advancedLesson: 'Look for deeper patterns and applications.',
+      keyConcepts: [],
+      importantDefinitions: [],
+      examples: [],
+      realWorldApplications: [],
+      revisionNotes: [],
+      cheatSheet: [],
+      flashcards: [],
+      quiz: [],
+      mindMap: 'Core idea → supporting text → applications',
+      learningRoadmap: [],
+      analysis: {
+        detectedElements: {
+          headings: [],
+          paragraphs: [],
+          tables: [],
+          handwrittenText: [],
+          formulas: [],
+          diagrams: [],
+          codeSnippets: [],
+          concepts: []
+        },
+        keyConcepts: [],
+        definitions: [],
+        formulas: [],
+        diagrams: [],
+        qualityWarnings: []
+      },
+      lesson: {
+        title: imageName || 'OCR learning session',
+        summary: 'I could not generate the camera OCR lesson package right now.',
+        beginnerLesson: 'Review the extracted text carefully.',
+        intermediateLesson: 'Group the information into sections.',
+        advancedLesson: 'Look for deeper patterns and applications.',
+        keyConcepts: [],
+        importantDefinitions: [],
+        examples: [],
+        realWorldApplications: [],
+        revisionNotes: [],
+        cheatSheet: [],
+        flashcards: [],
+        quiz: [],
+        mindMap: 'Core idea → supporting text → applications',
+        learningRoadmap: []
+      }
+    };
+  }
+}
+
 export async function generateWebsiteLearningPackage(url, websiteModel, userId = 'guest') {
   try {
     const prompt = `You are Daksha AI, a premium website-to-course generator.

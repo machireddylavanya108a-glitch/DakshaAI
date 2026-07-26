@@ -219,6 +219,81 @@ export async function saveQuizScore(userId, topic, score, total) {
   }
 }
 
+export async function saveCameraLearningRecord(userId, payload) {
+  try {
+    const recordId = payload?.id || `${userId}_${Date.now()}`;
+    await setDoc(doc(db, 'cameraLearning', recordId), {
+      userId,
+      imageName: payload?.imageName || 'camera-image',
+      ocrText: payload?.ocrText || '',
+      analysis: payload?.analysis || {},
+      lesson: payload?.lesson || {},
+      summary: payload?.summary || '',
+      quiz: payload?.quiz || [],
+      flashcards: payload?.flashcards || [],
+      createdAt: payload?.createdAt ? new Date(payload.createdAt) : serverTimestamp(),
+    });
+    return true;
+  } catch (error) {
+    console.error('Error saving camera learning record:', error);
+    return false;
+  }
+}
+
+export async function getUserCameraLearning(userId) {
+  try {
+    const q = query(collection(db, 'cameraLearning'), where('userId', '==', userId));
+    const querySnapshot = await getDocs(q);
+    const records = [];
+    querySnapshot.forEach((docSnapshot) => {
+      records.push({ id: docSnapshot.id, ...docSnapshot.data() });
+    });
+    return records.sort((a, b) => {
+      const aTime = a.createdAt?.toMillis ? a.createdAt.toMillis() : 0;
+      const bTime = b.createdAt?.toMillis ? b.createdAt.toMillis() : 0;
+      return bTime - aTime;
+    });
+  } catch (error) {
+    console.error('Error fetching camera learning records:', error);
+    return [];
+  }
+}
+
+export async function deleteCameraLearningRecord(userId, recordId) {
+  try {
+    await deleteDoc(doc(db, 'cameraLearning', recordId));
+    return true;
+  } catch (error) {
+    console.error('Error deleting camera learning record:', error);
+    return false;
+  }
+}
+
+export async function renameCameraLearningRecord(userId, recordId, newName) {
+  try {
+    await setDoc(doc(db, 'cameraLearning', recordId), { imageName: newName }, { merge: true });
+    return true;
+  } catch (error) {
+    console.error('Error renaming camera learning record:', error);
+    return false;
+  }
+}
+
+export async function saveCameraBookmark(userId, bookmark) {
+  try {
+    const bookmarkId = `${userId}_${Date.now()}`;
+    await setDoc(doc(db, 'cameraBookmarks', bookmarkId), {
+      userId,
+      ...bookmark,
+      createdAt: serverTimestamp(),
+    });
+    return true;
+  } catch (error) {
+    console.error('Error saving camera bookmark:', error);
+    return false;
+  }
+}
+
 export async function savePdfLearningRecord(userId, fileName, analysis, lesson, summary, quiz = [], flashcards = []) {
   try {
     const recordId = `${userId}_${Date.now()}`;
