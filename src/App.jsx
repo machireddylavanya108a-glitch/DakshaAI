@@ -36,6 +36,8 @@ const KnowledgeLibrary = lazy(() => import('./pages/KnowledgeLibrary'));
 const MobileOptimization = lazy(() => import('./pages/MobileOptimization'));
 const Admin = lazy(() => import('./pages/Admin'));
 const AdminPanel = lazy(() => import('./pages/AdminPanel'));
+const Marketplace = lazy(() => import('./pages/marketplace/Marketplace'));
+const Integrations = lazy(() => import('./pages/integrations/Integrations'));
 
 export default function App() {
   return (
@@ -72,6 +74,8 @@ export default function App() {
               <Route path="/knowledge-library" element={<KnowledgeLibrary />} />
               <Route path="/mobile-optimization" element={<MobileOptimization />} />
               <Route path="/profile" element={<Profile />} />
+              <Route path="/marketplace" element={<Marketplace />} />
+              <Route path="/integrations" element={<Integrations />} />
               <Route path="/admin" element={<AdminRoute><Admin /></AdminRoute>} />
               <Route path="/admin-panel" element={<AdminRoute><AdminPanel /></AdminRoute>} />
               <Route path="/app/*" element={<Navigate to="/dashboard" replace />} />

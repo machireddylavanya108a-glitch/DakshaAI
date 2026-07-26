@@ -317,6 +317,34 @@ export async function saveQuizScore(userId, topic, score, total) {
   }
 }
 
+export async function saveIntegrationRecord(userId, collectionName, payload) {
+  try {
+    const recordId = `${userId}_${Date.now()}`;
+    await setDoc(doc(db, collectionName, recordId), {
+      userId,
+      ...payload,
+      createdAt: serverTimestamp()
+    });
+    return true;
+  } catch (error) {
+    console.error(`Error saving ${collectionName}:`, error);
+    return false;
+  }
+}
+
+export async function getIntegrationRecords(userId, collectionName) {
+  try {
+    const q = query(collection(db, collectionName), where('userId', '==', userId));
+    const querySnapshot = await getDocs(q);
+    const records = [];
+    querySnapshot.forEach((docSnapshot) => records.push({ id: docSnapshot.id, ...docSnapshot.data() }));
+    return records;
+  } catch (error) {
+    console.error(`Error fetching ${collectionName}:`, error);
+    return [];
+  }
+}
+
 export async function saveCameraLearningRecord(userId, payload) {
   try {
     const recordId = payload?.id || `${userId}_${Date.now()}`;

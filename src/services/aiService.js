@@ -1,6 +1,6 @@
 import OpenAI from 'openai';
 import { compressImageDataUrl, getCachedValue, setCachedValue } from '../utils/cache';
-import { sanitizePrompt } from '../utils/security';
+import { sanitizePrompt, rateLimiter } from '../utils/security';
 
 const openai = new OpenAI({
   apiKey: import.meta.env.VITE_OPENROUTER_API_KEY,
@@ -48,19 +48,45 @@ function getCacheKey(prefix, payload) {
   return `${prefix}:${String(payload || '').slice(0, 180)}`;
 }
 
+async function callProtectedModel(request, { retries = 2, timeoutMs = 20000 } = {}) {
+  const rate = rateLimiter('ai-request', 20, 60_000);
+  if (!rate.allowed) {
+    throw new Error('Rate limit exceeded. Please wait a moment and try again.');
+  }
+
+  let lastError;
+  for (let attempt = 0; attempt <= retries; attempt += 1) {
+    const timeoutPromise = new Promise((_, reject) => {
+      setTimeout(() => reject(new Error('AI request timed out.')), timeoutMs);
+    });
+
+    try {
+      return await Promise.race([request(), timeoutPromise]);
+    } catch (error) {
+      lastError = error;
+      if (attempt === retries) break;
+    }
+  }
+  throw lastError;
+}
+
 export async function getDakshaResponse(prompt, language = "English") {
   const cacheKey = getCacheKey(`ai-response:${language}`, prompt);
   const cached = getCachedValue(cacheKey, 1000 * 60 * 10);
   if (cached) return cached;
   try {
     const safePrompt = sanitizePrompt(prompt);
-    const response = await openai.chat.completions.create({
+    const safeInput = optimizeTextPayload(safePrompt, 12000);
+    if (safeInput.length > 12000) {
+      throw new Error('Input exceeds the supported request size.');
+    }
+    const response = await callProtectedModel(() => openai.chat.completions.create({
       model: 'deepseek/deepseek-v3:free',
       messages: [
         { role: 'system', content: `${DAKSHA_SYSTEM_PROMPT} You MUST respond entirely in ${language}.` },
-        { role: 'user', content: optimizeTextPayload(safePrompt, 12000) }
+        { role: 'user', content: safeInput }
       ]
-    });
+    }));
     const content = response.choices[0].message.content;
     setCachedValue(cacheKey, content, 1000 * 60 * 10);
     return content;
@@ -76,8 +102,9 @@ export async function getDakshaImageResponse(base64Image, mimeType) {
   if (cached) return cached;
 
   try {
-    const optimizedImage = base64Image?.startsWith('data:image') ? await compressImageDataUrl(base64Image, 0.8, 1200) : base64Image;
-    const response = await openai.chat.completions.create({
+    const safeImage = String(base64Image || '').slice(0, 800000);
+    const optimizedImage = safeImage.startsWith('data:image') ? await compressImageDataUrl(`data:${mimeType};base64,${safeImage}`, 0.8, 1200) : safeImage;
+    const response = await callProtectedModel(() => openai.chat.completions.create({
       model: 'meta-llama/llama-3.2-11b-vision-instruct:free',
       messages: [
         { role: 'user', content: [
@@ -85,7 +112,7 @@ export async function getDakshaImageResponse(base64Image, mimeType) {
           { type: 'image_url', image_url: { url: `data:${mimeType};base64,${optimizedImage}` } }
         ] }
       ]
-    });
+    }));
     const content = response.choices[0].message.content;
     setCachedValue(cacheKey, content, 1000 * 60 * 20);
     return content;
@@ -101,13 +128,14 @@ export async function getDakshaTextResponse(extractedText) {
   if (cached) return cached;
 
   try {
-    const response = await openai.chat.completions.create({
+    const safeText = optimizeTextPayload(sanitizePrompt(extractedText), 18000);
+    const response = await callProtectedModel(() => openai.chat.completions.create({
       model: 'deepseek/deepseek-v3:free',
       messages: [
         { role: 'system', content: 'You are Daksha AI. The user has uploaded a document and extracted the text. Read the text, summarize the key knowledge, and explain what the document is about simply.' },
-        { role: 'user', content: optimizeTextPayload(extractedText, 18000) }
+        { role: 'user', content: safeText }
       ]
-    });
+    }));
     const content = response.choices[0].message.content;
     setCachedValue(cacheKey, content, 1000 * 60 * 15);
     return content;
@@ -123,6 +151,7 @@ export async function getDakshaDocumentAnalysis(extractedText, fileName = 'docum
   if (cached) return cached;
 
   try {
+    const limitedText = optimizeTextPayload(sanitizePrompt(extractedText), 18000);
     const prompt = `You are Daksha AI, a professional document understanding engine.
 Analyze the text from the uploaded document and detect headings, chapters, tables, images, diagrams, formulas, code blocks, and lists.
 Extract the main topics, keywords, definitions, important points, summary, and difficulty level.
@@ -131,15 +160,15 @@ Return only valid JSON with the following keys: overview, summary, topics, keywo
 The uploaded file is: ${fileName} (${fileType}).
 
 Text to analyze:
-${optimizeTextPayload(sanitizePrompt(extractedText), 18000)}`;
+${limitedText}`;
 
-    const response = await openai.chat.completions.create({
+    const response = await callProtectedModel(() => openai.chat.completions.create({
       model: 'deepseek/deepseek-v3:free',
       messages: [
         { role: 'system', content: `${DAKSHA_SYSTEM_PROMPT} You MUST return only valid JSON for document analysis.` },
         { role: 'user', content: prompt }
       ]
-    });
+    }));
 
     const content = response.choices[0].message.content;
     const parsed = parseJsonResponse(content);
@@ -202,6 +231,7 @@ export async function getDakshaLessonPackage(sourceText, context = 'topic', sour
   if (cached) return cached;
 
   try {
+    const limitedSource = optimizeTextPayload(sanitizePrompt(sourceText), 18000);
     const prompt = `You are Daksha AI, a premium lesson generator for learners.
 Create a complete course package based on the following source: ${sourceName} (${context}).
 Generate the following sections automatically:
@@ -222,15 +252,15 @@ Generate the following sections automatically:
 Return only valid JSON with these exact keys. Keep each section clear and learner-focused.
 
 Source content:
-${optimizeTextPayload(sanitizePrompt(sourceText), 18000)}`;
+${limitedSource}`;
 
-    const response = await openai.chat.completions.create({
+    const response = await callProtectedModel(() => openai.chat.completions.create({
       model: 'deepseek/deepseek-v3:free',
       messages: [
         { role: 'system', content: `${DAKSHA_SYSTEM_PROMPT} You MUST return only valid JSON for the lesson package.` },
         { role: 'user', content: prompt }
       ]
-    });
+    }));
 
     const content = response.choices[0].message.content;
     const parsed = parseJsonResponse(content);

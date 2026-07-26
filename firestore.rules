@@ -1,0 +1,65 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isSignedIn() {
+      return request.auth != null && request.auth.uid != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isAdmin() {
+      return isSignedIn() && request.auth.token.role == 'admin';
+    }
+
+    function isValidTimestamp() {
+      return request.resource.data.createdAt is timestamp || request.resource.data.updatedAt is timestamp;
+    }
+
+    function isSafeSize() {
+      return request.resource.size < 1 * 1024 * 1024;
+    }
+
+    match /plugins/{pluginId} {
+      allow read: if true;
+      allow create, update: if isSignedIn() && isSafeSize() && isValidTimestamp();
+      allow delete: if isAdmin();
+    }
+
+    match /developers/{developerId} {
+      allow read: if true;
+      allow create, update: if isSignedIn() && (isOwner(developerId) || isAdmin()) && isSafeSize();
+      allow delete: if isAdmin();
+    }
+
+    match /marketplace/{itemId} {
+      allow read: if true;
+      allow create, update: if isSignedIn() && isSafeSize() && isValidTimestamp();
+      allow delete: if isAdmin();
+    }
+
+    match /pluginReviews/{reviewId} {
+      allow read: if true;
+      allow create: if isSignedIn() && isSafeSize() && isValidTimestamp();
+      allow update, delete: if isSignedIn() && request.auth.uid == resource.data.userId || isAdmin();
+    }
+
+    match /pluginDownloads/{downloadId} {
+      allow read: if isAdmin();
+      allow create: if isSignedIn() && isSafeSize();
+      allow update, delete: if isAdmin();
+    }
+
+    match /{path=**}/userProfiles/{userId} {
+      allow read: if isOwner(userId) || isAdmin();
+      allow create, update: if isOwner(userId) || isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    match /{path=**}/{document=**} {
+      allow read: if isSignedIn();
+      allow write: if false;
+    }
+  }
+}

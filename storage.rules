@@ -1,0 +1,26 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    function isSignedIn() {
+      return request.auth != null && request.auth.uid != null;
+    }
+
+    function isAllowedMime() {
+      return request.resource.contentType.matches('image/.*') || request.resource.contentType.matches('application/pdf') || request.resource.contentType.matches('text/.*') || request.resource.contentType.matches('application/vnd.openxmlformats-officedocument.*') || request.resource.contentType.matches('application/zip');
+    }
+
+    function isValidSize() {
+      return request.resource.size < 20 * 1024 * 1024;
+    }
+
+    match /users/{userId}/{allPaths=**} {
+      allow read: if isSignedIn() && request.auth.uid == userId;
+      allow write: if isSignedIn() && request.auth.uid == userId && isAllowedMime() && isValidSize();
+    }
+
+    match /public/{allPaths=**} {
+      allow read: if true;
+      allow write: if false;
+    }
+  }
+}

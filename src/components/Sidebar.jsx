@@ -1,6 +1,6 @@
 import { memo, useMemo } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { Brain, Home, Search, GraduationCap, MessageSquare, Box, User, LogOut, ShieldCheck, NotebookPen, BookOpen, FileText, FileStack, Presentation, Youtube, Globe2, Camera, Mic, BrainCircuit, FlaskConical, Target, Award, GitBranch, PanelsTopLeft, Smartphone, LayoutGrid } from 'lucide-react';
+import { Brain, Home, Search, GraduationCap, MessageSquare, Box, User, LogOut, ShieldCheck, NotebookPen, BookOpen, FileText, FileStack, Presentation, Youtube, Globe2, Camera, Mic, BrainCircuit, FlaskConical, Target, Award, GitBranch, PanelsTopLeft, Smartphone, LayoutGrid, PlugZap } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
 const Sidebar = memo(function Sidebar({ closeSidebar }) {
@@ -35,6 +35,7 @@ const Sidebar = memo(function Sidebar({ closeSidebar }) {
     { name: 'AI Whiteboard', path: '/whiteboard', icon: PanelsTopLeft },
     { name: 'Knowledge Library', path: '/knowledge-library', icon: BookOpen },
     { name: 'Mobile Optimization', path: '/mobile-optimization', icon: Smartphone },
+    { name: 'Integrations Hub', path: '/integrations', icon: PlugZap },
   ], []);
 
   const isActive = (path) => location.pathname === path;

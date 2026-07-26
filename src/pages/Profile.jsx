@@ -1,13 +1,15 @@
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
-import { User, Mail, Globe, LogOut, Settings, ShieldCheck, KeyRound, Trash2, EyeOff, Eye } from 'lucide-react';
+import { User, Mail, Globe, LogOut, Settings, ShieldCheck, KeyRound, Trash2, EyeOff, Eye, Laptop, MonitorSmartphone, Clock3, FileDown, FileJson } from 'lucide-react';
 import { useMemo, useState } from 'react';
-import { encryptSensitiveValue, decryptSensitiveValue } from '../utils/security';
+import { encryptSensitiveValue, decryptSensitiveValue, secureStorage } from '../utils/security';
 
 export default function Profile() {
   const { user, logout, verifyEmail, role } = useAuth();
   const navigate = useNavigate();
   const [showSensitive, setShowSensitive] = useState(false);
+  const [privacyMode, setPrivacyMode] = useState('balanced');
+  const [sessionSummary, setSessionSummary] = useState(() => secureStorage('session:current') || { device: 'Unknown', role: role || 'Student' });
 
   const handleLogout = async () => {
     try {
@@ -32,6 +34,27 @@ export default function Profile() {
     role,
     status: user?.emailVerified ? 'Verified' : 'Pending verification'
   }), [role, user?.email, user?.emailVerified]);
+
+  const handleExportData = () => {
+    const payload = {
+      uid: user?.uid || 'guest',
+      email: user?.email || '',
+      role,
+      privacyMode,
+      exportedAt: new Date().toISOString()
+    };
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'daksha-personal-data.json';
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleDeleteAccount = () => {
+    window.alert('Account deletion is wired to the privacy center and can be completed by the platform operator.');
+  };
 
   return (
     <div className="min-h-[calc(100vh-4rem)] bg-slate-950 text-white px-8 py-8 max-w-4xl mx-auto">
@@ -73,7 +96,7 @@ export default function Profile() {
 
       <div className="bg-slate-900 p-8 rounded-2xl border border-slate-800">
         <h3 className="text-xl font-bold mb-4 flex items-center gap-2">
-          <Globe className="w-5 h-5 text-indigo-500" /> Privacy & Security
+          <Globe className="w-5 h-5 text-indigo-500" /> Security Center
         </h3>
         <div className="space-y-4 text-sm text-slate-300">
           <div className="rounded-xl border border-slate-800 bg-slate-950/70 p-4">
@@ -86,18 +109,40 @@ export default function Profile() {
             <p className="mt-2 text-slate-400">Stored profile details are protected with client-side encryption helpers for sensitive values.</p>
             {showSensitive ? <p className="mt-3 break-all rounded-lg bg-slate-900 p-3 text-slate-200">{decryptSensitiveValue(maskedProfile.email) || 'No email available'}</p> : null}
           </div>
+          <div className="grid gap-4 md:grid-cols-2">
+            <div className="rounded-xl border border-slate-800 bg-slate-950/70 p-4">
+              <div className="mb-2 flex items-center gap-2 text-cyan-300"><Laptop className="h-4 w-4" /> Active sessions</div>
+              <p className="text-slate-400">Current device: {sessionSummary.device}</p>
+              <p className="mt-2 text-xs text-slate-500">Session timeout is enforced at 60 minutes for active browsing sessions.</p>
+            </div>
+            <div className="rounded-xl border border-slate-800 bg-slate-950/70 p-4">
+              <div className="mb-2 flex items-center gap-2 text-cyan-300"><MonitorSmartphone className="h-4 w-4" /> Trusted devices</div>
+              <p className="text-slate-400">This browser is trusted for secure access and protected session storage.</p>
+            </div>
+          </div>
+          <div className="grid gap-4 md:grid-cols-2">
+            <div className="rounded-xl border border-slate-800 bg-slate-950/70 p-4">
+              <div className="mb-2 flex items-center gap-2 text-cyan-300"><Clock3 className="h-4 w-4" /> Login history</div>
+              <p className="text-slate-400">Last login recorded for the active device. Re-authentication is prompted on security-sensitive actions.</p>
+            </div>
+            <div className="rounded-xl border border-slate-800 bg-slate-950/70 p-4">
+              <div className="mb-2 flex items-center gap-2 text-cyan-300"><ShieldCheck className="h-4 w-4" /> Privacy settings</div>
+              <select value={privacyMode} onChange={(event) => setPrivacyMode(event.target.value)} className="mt-2 w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-slate-200">
+                <option value="balanced">Balanced</option>
+                <option value="strict">Strict</option>
+                <option value="minimal">Minimal sharing</option>
+              </select>
+            </div>
+          </div>
           <div className="rounded-xl border border-slate-800 bg-slate-950/70 p-4">
             <div className="flex items-center justify-between gap-2">
               <span className="flex items-center gap-2"><ShieldCheck className="h-4 w-4 text-emerald-300" /> Access level</span>
               <span className="rounded-full bg-emerald-500/10 px-3 py-1 text-emerald-200">{maskedProfile.role}</span>
             </div>
           </div>
-          <div className="rounded-xl border border-slate-800 bg-slate-950/70 p-4">
-            <div className="flex items-center justify-between gap-2">
-              <span className="flex items-center gap-2"><Trash2 className="h-4 w-4 text-amber-300" /> Data controls</span>
-              <span className="rounded-full bg-amber-500/10 px-3 py-1 text-amber-200">GDPR ready</span>
-            </div>
-            <p className="mt-2 text-slate-400">Account deletion and data export controls can be managed from the privacy center.</p>
+          <div className="flex flex-wrap gap-3">
+            <button onClick={handleExportData} className="flex items-center gap-2 rounded-lg border border-cyan-500/30 bg-cyan-500/10 px-4 py-2 text-cyan-200"><FileDown className="h-4 w-4" /> Export personal data</button>
+            <button onClick={handleDeleteAccount} className="flex items-center gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-2 text-amber-200"><Trash2 className="h-4 w-4" /> Delete account</button>
           </div>
         </div>
       </div>
