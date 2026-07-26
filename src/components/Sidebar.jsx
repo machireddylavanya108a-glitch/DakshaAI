@@ -28,6 +28,7 @@ export default function Sidebar({ closeSidebar }) {
     { name: 'AI Tutor', path: '/ai-tutor', icon: Brain },
     { name: 'Practice Engine', path: '/practice', icon: Target },
     { name: 'Examinations', path: '/examinations', icon: NotebookPen },
+    { name: 'Certificates', path: '/certificates', icon: Award },
   ];
 
   const isActive = (path) => location.pathname === path;

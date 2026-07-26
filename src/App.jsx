@@ -28,6 +28,7 @@ const VirtualLabs = lazy(() => import('./pages/VirtualLabs'));
 const AITutor = lazy(() => import('./pages/AITutor'));
 const PracticeMode = lazy(() => import('./pages/PracticeMode'));
 const Examinations = lazy(() => import('./pages/Examinations'));
+const Certificates = lazy(() => import('./pages/Certificates'));
 const Admin = lazy(() => import('./pages/Admin'));
 
 export default function App() {
@@ -58,6 +59,7 @@ export default function App() {
               <Route path="/ai-tutor" element={<AITutor />} />
               <Route path="/practice" element={<PracticeMode />} />
               <Route path="/examinations" element={<Examinations />} />
+              <Route path="/certificates" element={<Certificates />} />
               <Route path="/profile" element={<Profile />} />
               <Route path="/admin" element={<AdminRoute><Admin /></AdminRoute>} />
             </Route>
