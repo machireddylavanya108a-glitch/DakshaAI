@@ -1,6 +1,84 @@
 import { db } from '../firebase/firebaseConfig';
 import { doc, setDoc, collection, addDoc, query, where, getDocs, serverTimestamp, deleteDoc } from 'firebase/firestore';
 
+export async function saveUserMemoryProfile(userId, profile) {
+  try {
+    const profileId = `${userId}_memory`;
+    await setDoc(doc(db, 'userMemory', profileId), {
+      userId,
+      ...profile,
+      updatedAt: serverTimestamp(),
+      createdAt: profile?.createdAt || serverTimestamp(),
+    });
+    return true;
+  } catch (error) {
+    console.error('Error saving memory profile:', error);
+    return false;
+  }
+}
+
+export async function saveDashboardStats(userId, stats) {
+  try {
+    const statId = `${userId}_dashboard`;
+    await setDoc(doc(db, 'dashboardStats', statId), {
+      userId,
+      studyHours: stats?.studyHours || 0,
+      lessons: stats?.lessons || 0,
+      quizzes: stats?.quizzes || 0,
+      accuracy: stats?.accuracy || 0,
+      streak: stats?.streak || 0,
+      achievements: stats?.achievements || [],
+      recommendations: stats?.recommendations || [],
+      updatedAt: serverTimestamp(),
+      createdAt: stats?.createdAt || serverTimestamp(),
+    });
+    return true;
+  } catch (error) {
+    console.error('Error saving dashboard stats:', error);
+    return false;
+  }
+}
+
+export async function getUserDashboardStats(userId) {
+  try {
+    const q = query(collection(db, 'dashboardStats'), where('userId', '==', userId));
+    const querySnapshot = await getDocs(q);
+    const stats = [];
+    querySnapshot.forEach((docSnapshot) => stats.push({ id: docSnapshot.id, ...docSnapshot.data() }));
+    return stats[0] || null;
+  } catch (error) {
+    console.error('Error fetching dashboard stats:', error);
+    return null;
+  }
+}
+
+export async function getUserMemoryProfile(userId) {
+  try {
+    const q = query(collection(db, 'userMemory'), where('userId', '==', userId));
+    const querySnapshot = await getDocs(q);
+    const profiles = [];
+    querySnapshot.forEach((docSnapshot) => profiles.push({ id: docSnapshot.id, ...docSnapshot.data() }));
+    return profiles[0] || null;
+  } catch (error) {
+    console.error('Error fetching memory profile:', error);
+    return null;
+  }
+}
+
+export async function deleteUserMemoryProfile(userId) {
+  try {
+    const q = query(collection(db, 'userMemory'), where('userId', '==', userId));
+    const querySnapshot = await getDocs(q);
+    const deletions = [];
+    querySnapshot.forEach((docSnapshot) => deletions.push(deleteDoc(doc(db, 'userMemory', docSnapshot.id))));
+    await Promise.all(deletions);
+    return true;
+  } catch (error) {
+    console.error('Error deleting memory profile:', error);
+    return false;
+  }
+}
+
 export async function saveRoadmap(userId, skill, roadmapText) {
   try {
     await addDoc(collection(db, 'roadmaps'), {

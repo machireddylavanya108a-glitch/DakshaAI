@@ -20,9 +20,11 @@ const YouTubeLearning = lazy(() => import('./pages/YouTubeLearning'));
 const WebsiteLearning = lazy(() => import('./pages/WebsiteLearning'));
 const CameraLearning = lazy(() => import('./pages/CameraLearning'));
 const VoiceTeacher = lazy(() => import('./pages/VoiceTeacher'));
+const MemoryDashboard = lazy(() => import('./pages/MemoryDashboard'));
 const Profile = lazy(() => import('./pages/Profile'));
 const NotFound = lazy(() => import('./pages/NotFound'));
-const Learn3D = lazy(() => import('./pages/Learn3D'));
+const Learn3D = lazy(() => import('./pages/Learning3D'));
+const VirtualLabs = lazy(() => import('./pages/VirtualLabs'));
 const Admin = lazy(() => import('./pages/Admin'));
 
 export default function App() {
@@ -47,7 +49,9 @@ export default function App() {
               <Route path="/website-learning" element={<WebsiteLearning />} />
               <Route path="/camera-learning" element={<CameraLearning />} />
               <Route path="/voice-teacher" element={<VoiceTeacher />} />
+              <Route path="/memory-dashboard" element={<MemoryDashboard />} />
               <Route path="/3d-learning" element={<Learn3D />} />
+              <Route path="/virtual-labs" element={<VirtualLabs />} />
               <Route path="/profile" element={<Profile />} />
               <Route path="/admin" element={<AdminRoute><Admin /></AdminRoute>} />
             </Route>
