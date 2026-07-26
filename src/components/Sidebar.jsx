@@ -32,6 +32,7 @@ export default function Sidebar({ closeSidebar }) {
     { name: 'AI Notes', path: '/ai-notes', icon: NotebookPen },
     { name: 'AI Mind Maps', path: '/mind-maps', icon: GitBranch },
     { name: 'AI Whiteboard', path: '/whiteboard', icon: PanelsTopLeft },
+    { name: 'Knowledge Library', path: '/knowledge-library', icon: BookOpen },
   ];
 
   const isActive = (path) => location.pathname === path;

@@ -32,6 +32,7 @@ const Certificates = lazy(() => import('./pages/Certificates'));
 const AINotes = lazy(() => import('./pages/AINotes'));
 const MindMaps = lazy(() => import('./pages/MindMaps'));
 const Whiteboard = lazy(() => import('./pages/Whiteboard'));
+const KnowledgeLibrary = lazy(() => import('./pages/KnowledgeLibrary'));
 const Admin = lazy(() => import('./pages/Admin'));
 
 export default function App() {
@@ -66,6 +67,7 @@ export default function App() {
               <Route path="/ai-notes" element={<AINotes />} />
               <Route path="/mind-maps" element={<MindMaps />} />
               <Route path="/whiteboard" element={<Whiteboard />} />
+              <Route path="/knowledge-library" element={<KnowledgeLibrary />} />
               <Route path="/profile" element={<Profile />} />
               <Route path="/admin" element={<AdminRoute><Admin /></AdminRoute>} />
             </Route>
