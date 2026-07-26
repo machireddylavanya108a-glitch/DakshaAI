@@ -1,5 +1,5 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { Brain, Home, Search, GraduationCap, MessageSquare, Box, User, LogOut, ShieldCheck, NotebookPen, BookOpen, FileText, FileStack, Presentation, Youtube, Globe2, Camera, Mic, BrainCircuit, FlaskConical, Target } from 'lucide-react';
+import { Brain, Home, Search, GraduationCap, MessageSquare, Box, User, LogOut, ShieldCheck, NotebookPen, BookOpen, FileText, FileStack, Presentation, Youtube, Globe2, Camera, Mic, BrainCircuit, FlaskConical, Target, Award, GitBranch } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
 export default function Sidebar({ closeSidebar }) {
@@ -30,6 +30,7 @@ export default function Sidebar({ closeSidebar }) {
     { name: 'Examinations', path: '/examinations', icon: NotebookPen },
     { name: 'Certificates', path: '/certificates', icon: Award },
     { name: 'AI Notes', path: '/ai-notes', icon: NotebookPen },
+    { name: 'AI Mind Maps', path: '/mind-maps', icon: GitBranch },
   ];
 
   const isActive = (path) => location.pathname === path;

@@ -30,6 +30,7 @@ const PracticeMode = lazy(() => import('./pages/PracticeMode'));
 const Examinations = lazy(() => import('./pages/Examinations'));
 const Certificates = lazy(() => import('./pages/Certificates'));
 const AINotes = lazy(() => import('./pages/AINotes'));
+const MindMaps = lazy(() => import('./pages/MindMaps'));
 const Admin = lazy(() => import('./pages/Admin'));
 
 export default function App() {
@@ -62,6 +63,7 @@ export default function App() {
               <Route path="/examinations" element={<Examinations />} />
               <Route path="/certificates" element={<Certificates />} />
               <Route path="/ai-notes" element={<AINotes />} />
+              <Route path="/mind-maps" element={<MindMaps />} />
               <Route path="/profile" element={<Profile />} />
               <Route path="/admin" element={<AdminRoute><Admin /></AdminRoute>} />
             </Route>
