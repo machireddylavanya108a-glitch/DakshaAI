@@ -12,6 +12,7 @@ const Chat = lazy(() => import('./pages/Chat'));
 const Scanner = lazy(() => import('./pages/Scanner'));
 const Academy = lazy(() => import('./pages/Academy'));
 const Quiz = lazy(() => import('./pages/Quiz'));
+const Flashcards = lazy(() => import('./pages/Flashcards'));
 const Profile = lazy(() => import('./pages/Profile'));
 const NotFound = lazy(() => import('./pages/NotFound'));
 const Learn3D = lazy(() => import('./pages/Learn3D'));
@@ -31,6 +32,7 @@ export default function App() {
               <Route path="/scanner" element={<Scanner />} />
               <Route path="/academy" element={<Academy />} />
               <Route path="/quiz" element={<Quiz />} />
+              <Route path="/flashcards" element={<Flashcards />} />
               <Route path="/3d-learning" element={<Learn3D />} />
               <Route path="/profile" element={<Profile />} />
               <Route path="/admin" element={<AdminRoute><Admin /></AdminRoute>} />

@@ -219,6 +219,53 @@ export async function saveQuizScore(userId, topic, score, total) {
   }
 }
 
+export async function saveFlashcardDeck(userId, topic, difficulty, deck) {
+  try {
+    const deckId = `${userId}_${Date.now()}`;
+    await setDoc(doc(db, 'flashcards', deckId), {
+      userId,
+      topic,
+      difficulty,
+      deck,
+      progress: { cardsLearned: 0, cardsRemaining: deck?.flashcards?.length || 0 },
+      createdAt: serverTimestamp()
+    });
+    return true;
+  } catch (error) {
+    console.error('Error saving flashcard deck:', error);
+    return false;
+  }
+}
+
+export async function getUserFlashcards(userId) {
+  try {
+    const q = query(collection(db, 'flashcards'), where('userId', '==', userId));
+    const querySnapshot = await getDocs(q);
+    const decks = [];
+    querySnapshot.forEach((docSnapshot) => {
+      decks.push({ id: docSnapshot.id, ...docSnapshot.data() });
+    });
+    return decks.sort((a, b) => {
+      const aTime = a.createdAt?.toMillis ? a.createdAt.toMillis() : 0;
+      const bTime = b.createdAt?.toMillis ? b.createdAt.toMillis() : 0;
+      return bTime - aTime;
+    });
+  } catch (error) {
+    console.error('Error fetching flashcard decks:', error);
+    return [];
+  }
+}
+
+export async function deleteFlashcardDeck(userId, deckId) {
+  try {
+    await deleteDoc(doc(db, 'flashcards', deckId));
+    return true;
+  } catch (error) {
+    console.error('Error deleting flashcard deck:', error);
+    return false;
+  }
+}
+
 export async function saveFlashcards(userId, topic, flashcards) {
   try {
     await addDoc(collection(db, 'flashcards'), {

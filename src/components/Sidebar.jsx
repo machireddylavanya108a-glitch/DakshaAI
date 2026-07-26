@@ -1,5 +1,5 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { Brain, Home, Search, GraduationCap, MessageSquare, Box, User, LogOut, ShieldCheck, NotebookPen } from 'lucide-react';
+import { Brain, Home, Search, GraduationCap, MessageSquare, Box, User, LogOut, ShieldCheck, NotebookPen, BookOpen } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
 export default function Sidebar({ closeSidebar }) {
@@ -13,6 +13,7 @@ export default function Sidebar({ closeSidebar }) {
     { name: 'Universal Scanner', path: '/scanner', icon: Search },
     { name: 'Skill Academy', path: '/academy', icon: GraduationCap },
     { name: 'AI Quiz Generator', path: '/quiz', icon: NotebookPen },
+    { name: 'AI Flashcards', path: '/flashcards', icon: BookOpen },
     { name: 'AI Teacher', path: '/app/teacher', icon: MessageSquare },
     { name: '3D Learning', path: '/3d-learning', icon: Box },
   ];

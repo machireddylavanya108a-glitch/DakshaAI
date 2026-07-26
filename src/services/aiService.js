@@ -399,6 +399,60 @@ Rules:
   }
 }
 
+export async function generateFlashcards(topic, difficulty = 'Mixed') {
+  try {
+    const response = await openai.chat.completions.create({
+      model: 'deepseek/deepseek-v3:free',
+      messages: [
+        { role: 'system', content: `${DAKSHA_SYSTEM_PROMPT} You MUST return only valid JSON for a professional flashcard deck.` },
+        { role: 'user', content: `Create a professional flashcard deck for: ${topic}. Difficulty: ${difficulty}. Return ONLY valid JSON with this exact structure:
+{
+  "title": "<deck title>",
+  "category": "<category>",
+  "flashcards": [
+    {
+      "front": "<concept/question>",
+      "back": "<answer/explanation>",
+      "difficulty": "${difficulty}",
+      "tags": ["<tag 1>", "<tag 2>"]
+    }
+  ]
+}
+Rules:
+- Create 8-12 flashcards.
+- Make the cards clear, educational, and useful for revision.
+- Do not include markdown or extra text.` }
+      ]
+    });
+
+    const content = response.choices[0].message.content;
+    const parsed = parseJsonResponse(content);
+    if (parsed) {
+      return parsed;
+    }
+
+    return {
+      title: `${topic} Flashcards`,
+      category: 'Study',
+      flashcards: [
+        {
+          front: `What is ${topic}?`,
+          back: `A core concept related to ${topic}.`,
+          difficulty,
+          tags: ['study'],
+        },
+      ],
+    };
+  } catch (error) {
+    console.error('Flashcard Generation Error:', error);
+    return {
+      title: `${topic} Flashcards`,
+      category: 'Study',
+      flashcards: [],
+    };
+  }
+}
+
 export async function getLearningPath(skill) {
   try {
     const response = await openai.chat.completions.create({
