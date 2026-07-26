@@ -1,4 +1,4 @@
-import { BookOpen, BrainCircuit, Briefcase, Code2, GraduationCap, MessageCircle, Sparkles, NotebookPen } from 'lucide-react';
+import { BookOpen, BrainCircuit, Briefcase, Code2, GraduationCap, Languages, Sparkles, NotebookPen } from 'lucide-react';
 
 const modes = [
   { id: 'beginner', label: 'Beginner Teacher', icon: BookOpen },
@@ -10,9 +10,7 @@ const modes = [
   { id: 'friendly', label: 'Friendly Tutor', icon: Sparkles },
 ];
 
-const languages = ['English', 'Telugu', 'Hindi', 'Tamil', 'Kannada', 'Malayalam', 'Marathi', 'Bengali'];
-
-export default function VoiceControls({ teacherMode, setTeacherMode, language, setLanguage }) {
+export default function VoiceControls({ teacherMode, setTeacherMode, language, setLanguage, languageOptions = [], detectedLanguage }) {
   return (
     <div className="rounded-[2rem] border border-white/10 bg-slate-900/80 p-6 shadow-2xl shadow-slate-950/40">
       <div className="flex items-center justify-between gap-3">
@@ -36,14 +34,16 @@ export default function VoiceControls({ teacherMode, setTeacherMode, language, s
       </div>
 
       <div className="mt-6">
-        <p className="text-sm uppercase tracking-[0.35em] text-emerald-300">Language</p>
-        <div className="mt-3 flex flex-wrap gap-2">
-          {languages.map((item) => (
-            <button key={item} onClick={() => setLanguage(item)} className={`rounded-full px-3 py-2 text-sm ${language === item ? 'bg-sky-500/20 text-sky-300' : 'bg-slate-950/70 text-slate-300'}`}>
-              {item}
-            </button>
-          ))}
+        <div className="flex items-center gap-2 text-sm uppercase tracking-[0.35em] text-emerald-300">
+          <Languages className="h-4 w-4" />
+          <span>Language</span>
         </div>
+        <select value={language} onChange={(event) => setLanguage(event.target.value)} className="mt-3 w-full rounded-[1.25rem] border border-slate-700 bg-slate-950/70 px-4 py-3 text-sm text-white outline-none">
+          {languageOptions.map((option) => (
+            <option key={option.value} value={option.value}>{option.label}</option>
+          ))}
+        </select>
+        <p className="mt-3 text-sm text-slate-400">Detected language: {detectedLanguage || language}</p>
       </div>
     </div>
   );
