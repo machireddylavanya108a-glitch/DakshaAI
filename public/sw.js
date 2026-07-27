@@ -1,5 +1,43 @@
-const CACHE_NAME = 'daksha-ai-v1';
+const CACHE_NAME = 'daksha-ai-v2';
 const APP_SHELL = ['/', '/index.html', '/favicon.svg'];
+
+function isRangeRequest(request) {
+  return request.headers.has('range') || request.headers.has('Range');
+}
+
+function isStreamingRequest(request) {
+  const acceptHeader = request.headers.get('accept') || '';
+  return (
+    request.destination === 'video' ||
+    request.destination === 'audio' ||
+    acceptHeader.includes('text/event-stream') ||
+    acceptHeader.includes('application/octet-stream')
+  );
+}
+
+function shouldBypassCache(request, url) {
+  if (!request || !url) return true;
+  if (isRangeRequest(request)) return true;
+  if (isStreamingRequest(request)) return true;
+  if (request.cache === 'no-store') return true;
+  if (url.searchParams.has('nocache')) return true;
+  return false;
+}
+
+function shouldCacheResponse(request, response) {
+  if (!response) return false;
+  if (!response.ok || response.status !== 200) return false;
+  if (response.type !== 'basic') return false;
+  if (response.redirected) return false;
+  if (isRangeRequest(request)) return false;
+  if (isStreamingRequest(request)) return false;
+
+  const contentRange = response.headers.get('content-range');
+  const cacheControl = response.headers.get('cache-control') || '';
+  if (contentRange) return false;
+  if (cacheControl.includes('no-store') || cacheControl.includes('private')) return false;
+  return true;
+}
 
 function isVercelBypassUrl(url) {
   if (!url) return false;
@@ -58,6 +96,11 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
+  if (shouldBypassCache(request, url)) {
+    event.respondWith(fetch(request));
+    return;
+  }
+
   event.respondWith(
     (async () => {
       try {
@@ -66,14 +109,7 @@ self.addEventListener('fetch', (event) => {
 
         const response = await fetch(request);
 
-        if (
-          request.url.startsWith(self.location.origin) &&
-          response &&
-          response.ok &&
-          response.status === 200 &&
-          response.type === 'basic' &&
-          !response.redirected
-        ) {
+        if (request.url.startsWith(self.location.origin) && shouldCacheResponse(request, response)) {
           try {
             const cache = await caches.open(CACHE_NAME);
             await cache.put(request, response.clone());
@@ -85,7 +121,17 @@ self.addEventListener('fetch', (event) => {
         return response;
       } catch (error) {
         console.error('Service worker fetch handler error:', error);
-        return fetch(request);
+
+        if (request.mode === 'navigate') {
+          const appShell = await caches.match('/index.html');
+          if (appShell) return appShell;
+        }
+
+        return new Response('Offline', {
+          status: 503,
+          statusText: 'Service Unavailable',
+          headers: { 'Content-Type': 'text/plain; charset=utf-8' }
+        });
       }
     })()
   );

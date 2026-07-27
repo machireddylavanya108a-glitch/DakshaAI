@@ -98,6 +98,7 @@ export default function Login() {
             <Mail className="w-5 h-5 text-slate-400" />
             <input
               type="email"
+              name="email"
               placeholder="Email Address"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
@@ -110,10 +111,11 @@ export default function Login() {
             <Lock className="w-5 h-5 text-slate-400" />
             <input
               type="password"
+              name="password"
               placeholder="Password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              autoComplete="current-password"
+              autoComplete={isSignup ? 'new-password' : 'current-password'}
               required
               className="bg-transparent text-white outline-none w-full"
             />
