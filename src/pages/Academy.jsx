@@ -10,6 +10,7 @@ import SkillProgress from '../components/academy/SkillProgress';
 import SkillHeader from '../components/academy/SkillHeader';
 import LoadingAcademy from '../components/academy/LoadingAcademy';
 import { normalizeSkillRoadmap } from '../utils/skillAcademyUtils';
+import LearningInterviewModal from '../components/common/LearningInterviewModal';
 
 const skillCards = [
   { icon: Code, title: 'Python', description: 'Build automation, web apps, AI tools, and data workflows.' },
@@ -31,6 +32,8 @@ export default function Academy() {
   const [savedRoadmaps, setSavedRoadmaps] = useState([]);
   const [activeSkill, setActiveSkill] = useState('Python');
   const [savedStatus, setSavedStatus] = useState('');
+  const [interviewOpen, setInterviewOpen] = useState(false);
+  const [pendingSkill, setPendingSkill] = useState('');
 
   const loadSavedRoadmaps = async () => {
     if (!user) {
@@ -50,56 +53,23 @@ export default function Academy() {
 
   const canSubmit = searchQuery.trim().length > 0 && !loading;
 
-  const handleGenerate = async (event) => {
-    event.preventDefault();
-    const topic = searchQuery.trim();
-    if (!topic) {
-      setErrorMessage('Please enter a skill or topic to generate a roadmap.');
-      return;
-    }
+  const generateRoadmapForSkill = async (skill, interviewAnswers = null) => {
+    const topic = skill.trim();
+    if (!topic) return;
 
+    setSearchQuery(topic);
+    setActiveSkill(topic);
     setLoading(true);
     setErrorMessage('');
     setSavedStatus('');
     setSkillRoadmap(null);
 
     try {
-      const payload = await generateSkillRoadmap(topic);
+      const payload = await generateSkillRoadmap(topic, interviewAnswers);
       const normalized = normalizeSkillRoadmap(payload, topic);
       setSkillRoadmap(normalized);
-      setActiveSkill(normalized.skill);
-
       if (user) {
         const saved = await saveSkillRoadmap(user.uid, topic, normalized);
-        if (saved) {
-          setSavedStatus('Roadmap saved to Firebase.');
-          await loadSavedRoadmaps();
-        } else {
-          setSavedStatus('Roadmap generated, but saving failed.');
-        }
-      }
-    } catch (error) {
-      console.error('Skill roadmap generation error:', error);
-      setErrorMessage('The skill engine could not generate a roadmap right now. Please try again.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleQuickGenerate = async (skill) => {
-    setSearchQuery(skill);
-    setActiveSkill(skill);
-    setLoading(true);
-    setErrorMessage('');
-    setSavedStatus('');
-    setSkillRoadmap(null);
-
-    try {
-      const payload = await generateSkillRoadmap(skill);
-      const normalized = normalizeSkillRoadmap(payload, skill);
-      setSkillRoadmap(normalized);
-      if (user) {
-        const saved = await saveSkillRoadmap(user.uid, skill, normalized);
         if (saved) {
           setSavedStatus('Roadmap saved to Firebase.');
           await loadSavedRoadmaps();
@@ -111,6 +81,26 @@ export default function Academy() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const openInterviewForSkill = (skill) => {
+    const topic = skill.trim();
+    if (!topic) {
+      setErrorMessage('Please enter a skill or topic to generate a roadmap.');
+      return;
+    }
+    setPendingSkill(topic);
+    setInterviewOpen(true);
+    setErrorMessage('');
+  };
+
+  const handleGenerate = async (event) => {
+    event.preventDefault();
+    openInterviewForSkill(searchQuery);
+  };
+
+  const handleQuickGenerate = async (skill) => {
+    openInterviewForSkill(skill);
   };
 
   const handleSaveCurrent = async () => {
@@ -135,7 +125,7 @@ export default function Academy() {
 
   const handleRegenerate = async () => {
     if (!skillRoadmap?.skill) return;
-    await handleQuickGenerate(skillRoadmap.skill);
+    openInterviewForSkill(skillRoadmap.skill);
   };
 
   const handleLoad = (item) => {
@@ -157,7 +147,7 @@ export default function Academy() {
           </div>
           <button type="submit" disabled={!canSubmit} className="inline-flex items-center justify-center gap-2 rounded-[1.4rem] bg-gradient-to-r from-indigo-500 to-cyan-500 px-5 py-3 font-semibold text-white transition hover:scale-[1.01] disabled:opacity-60">
             {loading ? <Loader className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
-            {loading ? 'Generating...' : 'Generate Roadmap'}
+            {loading ? 'Generating...' : 'Start AI Interview'}
           </button>
         </form>
 
@@ -322,6 +312,20 @@ export default function Academy() {
           )}
         </SkillSection>
       </div>
+
+      <LearningInterviewModal
+        isOpen={interviewOpen}
+        userId={user?.uid}
+        sourceContext="roadmap"
+        sourceLabel={pendingSkill}
+        initialTopic={pendingSkill}
+        onClose={() => setInterviewOpen(false)}
+        onComplete={async (interviewAnswers) => {
+          setInterviewOpen(false);
+          const topic = (interviewAnswers?.learnTopic || pendingSkill || searchQuery).trim();
+          await generateRoadmapForSkill(topic, interviewAnswers);
+        }}
+      />
     </div>
   );
 }

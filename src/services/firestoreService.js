@@ -345,6 +345,87 @@ export async function getIntegrationRecords(userId, collectionName) {
   }
 }
 
+export async function saveLearningSessionProgress(userId, sessionPayload) {
+  try {
+    const sessionId = sessionPayload?.sessionId || `${userId}_${Date.now()}`;
+    await setDoc(doc(db, 'learningSessions', sessionId), {
+      userId,
+      sessionId,
+      sourceContext: sessionPayload?.sourceContext || 'general',
+      sourceLabel: sessionPayload?.sourceLabel || '',
+      status: sessionPayload?.status || 'in_progress',
+      currentStep: Number.isFinite(sessionPayload?.currentStep) ? sessionPayload.currentStep : 0,
+      answers: sessionPayload?.answers || {},
+      updatedAtMs: sessionPayload?.updatedAtMs || Date.now(),
+      createdAt: sessionPayload?.createdAt || serverTimestamp(),
+      updatedAt: serverTimestamp()
+    }, { merge: true });
+    return true;
+  } catch (error) {
+    console.error('Error saving learning session progress:', error);
+    return false;
+  }
+}
+
+export async function getLatestLearningSession(userId, sourceContext = 'general') {
+  try {
+    const q = query(collection(db, 'learningSessions'), where('userId', '==', userId), where('sourceContext', '==', sourceContext));
+    const querySnapshot = await getDocs(q);
+    const sessions = [];
+    querySnapshot.forEach((docSnapshot) => sessions.push({ id: docSnapshot.id, ...docSnapshot.data() }));
+    sessions.sort((a, b) => (b.updatedAtMs || 0) - (a.updatedAtMs || 0));
+    return sessions[0] || null;
+  } catch (error) {
+    console.error('Error fetching latest learning session:', error);
+    return null;
+  }
+}
+
+export async function completeLearningInterview(userId, interviewPayload) {
+  try {
+    const sessionId = interviewPayload?.session?.sessionId || `${userId}_${Date.now()}`;
+    const profileId = `${userId}_${sessionId}`;
+
+    await Promise.all([
+      setDoc(doc(db, 'learningProfiles', profileId), {
+        ...interviewPayload?.profile,
+        userId,
+        sessionId,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+      }, { merge: true }),
+      setDoc(doc(db, 'learningGoals', profileId), {
+        ...interviewPayload?.goal,
+        userId,
+        sessionId,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+      }, { merge: true }),
+      setDoc(doc(db, 'learningPreferences', profileId), {
+        ...interviewPayload?.preference,
+        userId,
+        sessionId,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+      }, { merge: true }),
+      setDoc(doc(db, 'learningSessions', sessionId), {
+        ...interviewPayload?.session,
+        userId,
+        sessionId,
+        status: 'completed',
+        updatedAtMs: Date.now(),
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+      }, { merge: true })
+    ]);
+
+    return true;
+  } catch (error) {
+    console.error('Error completing learning interview:', error);
+    return false;
+  }
+}
+
 export async function saveCameraLearningRecord(userId, payload) {
   try {
     const recordId = payload?.id || `${userId}_${Date.now()}`;

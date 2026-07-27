@@ -1,16 +1,43 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { validateUploadFile } from '../utils/security';
-import { UploadCloud, FileText, Image as ImageIcon, Brain, Sparkles, Loader } from 'lucide-react';
+import { UploadCloud, FileText, Mic, Sparkles, Loader, Link as LinkIcon, Youtube, Type } from 'lucide-react';
 import { getDakshaImageResponse, getDakshaDocumentAnalysis, getDakshaLessonPackage } from '../services/aiService';
 import { saveDocumentAnalysis, saveLessonPackage } from '../services/firestoreService';
 import { useAuth } from '../context/AuthContext';
-import * as pdfjsLib from 'pdfjs-dist';
-import pdfWorker from 'pdfjs-dist/build/pdf.worker.min?url';
-import JSZip from 'jszip';
-import mammoth from 'mammoth';
+import LearningInterviewModal from '../components/common/LearningInterviewModal';
 
-// Set up the PDF.js worker locally for Vite
-pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorker;
+let pdfJsLoader;
+const loadPdfJs = async () => {
+  if (!pdfJsLoader) {
+    pdfJsLoader = Promise.all([
+      import('pdfjs-dist'),
+      import('pdfjs-dist/build/pdf.worker.min?url')
+    ]).then(([pdfjs, worker]) => {
+      pdfjs.GlobalWorkerOptions.workerSrc = worker.default;
+      return pdfjs;
+    });
+  }
+
+  return pdfJsLoader;
+};
+
+let jsZipLoader;
+const loadJSZip = async () => {
+  if (!jsZipLoader) {
+    jsZipLoader = import('jszip').then((module) => module.default);
+  }
+
+  return jsZipLoader;
+};
+
+let mammothLoader;
+const loadMammoth = async () => {
+  if (!mammothLoader) {
+    mammothLoader = import('mammoth').then((module) => module.default);
+  }
+
+  return mammothLoader;
+};
 
 const tabs = ['Overview', 'Summary', 'Topics', 'Keywords', 'Quiz', 'Flashcards'];
 
@@ -19,13 +46,29 @@ export default function Scanner() {
   const [analysisResult, setAnalysisResult] = useState(null);
   const [lessonPackage, setLessonPackage] = useState(null);
   const [filePreview, setFilePreview] = useState('');
+  const [sourceText, setSourceText] = useState('');
+  const [websiteUrl, setWebsiteUrl] = useState('');
+  const [youtubeUrl, setYoutubeUrl] = useState('');
+  const [voiceListening, setVoiceListening] = useState(false);
   const [activeTab, setActiveTab] = useState('Overview');
   const [loading, setLoading] = useState(false);
   const [saveStatus, setSaveStatus] = useState('');
   const [lessonStatus, setLessonStatus] = useState('');
+  const [interviewOpen, setInterviewOpen] = useState(false);
+  const [interviewSeedTopic, setInterviewSeedTopic] = useState('');
+  const [interviewSourceLabel, setInterviewSourceLabel] = useState('');
+  const pendingActionRef = useRef(null);
   const { user } = useAuth();
 
+  const startInterviewBeforeAnalysis = (seedTopic, sourceLabel, action) => {
+    pendingActionRef.current = action;
+    setInterviewSeedTopic(seedTopic);
+    setInterviewSourceLabel(sourceLabel || seedTopic);
+    setInterviewOpen(true);
+  };
+
   const extractPptxText = async (arrayBuffer) => {
+    const JSZip = await loadJSZip();
     const zip = await JSZip.loadAsync(arrayBuffer);
     const slideEntries = [];
     zip.forEach((relativePath, fileEntry) => {
@@ -111,6 +154,215 @@ export default function Scanner() {
     await saveLessonPackageResult(lessonPackageResult, file);
   };
 
+  const processTextSource = async (text, sourceName, sourceType = 'text/plain') => {
+    const normalized = String(text || '').trim();
+    if (!normalized) return;
+    setLoading(true);
+    setActiveTab('Overview');
+    setFilePreview(normalized.slice(0, 1200));
+    setSaveStatus('');
+    setLessonStatus('');
+    try {
+      await handleDocumentAnalysis(normalized, {
+        name: sourceName,
+        type: sourceType,
+        size: normalized.length
+      });
+    } catch (error) {
+      console.error('Universal source analysis error:', error);
+      setSaveStatus('An error occurred while processing this source.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleWebsiteSubmit = async () => {
+    const url = websiteUrl.trim();
+    if (!url) return;
+    startInterviewBeforeAnalysis(`I uploaded a website: ${url}`, url, async () => {
+      await processTextSource(`Website source: ${url}`, url, 'text/url');
+    });
+  };
+
+  const handleYoutubeSubmit = async () => {
+    const url = youtubeUrl.trim();
+    if (!url) return;
+    startInterviewBeforeAnalysis(`I uploaded a YouTube lesson: ${url}`, url, async () => {
+      await processTextSource(`YouTube source: ${url}`, url, 'text/youtube');
+    });
+  };
+
+  const handleTextSubmit = async () => {
+    startInterviewBeforeAnalysis('Teach me this pasted material', 'pasted-text.txt', async () => {
+      await processTextSource(sourceText, 'pasted-text.txt', 'text/plain');
+    });
+  };
+
+  const handleVoiceInput = async () => {
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      setSaveStatus('Voice input is not supported on this browser.');
+      return;
+    }
+
+    const recognition = new SpeechRecognition();
+    recognition.lang = 'en-US';
+    recognition.interimResults = false;
+    recognition.maxAlternatives = 1;
+
+    setVoiceListening(true);
+    recognition.onresult = async (event) => {
+      const transcript = event.results?.[0]?.[0]?.transcript || '';
+      setSourceText(transcript);
+      startInterviewBeforeAnalysis('Teach me from my voice input', 'voice-input.txt', async () => {
+        await processTextSource(transcript, 'voice-input.txt', 'text/voice');
+      });
+      setVoiceListening(false);
+    };
+
+    recognition.onerror = () => {
+      setVoiceListening(false);
+      setSaveStatus('Voice capture failed. Please try again.');
+    };
+
+    recognition.onend = () => {
+      setVoiceListening(false);
+    };
+
+    recognition.start();
+  };
+
+  const processFile = async (file) => {
+    setLoading(true);
+
+    try {
+      if (file.type.startsWith('image/')) {
+        const reader = new FileReader();
+        reader.onloadend = async () => {
+          const base64data = reader.result.split(',')[1];
+          const aiResponse = await getDakshaImageResponse(base64data, file.type);
+          const imageAnalysis = {
+            overview: aiResponse,
+            summary: aiResponse,
+            topics: [],
+            keywords: [],
+            definitions: [],
+            importantPoints: [],
+            difficulty: 'Unknown',
+            detectedElements: {
+              headings: [],
+              chapters: [],
+              tables: 0,
+              images: 1,
+              diagrams: 0,
+              formulas: [],
+              codeBlocks: [],
+              lists: []
+            },
+            quiz: [],
+            flashcards: []
+          };
+          setAnalysisResult(imageAnalysis);
+          setFilePreview('Image uploaded. Daksha AI analyzed the visual content and provided an overview.');
+          await saveAnalysisResult(imageAnalysis, file);
+          const lessonPackageResult = await getDakshaLessonPackage(aiResponse, 'image', file.name);
+          setLessonPackage(lessonPackageResult);
+          await saveLessonPackageResult(lessonPackageResult, file);
+          setLoading(false);
+        };
+        reader.readAsDataURL(file);
+      } else if (file.type === 'application/pdf') {
+        const reader = new FileReader();
+        reader.onloadend = async () => {
+          const arrayBuffer = reader.result;
+          const pdfjsLib = await loadPdfJs();
+          const pdfDoc = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+          let textContent = '';
+          for (let i = 1; i <= pdfDoc.numPages; i++) {
+            const page = await pdfDoc.getPage(i);
+            const text = await page.getTextContent();
+            textContent += text.items.map((item) => item.str).join(' ') + ' ';
+          }
+          setFilePreview(textContent.substring(0, 1200));
+          await handleDocumentAnalysis(textContent, file);
+          setLoading(false);
+        };
+        reader.readAsArrayBuffer(file);
+      } else if (file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' || file.name.endsWith('.docx')) {
+        const reader = new FileReader();
+        reader.onloadend = async () => {
+          const arrayBuffer = reader.result;
+          const mammoth = await loadMammoth();
+          const result = await mammoth.extractRawText({ arrayBuffer });
+          const textContent = result.value;
+          setFilePreview(textContent.substring(0, 1200));
+          await handleDocumentAnalysis(textContent, file);
+          setLoading(false);
+        };
+        reader.readAsArrayBuffer(file);
+      } else if (file.type === 'application/vnd.openxmlformats-officedocument.presentationml.presentation' || file.name.endsWith('.pptx')) {
+        const reader = new FileReader();
+        reader.onloadend = async () => {
+          const arrayBuffer = reader.result;
+          const textContent = await extractPptxText(arrayBuffer);
+          setFilePreview(textContent.substring(0, 1200));
+          await handleDocumentAnalysis(textContent, file);
+          setLoading(false);
+        };
+        reader.readAsArrayBuffer(file);
+      } else if (file.type === 'text/html' || file.name.endsWith('.html')) {
+        const reader = new FileReader();
+        reader.onloadend = async () => {
+          const htmlString = reader.result;
+          const textContent = parseHtmlText(htmlString);
+          setFilePreview(textContent.substring(0, 1200));
+          await handleDocumentAnalysis(textContent, file);
+          setLoading(false);
+        };
+        reader.readAsText(file);
+      } else if (file.type === 'text/markdown' || file.name.endsWith('.md')) {
+        const reader = new FileReader();
+        reader.onloadend = async () => {
+          const textContent = reader.result;
+          setFilePreview(textContent.substring(0, 1200));
+          await handleDocumentAnalysis(textContent, file);
+          setLoading(false);
+        };
+        reader.readAsText(file);
+      } else if (file.type === 'text/csv' || file.name.endsWith('.csv')) {
+        const reader = new FileReader();
+        reader.onloadend = async () => {
+          const csvString = reader.result;
+          const textContent = parseCsvText(csvString);
+          setFilePreview(textContent.substring(0, 1200));
+          await handleDocumentAnalysis(textContent, file);
+          setLoading(false);
+        };
+        reader.readAsText(file);
+      } else if (file.type === 'text/plain' || file.name.endsWith('.txt')) {
+        const reader = new FileReader();
+        reader.onloadend = async () => {
+          const textContent = reader.result;
+          setFilePreview(textContent.substring(0, 1200));
+          await handleDocumentAnalysis(textContent, file);
+          setLoading(false);
+        };
+        reader.readAsText(file);
+      } else {
+        setAnalysisResult(null);
+        setFilePreview('Unsupported file type. Please upload PDF, DOCX, TXT, PPTX, MD, CSV, HTML, or an image.');
+        setSaveStatus('Unsupported file type.');
+        setLoading(false);
+      }
+    } catch (error) {
+      console.error('Scanner Error:', error);
+      setAnalysisResult(null);
+      setFilePreview('An error occurred while reading the file.');
+      setSaveStatus('An error occurred while processing the file.');
+      setLoading(false);
+    }
+  };
+
   const handleFileChange = async (e) => {
     if (e.target.files && e.target.files.length > 0) {
       const file = e.target.files[0];
@@ -121,137 +373,17 @@ export default function Scanner() {
         setSaveStatus(uploadCheck.reason);
         return;
       }
+
       setFiles([file]);
       setActiveTab('Overview');
       setAnalysisResult(null);
       setFilePreview('');
       setSaveStatus('');
-      setLoading(true);
+      setLessonStatus('');
 
-      try {
-        if (file.type.startsWith('image/')) {
-          const reader = new FileReader();
-          reader.onloadend = async () => {
-            const base64data = reader.result.split(',')[1];
-            const aiResponse = await getDakshaImageResponse(base64data, file.type);
-            const imageAnalysis = {
-              overview: aiResponse,
-              summary: aiResponse,
-              topics: [],
-              keywords: [],
-              definitions: [],
-              importantPoints: [],
-              difficulty: 'Unknown',
-              detectedElements: {
-                headings: [],
-                chapters: [],
-                tables: 0,
-                images: 1,
-                diagrams: 0,
-                formulas: [],
-                codeBlocks: [],
-                lists: []
-              },
-              quiz: [],
-              flashcards: []
-            };
-            setAnalysisResult(imageAnalysis);
-            setFilePreview('Image uploaded. Daksha AI analyzed the visual content and provided an overview.');
-            await saveAnalysisResult(imageAnalysis, file);
-            const lessonPackageResult = await getDakshaLessonPackage(aiResponse, 'image', file.name);
-            setLessonPackage(lessonPackageResult);
-            await saveLessonPackageResult(lessonPackageResult, file);
-            setLoading(false);
-          };
-          reader.readAsDataURL(file);
-        } else if (file.type === 'application/pdf') {
-          const reader = new FileReader();
-          reader.onloadend = async () => {
-            const arrayBuffer = reader.result;
-            const pdfDoc = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-            let textContent = '';
-            for (let i = 1; i <= pdfDoc.numPages; i++) {
-              const page = await pdfDoc.getPage(i);
-              const text = await page.getTextContent();
-              textContent += text.items.map(item => item.str).join(' ') + ' ';
-            }
-            setFilePreview(textContent.substring(0, 1200));
-            await handleDocumentAnalysis(textContent, file);
-            setLoading(false);
-          };
-          reader.readAsArrayBuffer(file);
-        } else if (file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' || file.name.endsWith('.docx')) {
-          const reader = new FileReader();
-          reader.onloadend = async () => {
-            const arrayBuffer = reader.result;
-            const result = await mammoth.extractRawText({ arrayBuffer });
-            const textContent = result.value;
-            setFilePreview(textContent.substring(0, 1200));
-            await handleDocumentAnalysis(textContent, file);
-            setLoading(false);
-          };
-          reader.readAsArrayBuffer(file);
-        } else if (file.type === 'application/vnd.openxmlformats-officedocument.presentationml.presentation' || file.name.endsWith('.pptx')) {
-          const reader = new FileReader();
-          reader.onloadend = async () => {
-            const arrayBuffer = reader.result;
-            const textContent = await extractPptxText(arrayBuffer);
-            setFilePreview(textContent.substring(0, 1200));
-            await handleDocumentAnalysis(textContent, file);
-            setLoading(false);
-          };
-          reader.readAsArrayBuffer(file);
-        } else if (file.type === 'text/html' || file.name.endsWith('.html')) {
-          const reader = new FileReader();
-          reader.onloadend = async () => {
-            const htmlString = reader.result;
-            const textContent = parseHtmlText(htmlString);
-            setFilePreview(textContent.substring(0, 1200));
-            await handleDocumentAnalysis(textContent, file);
-            setLoading(false);
-          };
-          reader.readAsText(file);
-        } else if (file.type === 'text/markdown' || file.name.endsWith('.md')) {
-          const reader = new FileReader();
-          reader.onloadend = async () => {
-            const textContent = reader.result;
-            setFilePreview(textContent.substring(0, 1200));
-            await handleDocumentAnalysis(textContent, file);
-            setLoading(false);
-          };
-          reader.readAsText(file);
-        } else if (file.type === 'text/csv' || file.name.endsWith('.csv')) {
-          const reader = new FileReader();
-          reader.onloadend = async () => {
-            const csvString = reader.result;
-            const textContent = parseCsvText(csvString);
-            setFilePreview(textContent.substring(0, 1200));
-            await handleDocumentAnalysis(textContent, file);
-            setLoading(false);
-          };
-          reader.readAsText(file);
-        } else if (file.type === 'text/plain' || file.name.endsWith('.txt')) {
-          const reader = new FileReader();
-          reader.onloadend = async () => {
-            const textContent = reader.result;
-            setFilePreview(textContent.substring(0, 1200));
-            await handleDocumentAnalysis(textContent, file);
-            setLoading(false);
-          };
-          reader.readAsText(file);
-        } else {
-          setAnalysisResult(null);
-          setFilePreview('Unsupported file type. Please upload PDF, DOCX, TXT, PPTX, MD, CSV, HTML, or an image.');
-          setSaveStatus('Unsupported file type.');
-          setLoading(false);
-        }
-      } catch (error) {
-        console.error('Scanner Error:', error);
-        setAnalysisResult(null);
-        setFilePreview('An error occurred while reading the file.');
-        setSaveStatus('An error occurred while processing the file.');
-        setLoading(false);
-      }
+      startInterviewBeforeAnalysis(`I uploaded ${file.name}`, file.name, async () => {
+        await processFile(file);
+      });
     }
   };
 
@@ -277,8 +409,28 @@ export default function Scanner() {
     <div className="min-h-[calc(100vh-4rem)] bg-slate-950 text-white p-4 sm:p-6 lg:p-8">
       <div className="mx-auto max-w-7xl">
         <div className="mb-8">
-          <h1 className="mb-2 text-3xl font-bold sm:text-4xl">Daksha AI Document Intelligence</h1>
-          <p className="max-w-3xl text-sm text-slate-400 sm:text-base">Upload documents, slides, text files, or images and get professional AI-driven document understanding with headings, tables, topics, quiz questions, flashcards, and more.</p>
+          <h1 className="mb-2 text-3xl font-bold sm:text-4xl">Universal Learning</h1>
+          <p className="max-w-3xl text-sm text-slate-400 sm:text-base">Upload or paste anything. Daksha AI processes PDFs, DOCX, PPT, images, handwritten notes, website URLs, YouTube URLs, text, and voice through one learning pipeline.</p>
+        </div>
+
+        <div className="mb-6 grid grid-cols-1 gap-4 lg:grid-cols-2">
+          <div className="rounded-3xl border border-slate-800 bg-slate-900 p-4">
+            <div className="mb-3 flex items-center gap-2 text-slate-200"><Type className="h-4 w-4 text-indigo-400" /> Paste Text</div>
+            <textarea value={sourceText} onChange={(event) => setSourceText(event.target.value)} placeholder="Paste notes, book text, or lesson content..." className="min-h-28 w-full rounded-2xl border border-slate-800 bg-slate-950 p-3 text-sm text-slate-200 outline-none" />
+            <button onClick={handleTextSubmit} disabled={loading || !sourceText.trim()} className="mt-3 rounded-xl bg-indigo-500 px-4 py-2 text-sm font-semibold text-white disabled:opacity-60">Start AI Interview</button>
+          </div>
+
+          <div className="rounded-3xl border border-slate-800 bg-slate-900 p-4">
+            <div className="mb-3 flex items-center gap-2 text-slate-200"><LinkIcon className="h-4 w-4 text-cyan-400" /> Website URL</div>
+            <input value={websiteUrl} onChange={(event) => setWebsiteUrl(event.target.value)} placeholder="https://example.com/article" className="w-full rounded-2xl border border-slate-800 bg-slate-950 px-3 py-2 text-sm text-slate-200 outline-none" />
+            <div className="mt-4 mb-2 flex items-center gap-2 text-slate-200"><Youtube className="h-4 w-4 text-rose-400" /> YouTube URL</div>
+            <input value={youtubeUrl} onChange={(event) => setYoutubeUrl(event.target.value)} placeholder="https://youtube.com/watch?v=..." className="w-full rounded-2xl border border-slate-800 bg-slate-950 px-3 py-2 text-sm text-slate-200 outline-none" />
+            <div className="mt-3 flex flex-wrap gap-2">
+              <button onClick={handleWebsiteSubmit} disabled={loading || !websiteUrl.trim()} className="rounded-xl bg-cyan-500 px-4 py-2 text-sm font-semibold text-white disabled:opacity-60">Interview + Website</button>
+              <button onClick={handleYoutubeSubmit} disabled={loading || !youtubeUrl.trim()} className="rounded-xl bg-rose-500 px-4 py-2 text-sm font-semibold text-white disabled:opacity-60">Interview + YouTube</button>
+              <button onClick={handleVoiceInput} disabled={loading || voiceListening} className="inline-flex items-center gap-2 rounded-xl border border-slate-700 bg-slate-950 px-4 py-2 text-sm text-slate-200 disabled:opacity-60"><Mic className="h-4 w-4" /> {voiceListening ? 'Listening...' : 'Voice Interview'}</button>
+            </div>
+          </div>
         </div>
 
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_0.95fr] lg:gap-8">
@@ -290,6 +442,15 @@ export default function Scanner() {
                 <p className="text-sm text-slate-400 sm:text-base">PDF, DOCX, TXT, PPTX, MD, CSV, HTML, PNG, JPG</p>
               </div>
               <input type="file" accept="image/*,.pdf,.docx,.txt,.pptx,.md,.csv,.html" onChange={handleFileChange} className="hidden" />
+            </label>
+
+            <label className="flex min-h-[8rem] w-full cursor-pointer flex-col items-center justify-center rounded-3xl border border-slate-800 bg-slate-900 p-4 transition-colors hover:border-cyan-500">
+              <div className="flex flex-col items-center justify-center text-center">
+                <Mic className="mb-2 h-8 w-8 text-cyan-400" />
+                <p className="text-sm text-slate-200">Camera Scan (mobile)</p>
+                <p className="text-xs text-slate-400">Capture handwritten notes or book pages directly</p>
+              </div>
+              <input type="file" accept="image/*" capture="environment" onChange={handleFileChange} className="hidden" />
             </label>
 
             {files.length > 0 && (
@@ -538,6 +699,23 @@ export default function Scanner() {
           </div>
         )}
       </div>
+
+      <LearningInterviewModal
+        isOpen={interviewOpen}
+        userId={user?.uid}
+        sourceContext="material"
+        sourceLabel={interviewSourceLabel}
+        initialTopic={interviewSeedTopic}
+        onClose={() => setInterviewOpen(false)}
+        onComplete={async () => {
+          setInterviewOpen(false);
+          if (pendingActionRef.current) {
+            const action = pendingActionRef.current;
+            pendingActionRef.current = null;
+            await action();
+          }
+        }}
+      />
     </div>
   );
 }

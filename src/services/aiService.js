@@ -8,6 +8,14 @@ const openai = new OpenAI({
   dangerouslyAllowBrowser: true
 });
 
+function hasAiCredentials() {
+  return Boolean(import.meta.env.VITE_OPENROUTER_API_KEY);
+}
+
+function getMissingAuthMessage() {
+  return 'AI is not configured yet. Add VITE_OPENROUTER_API_KEY to your environment to enable generation.';
+}
+
 const DAKSHA_SYSTEM_PROMPT = `You are Daksha AI, the Universal Knowledge Operating System.
 Rules:
 - Never introduce yourself unless the user asks who you are.
@@ -74,6 +82,7 @@ export async function getDakshaResponse(prompt, language = "English") {
   const cacheKey = getCacheKey(`ai-response:${language}`, prompt);
   const cached = getCachedValue(cacheKey, 1000 * 60 * 10);
   if (cached) return cached;
+  if (!hasAiCredentials()) return getMissingAuthMessage();
   try {
     const safePrompt = sanitizePrompt(prompt);
     const safeInput = optimizeTextPayload(safePrompt, 12000);
@@ -100,6 +109,7 @@ export async function getDakshaImageResponse(base64Image, mimeType) {
   const cacheKey = getCacheKey('ai-image', `${mimeType}:${base64Image?.slice(0, 120)}`);
   const cached = getCachedValue(cacheKey, 1000 * 60 * 20);
   if (cached) return cached;
+  if (!hasAiCredentials()) return getMissingAuthMessage();
 
   try {
     const safeImage = String(base64Image || '').slice(0, 800000);
@@ -126,6 +136,7 @@ export async function getDakshaTextResponse(extractedText) {
   const cacheKey = getCacheKey('ai-text', extractedText);
   const cached = getCachedValue(cacheKey, 1000 * 60 * 15);
   if (cached) return cached;
+  if (!hasAiCredentials()) return getMissingAuthMessage();
 
   try {
     const safeText = optimizeTextPayload(sanitizePrompt(extractedText), 18000);
@@ -149,6 +160,30 @@ export async function getDakshaDocumentAnalysis(extractedText, fileName = 'docum
   const cacheKey = getCacheKey('ai-document-analysis', `${fileName}:${fileType}:${extractedText?.slice(0, 120)}`);
   const cached = getCachedValue(cacheKey, 1000 * 60 * 20);
   if (cached) return cached;
+  if (!hasAiCredentials()) {
+    const message = getMissingAuthMessage();
+    return {
+      overview: message,
+      summary: message,
+      topics: [],
+      keywords: [],
+      definitions: [],
+      importantPoints: [],
+      difficulty: 'Unknown',
+      detectedElements: {
+        headings: [],
+        chapters: [],
+        tables: 0,
+        images: 0,
+        diagrams: 0,
+        formulas: [],
+        codeBlocks: [],
+        lists: []
+      },
+      quiz: [],
+      flashcards: []
+    };
+  }
 
   try {
     const limitedText = optimizeTextPayload(sanitizePrompt(extractedText), 18000);
@@ -229,6 +264,24 @@ export async function getDakshaLessonPackage(sourceText, context = 'topic', sour
   const cacheKey = getCacheKey('ai-lesson-package', `${context}:${sourceName}:${sourceText?.slice(0, 120)}`);
   const cached = getCachedValue(cacheKey, 1000 * 60 * 20);
   if (cached) return cached;
+  if (!hasAiCredentials()) {
+    const message = getMissingAuthMessage();
+    return {
+      completeCourse: message,
+      beginnerExplanation: message,
+      intermediateExplanation: '',
+      advancedExplanation: '',
+      realWorldExamples: [],
+      interviewQuestions: [],
+      practiceQuestions: [],
+      quiz: [],
+      flashcards: [],
+      revisionNotes: '',
+      cheatSheet: '',
+      mindMap: '',
+      learningRoadmap: ''
+    };
+  }
 
   try {
     const limitedSource = optimizeTextPayload(sanitizePrompt(sourceText), 18000);
@@ -905,13 +958,45 @@ Extracted text: ${docxModel?.extractedText || ''}`;
   }
 }
 
-export async function generateSkillRoadmap(skill) {
+export async function generateSkillRoadmap(skill, learningProfile = null) {
+  if (!hasAiCredentials()) {
+    return {
+      skill,
+      skillOverview: getMissingAuthMessage(),
+      beginnerRoadmap: [`Set up AI credentials to generate a complete ${skill} roadmap.`],
+      intermediateRoadmap: [],
+      advancedRoadmap: [],
+      dailyStudyPlan: [],
+      weeklyGoals: [],
+      monthlyGoals: [],
+      requiredTools: [],
+      freeResources: [],
+      paidResources: [],
+      bestYouTubeChannels: [],
+      bestBooks: [],
+      bestWebsites: [],
+      projects: [],
+      portfolioIdeas: [],
+      internshipPreparation: [],
+      jobPreparation: [],
+      freelancingGuide: [],
+      businessOpportunities: [],
+      futureScope: [],
+      salaryInformation: '',
+      finalChecklist: []
+    };
+  }
+
+  const learnerContext = learningProfile
+    ? `\nLearner profile:\n${JSON.stringify(learningProfile, null, 2)}\nUse this to personalize depth, language style, pace, examples, and roadmap milestones.`
+    : '';
+
   try {
     const response = await openai.chat.completions.create({
       model: 'deepseek/deepseek-v3:free',
       messages: [
         { role: 'system', content: `${DAKSHA_SYSTEM_PROMPT} You MUST return only valid JSON for a professional skill roadmap.` },
-        { role: 'user', content: `Create a professional skill roadmap for: ${skill}. Return ONLY valid JSON with this exact structure:
+        { role: 'user', content: `Create a professional skill roadmap for: ${skill}.${learnerContext}\nReturn ONLY valid JSON with this exact structure:
 {
   "skill": "${skill}",
   "skillOverview": "<overview>",
