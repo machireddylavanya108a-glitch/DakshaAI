@@ -2,6 +2,7 @@ import { Clock3, Sparkles, Target, TrendingUp, BookOpenCheck, Languages } from '
 
 export default function LearningProfile({ profile }) {
   const stats = profile?.statistics || {};
+  const brainProfile = profile?.memoryBrain?.learningProfile || {};
   return (
     <div className="rounded-[2rem] border border-white/10 bg-slate-900/80 p-6 shadow-2xl shadow-slate-950/40">
       <div className="flex items-center justify-between gap-3">
@@ -44,7 +45,20 @@ export default function LearningProfile({ profile }) {
         </div>
         <div className="rounded-[1.25rem] border border-slate-800 bg-slate-950/70 p-4 text-sm text-slate-300">
           <p className="text-slate-400">Teacher style</p>
-          <p className="mt-2 font-medium text-white">{profile?.preferences?.teacherStyle || 'friendly'}</p>
+          <p className="mt-2 font-medium text-white">{brainProfile.preferredTeacherStyle || profile?.preferences?.teacherStyle || 'friendly'}</p>
+        </div>
+      </div>
+
+      <div className="mt-6 grid gap-4 lg:grid-cols-2">
+        <div className="rounded-[1.25rem] border border-slate-800 bg-slate-950/70 p-4 text-sm text-slate-300">
+          <p className="text-slate-400">Learning style</p>
+          <p className="mt-2 font-medium text-white">{brainProfile.learningStyle || 'Adaptive'}</p>
+          <p className="mt-3 text-slate-400">Speed: {brainProfile.speed || 'Balanced'} • Confidence: {brainProfile.confidence || 0}%</p>
+        </div>
+        <div className="rounded-[1.25rem] border border-slate-800 bg-slate-950/70 p-4 text-sm text-slate-300">
+          <p className="text-slate-400">Interests and career goals</p>
+          <p className="mt-2 font-medium text-white">{(brainProfile.interests || []).slice(0, 4).join(', ') || 'Not enough data yet'}</p>
+          <p className="mt-3 text-slate-400">{brainProfile.careerGoals || 'Career goals will evolve from your activity.'}</p>
         </div>
       </div>
     </div>

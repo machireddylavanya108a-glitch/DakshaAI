@@ -1756,3 +1756,159 @@ export async function getUserPracticeResults(userId) {
     return [];
   }
 }
+
+export async function saveMemoryBrain(userId, payload = {}) {
+  try {
+    const brainId = `${userId}_brain`;
+    await setDoc(doc(db, 'memoryBrain', brainId), {
+      userId,
+      brainId,
+      ...payload,
+      updatedAtMs: Date.now(),
+      createdAt: payload?.createdAt || serverTimestamp(),
+      updatedAt: serverTimestamp()
+    }, { merge: true });
+    return { ok: true, brainId };
+  } catch (error) {
+    console.error('Error saving memory brain:', error);
+    return { ok: false, brainId: null };
+  }
+}
+
+export async function getMemoryBrain(userId) {
+  try {
+    return await readCachedCollection('memoryBrain', userId, async () => {
+      const q = query(collection(db, 'memoryBrain'), where('userId', '==', userId));
+      const querySnapshot = await getDocs(q);
+      const brains = [];
+      querySnapshot.forEach((docSnapshot) => brains.push({ id: docSnapshot.id, ...docSnapshot.data() }));
+      return brains[0] || null;
+    });
+  } catch (error) {
+    console.error('Error fetching memory brain:', error);
+    return null;
+  }
+}
+
+export async function saveLearningProfileSnapshot(userId, payload = {}) {
+  try {
+    const profileId = `${userId}_learning_profile`;
+    await setDoc(doc(db, 'learningProfile', profileId), {
+      userId,
+      profileId,
+      ...payload,
+      updatedAt: serverTimestamp(),
+      createdAt: payload?.createdAt || serverTimestamp()
+    }, { merge: true });
+    return { ok: true, profileId };
+  } catch (error) {
+    console.error('Error saving learning profile snapshot:', error);
+    return { ok: false, profileId: null };
+  }
+}
+
+export async function saveProgressSnapshot(userId, payload = {}) {
+  try {
+    const progressId = `${userId}_progress`;
+    await setDoc(doc(db, 'progress', progressId), {
+      userId,
+      progressId,
+      ...payload,
+      updatedAt: serverTimestamp(),
+      createdAt: payload?.createdAt || serverTimestamp()
+    }, { merge: true });
+    return { ok: true, progressId };
+  } catch (error) {
+    console.error('Error saving progress snapshot:', error);
+    return { ok: false, progressId: null };
+  }
+}
+
+export async function saveStudyHistory(userId, payload = {}) {
+  try {
+    const historyId = payload?.historyId || `${userId}_${Date.now()}`;
+    await setDoc(doc(db, 'studyHistory', historyId), {
+      userId,
+      historyId,
+      source: payload?.source || 'memory-brain-sync',
+      entries: Array.isArray(payload?.entries) ? payload.entries : [],
+      entryCount: Array.isArray(payload?.entries) ? payload.entries.length : 0,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp()
+    }, { merge: true });
+    return { ok: true, historyId };
+  } catch (error) {
+    console.error('Error saving study history:', error);
+    return { ok: false, historyId: null };
+  }
+}
+
+export async function saveAchievementsSnapshot(userId, payload = {}) {
+  try {
+    const achievementId = `${userId}_achievements`;
+    await setDoc(doc(db, 'achievements', achievementId), {
+      userId,
+      achievementId,
+      badges: Array.isArray(payload?.badges) ? payload.badges : [],
+      achievements: Array.isArray(payload?.achievements) ? payload.achievements : [],
+      updatedAt: serverTimestamp(),
+      createdAt: payload?.createdAt || serverTimestamp()
+    }, { merge: true });
+    return { ok: true, achievementId };
+  } catch (error) {
+    console.error('Error saving achievements snapshot:', error);
+    return { ok: false, achievementId: null };
+  }
+}
+
+export async function saveSkillTreeSnapshot(userId, payload = {}) {
+  try {
+    const treeId = `${userId}_skill_tree`;
+    await setDoc(doc(db, 'skillTree', treeId), {
+      userId,
+      treeId,
+      skills: Array.isArray(payload?.skills) ? payload.skills : [],
+      updatedAt: serverTimestamp(),
+      createdAt: payload?.createdAt || serverTimestamp()
+    }, { merge: true });
+    return { ok: true, treeId };
+  } catch (error) {
+    console.error('Error saving skill tree snapshot:', error);
+    return { ok: false, treeId: null };
+  }
+}
+
+export async function saveRecommendationsSnapshot(userId, payload = {}) {
+  try {
+    const recommendationId = `${userId}_recommendations`;
+    await setDoc(doc(db, 'recommendations', recommendationId), {
+      userId,
+      recommendationId,
+      ...payload,
+      updatedAt: serverTimestamp(),
+      createdAt: payload?.createdAt || serverTimestamp()
+    }, { merge: true });
+    return { ok: true, recommendationId };
+  } catch (error) {
+    console.error('Error saving recommendations snapshot:', error);
+    return { ok: false, recommendationId: null };
+  }
+}
+
+export async function saveRevisionScheduleSnapshot(userId, payload = {}) {
+  try {
+    const revisionId = `${userId}_revision_schedule`;
+    await setDoc(doc(db, 'revisionSchedule', revisionId), {
+      userId,
+      revisionId,
+      schedule: Array.isArray(payload?.schedule) ? payload.schedule : [],
+      reminders: Array.isArray(payload?.reminders) ? payload.reminders : [],
+      updatedAt: serverTimestamp(),
+      createdAt: payload?.createdAt || serverTimestamp()
+    }, { merge: true });
+    return { ok: true, revisionId };
+  } catch (error) {
+    console.error('Error saving revision schedule snapshot:', error);
+    return { ok: false, revisionId: null };
+  }
+}
