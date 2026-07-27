@@ -11,6 +11,11 @@ export default function AIHints({ practiceSet }) {
             <p className="mt-1">{question.hint || 'Focus on the core concept and test the most probable answer first.'}</p>
           </div>
         ))}
+        {(practiceSet.recommendations || []).slice(0, 2).map((recommendation) => (
+          <div key={recommendation} className="rounded-[1rem] border border-cyan-500/20 bg-cyan-500/10 p-3 text-cyan-100">
+            Recommendation: {recommendation}
+          </div>
+        ))}
       </div>
     </div>
   );

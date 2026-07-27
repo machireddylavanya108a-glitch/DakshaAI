@@ -1612,3 +1612,147 @@ export async function saveLearningState(userId, payload) {
     return { ok: false, stateId: null };
   }
 }
+
+export async function savePracticeSession(userId, payload = {}) {
+  try {
+    const sessionId = payload?.sessionId || `${userId}_${Date.now()}`;
+    await setDoc(doc(db, 'practiceSessions', sessionId), {
+      userId,
+      sessionId,
+      topic: payload?.topic || 'General Practice',
+      lessonId: payload?.lessonId || '',
+      difficulty: payload?.difficulty || 'Adaptive',
+      skillLevel: payload?.skillLevel || 'intermediate',
+      learningSpeed: payload?.learningSpeed || 'normal',
+      weakConcepts: Array.isArray(payload?.weakConcepts) ? payload.weakConcepts : [],
+      questionCount: Number(payload?.questionCount || 0),
+      completed: Boolean(payload?.completed),
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp()
+    }, { merge: true });
+    return { ok: true, sessionId };
+  } catch (error) {
+    console.error('Error saving practice session:', error);
+    return { ok: false, sessionId: null };
+  }
+}
+
+export async function savePracticeResult(userId, payload = {}) {
+  try {
+    const resultId = payload?.resultId || `${userId}_${Date.now()}`;
+    await setDoc(doc(db, 'practiceResults', resultId), {
+      userId,
+      resultId,
+      sessionId: payload?.sessionId || '',
+      topic: payload?.topic || 'General Practice',
+      accuracy: Number(payload?.accuracy || 0),
+      speed: Number(payload?.speed || 0),
+      confidence: Number(payload?.confidence || 0),
+      improvement: Number(payload?.improvement || 0),
+      weakTopics: Array.isArray(payload?.weakTopics) ? payload.weakTopics : [],
+      strongTopics: Array.isArray(payload?.strongTopics) ? payload.strongTopics : [],
+      learningScore: Number(payload?.learningScore || 0),
+      readiness: payload?.readiness || 'Needs Practice',
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp()
+    }, { merge: true });
+    return { ok: true, resultId };
+  } catch (error) {
+    console.error('Error saving practice result:', error);
+    return { ok: false, resultId: null };
+  }
+}
+
+export async function saveQuestionBankEntry(userId, payload = {}) {
+  try {
+    const entryId = payload?.entryId || `${userId}_${Date.now()}`;
+    await setDoc(doc(db, 'questionBank', entryId), {
+      userId,
+      entryId,
+      topic: payload?.topic || 'General Practice',
+      lessonId: payload?.lessonId || '',
+      questionType: payload?.questionType || 'Short answer',
+      difficulty: payload?.difficulty || 'Medium',
+      prompt: payload?.prompt || '',
+      answer: payload?.answer || '',
+      concept: payload?.concept || '',
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp()
+    }, { merge: true });
+    return { ok: true, entryId };
+  } catch (error) {
+    console.error('Error saving question bank entry:', error);
+    return { ok: false, entryId: null };
+  }
+}
+
+export async function saveAssessmentHistory(userId, payload = {}) {
+  try {
+    const assessmentId = payload?.assessmentId || `${userId}_${Date.now()}`;
+    await setDoc(doc(db, 'assessmentHistory', assessmentId), {
+      userId,
+      assessmentId,
+      sessionId: payload?.sessionId || '',
+      topic: payload?.topic || 'General Practice',
+      questionId: payload?.questionId || '',
+      questionType: payload?.questionType || 'Short answer',
+      learnerAnswer: payload?.learnerAnswer || '',
+      correct: Boolean(payload?.correct),
+      weightedPoints: Number(payload?.weightedPoints || 0),
+      smartFeedback: payload?.smartFeedback || {},
+      responseTimeSec: Number(payload?.responseTimeSec || 0),
+      confidence: Number(payload?.confidence || 0),
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp()
+    }, { merge: true });
+    return { ok: true, assessmentId };
+  } catch (error) {
+    console.error('Error saving assessment history:', error);
+    return { ok: false, assessmentId: null };
+  }
+}
+
+export async function saveLearningScore(userId, payload = {}) {
+  try {
+    const scoreId = payload?.scoreId || `${userId}_${Date.now()}`;
+    await setDoc(doc(db, 'learningScores', scoreId), {
+      userId,
+      scoreId,
+      topic: payload?.topic || 'General Practice',
+      sessionId: payload?.sessionId || '',
+      learningScore: Number(payload?.learningScore || 0),
+      readiness: payload?.readiness || 'Needs Practice',
+      accuracy: Number(payload?.accuracy || 0),
+      speed: Number(payload?.speed || 0),
+      confidence: Number(payload?.confidence || 0),
+      improvement: Number(payload?.improvement || 0),
+      weakTopics: Array.isArray(payload?.weakTopics) ? payload.weakTopics : [],
+      strongTopics: Array.isArray(payload?.strongTopics) ? payload.strongTopics : [],
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp()
+    }, { merge: true });
+    return { ok: true, scoreId };
+  } catch (error) {
+    console.error('Error saving learning score:', error);
+    return { ok: false, scoreId: null };
+  }
+}
+
+export async function getUserPracticeResults(userId) {
+  try {
+    return await readCachedCollection('practiceResults', userId, async () => {
+      const q = query(collection(db, 'practiceResults'), where('userId', '==', userId));
+      const querySnapshot = await getDocs(q);
+      const items = [];
+      querySnapshot.forEach((docSnapshot) => items.push({ id: docSnapshot.id, ...docSnapshot.data() }));
+      return items.sort((a, b) => {
+        const aTime = a.updatedAt?.toMillis ? a.updatedAt.toMillis() : 0;
+        const bTime = b.updatedAt?.toMillis ? b.updatedAt.toMillis() : 0;
+        return bTime - aTime;
+      });
+    });
+  } catch (error) {
+    console.error('Error fetching practice results:', error);
+    return [];
+  }
+}

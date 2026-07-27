@@ -11,7 +11,8 @@ export default function PracticeHistory({ history }) {
               <span className="text-white">{entry.topic}</span>
               <span className="text-cyan-300">{entry.accuracy}%</span>
             </div>
-            <p className="mt-1">{entry.feedback}</p>
+            <p className="mt-1">Readiness: {entry.readiness || 'Needs Practice'}</p>
+            <p className="mt-1 text-xs text-slate-500">Learning Score: {entry.learningScore || 0} • Difficulty: {entry.difficulty || 'Adaptive'}</p>
           </div>
         )) : <div className="rounded-[1rem] border border-white/10 bg-slate-950/70 p-3">No sessions saved yet.</div>}
       </div>
