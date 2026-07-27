@@ -1,8 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { saveYouTubeLearningRecord, getUserYouTubeLearning, deleteYouTubeLearningRecord, renameYouTubeLearningRecord, saveYouTubeBookmark } from '../services/firestoreService';
-import { generateYouTubeLearningPackage } from '../services/aiService';
-import { buildYouTubeLearningModel, parseYouTubeLearningPayload } from '../utils/youtubeLearningUtils';
+import { runUniversalLearningPipeline } from '../services/universalLearningPipeline';
 import LoadingYouTube from '../components/youtube/LoadingYouTube';
 import YouTubePlayer from '../components/youtube/YouTubePlayer';
 import TranscriptViewer from '../components/youtube/TranscriptViewer';
@@ -40,37 +39,25 @@ export default function YouTubeLearning() {
 
     try {
       const parsedUrl = videoUrl.trim();
-      const transcriptSample = [
-        { timestamp: '00:00', title: 'Intro', text: 'Welcome to this lesson. Here we introduce the core idea.' },
-        { timestamp: '02:14', title: 'Main topic', text: 'This section explains the main concept and the supporting evidence.' },
-        { timestamp: '05:30', title: 'Example', text: 'A practical example is shown to make the idea easier to understand.' },
-      ];
-      const timestamps = [
-        { timestamp: '00:00', title: 'Intro' },
-        { timestamp: '02:14', title: 'Main topic' },
-        { timestamp: '05:30', title: 'Example' },
-      ];
-      const chapters = [
-        { title: 'Introduction' },
-        { title: 'Core concepts' },
-        { title: 'Examples' },
-      ];
-      const modelData = buildYouTubeLearningModel({
-        videoUrl: parsedUrl,
-        title: parsedUrl.includes('shorts') ? 'YouTube Short' : 'YouTube Lesson',
-        transcript: transcriptSample,
-        timestamps,
-        chapters,
-        topics: ['Core idea', 'Supporting evidence', 'Practical application'],
-        codeSnippets: [],
-        formulas: [],
-        definitions: ['Definition one', 'Definition two'],
-        importantConcepts: ['Concept one', 'Concept two'],
-        bookmarks: [],
+      const result = await runUniversalLearningPipeline({
+        url: parsedUrl,
+        sourceHint: 'youtube',
+        sourceName: parsedUrl
       });
+
+      const modelData = {
+        ...result.sourceModel,
+        videoUrl: parsedUrl,
+        title: result.sourceModel.title || (parsedUrl.includes('shorts') ? 'YouTube Short' : 'YouTube Lesson'),
+        chapters: (result.sourceModel.chapters || []).map((chapter) => ({ title: chapter?.title || chapter })),
+        topics: result.sourceModel.topics || [],
+        formulas: result.sourceModel.formulas || [],
+        definitions: result.sourceModel.definitions || [],
+        importantConcepts: result.learningSession.keyConcepts || [],
+        bookmarks: result.sourceModel.bookmarks || []
+      };
       setModel(modelData);
-      const payload = await generateYouTubeLearningPackage(parsedUrl, modelData, user?.uid || 'guest');
-      const parsed = parseYouTubeLearningPayload(payload);
+      const parsed = result.learningSession;
       setSession(parsed);
       setNotes(parsed.summary || '');
       if (user?.uid) {

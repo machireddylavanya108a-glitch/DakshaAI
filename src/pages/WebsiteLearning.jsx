@@ -1,8 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { saveWebsiteLearningRecord, getUserWebsiteLearning, deleteWebsiteLearningRecord, renameWebsiteLearningRecord, saveWebsiteBookmark } from '../services/firestoreService';
-import { generateWebsiteLearningPackage } from '../services/aiService';
-import { buildWebsiteLearningModel, parseWebsiteLearningPayload } from '../utils/websiteLearningUtils';
+import { runUniversalLearningPipeline } from '../services/universalLearningPipeline';
 import LoadingWebsite from '../components/website/LoadingWebsite';
 import WebsiteViewer from '../components/website/WebsiteViewer';
 import WebsiteSummary from '../components/website/WebsiteSummary';
@@ -39,27 +38,15 @@ export default function WebsiteLearning() {
     setSession(null);
 
     try {
-      const cleanedText = [
-        'This page explains the core concept in a clean, structured way.',
-        'The main topic is introduced with definitions and examples.',
-        'Later sections explain practical usage and real-world applications.'
-      ].join('\n');
-      const modelData = buildWebsiteLearningModel({
+      const result = await runUniversalLearningPipeline({
         url: url.trim(),
-        title: 'Webpage Learning Session',
-        content: cleanedText,
-        headings: ['Introduction', 'Core Concepts', 'Examples', 'Applications'],
-        subheadings: ['What it is', 'How it works', 'Why it matters'],
-        codeBlocks: ['const example = true;'],
-        tables: ['Example table'],
-        images: ['Diagram image'],
-        formulas: ['x = y + z'],
-        concepts: ['Core idea', 'Important concept'],
+        sourceHint: 'website',
+        sourceName: url.trim()
       });
+      const modelData = result.sourceModel;
       setModel(modelData);
       setActiveSection(modelData.headings[0] || '');
-      const payload = await generateWebsiteLearningPackage(url.trim(), modelData, user?.uid || 'guest');
-      const parsed = parseWebsiteLearningPayload(payload);
+      const parsed = result.learningSession;
       setSession(parsed);
       setNotes(parsed.summary || '');
       if (user?.uid) {

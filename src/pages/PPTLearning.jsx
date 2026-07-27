@@ -1,9 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import JSZip from 'jszip';
 import { useAuth } from '../context/AuthContext';
 import { savePptLearningRecord, getUserPptLearning, deletePptLearningRecord, renamePptLearningRecord } from '../services/firestoreService';
-import { generatePptLearningPackage } from '../services/aiService';
-import { buildPptLearningModel, parsePptLearningPayload } from '../utils/pptLearningUtils';
+import { runUniversalLearningPipeline } from '../services/universalLearningPipeline';
 import LoadingPPT from '../components/ppt/LoadingPPT';
 import PPTViewer from '../components/ppt/PPTViewer';
 import SlideNavigator from '../components/ppt/SlideNavigator';
@@ -64,65 +62,14 @@ export default function PPTLearning() {
     setPresentationFile(file);
 
     try {
-      const arrayBuffer = await file.arrayBuffer();
-      const zip = await JSZip.loadAsync(arrayBuffer);
-      const slideEntries = Object.keys(zip.files).filter((name) => /^ppt\/slides\/slide\d+\.xml$/i.test(name)).sort();
-      if (!slideEntries.length) {
-        throw new Error('No slides were found in this presentation.');
-      }
-
-      const presentationSlides = [];
-      const notes = [];
-      const charts = [];
-      const images = [];
-      const tables = [];
-      const diagrams = [];
-
-      for (let index = 0; index < slideEntries.length; index += 1) {
-        const entry = slideEntries[index];
-        const xml = await zip.files[entry].async('string').catch(() => '');
-        const textFragments = Array.from(xml.matchAll(/<a:t>(.*?)<\/a:t>/gs)).map((match) => match[1].replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').trim()).filter(Boolean);
-        const title = textFragments[0] || `Slide ${index + 1}`;
-        const body = textFragments.slice(1);
-        presentationSlides.push({
-          id: `slide-${index + 1}`,
-          title,
-          text: body.length ? [body.join(' ')] : [],
-          bullets: body.length ? body : textFragments.slice(0, 3),
-          tables: [],
-          charts: [],
-          diagrams: [],
-          images: [],
-          notes: [],
-        });
-
-        if (/<c:chart/i.test(xml)) charts.push({ title: `Chart ${index + 1}`, type: 'Chart', description: 'Chart detected in the slide.' });
-        if (/<p:pic/i.test(xml) || /<a:blip/i.test(xml)) images.push({ alt: `Image ${index + 1}`, description: 'Image detected in the slide.' });
-        if (/<a:graphicFrame/i.test(xml) && /<a:tbl/i.test(xml)) tables.push({ title: `Table ${index + 1}`, description: 'Table detected in the slide.' });
-        if (/<p:graphicFrame/i.test(xml) || /<a:diagram/i.test(xml)) diagrams.push({ title: `Diagram ${index + 1}`, description: 'Diagram detected in the slide.' });
-      }
-
-      const noteEntries = Object.keys(zip.files).filter((name) => /^ppt\/notesSlides\/notesSlide\d+\.xml$/i.test(name)).sort();
-      for (const noteEntry of noteEntries) {
-        const xml = await zip.files[noteEntry].async('string').catch(() => '');
-        const noteFragments = Array.from(xml.matchAll(/<a:t>(.*?)<\/a:t>/gs)).map((match) => match[1].trim()).filter(Boolean);
-        if (noteFragments.length) notes.push(noteFragments.join(' '));
-      }
-
-      const modelData = buildPptLearningModel({
-        title: file.name.replace(/\.[^/.]+$/, ''),
-        slides: presentationSlides,
-        notes,
-        charts,
-        images,
-        tables,
-        diagrams,
-        overview: presentationSlides.map((slide) => `${slide.title}\n${(slide.bullets || []).join('\n')}`).join('\n\n'),
+      const result = await runUniversalLearningPipeline({
+        file,
+        sourceHint: 'pptx'
       });
+      const modelData = result.sourceModel;
       setModel(modelData);
       setActiveSlide(0);
-      const payload = await generatePptLearningPackage(file.name, modelData, user?.uid || 'guest');
-      const parsed = parsePptLearningPayload(payload);
+      const parsed = result.learningSession;
       setSession(parsed);
       setNotes(parsed.summary || '');
       if (user?.uid) {

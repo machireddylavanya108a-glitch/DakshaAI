@@ -1,9 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
-import mammoth from 'mammoth';
 import { useAuth } from '../context/AuthContext';
 import { saveDocxLearningRecord, getUserDocxLearning, deleteDocxLearningRecord } from '../services/firestoreService';
-import { generateDocxLearningPackage } from '../services/aiService';
-import { buildDocxLearningModel, parseDocxLearningPayload } from '../utils/docxLearningUtils';
+import { runUniversalLearningPipeline } from '../services/universalLearningPipeline';
 import LoadingDOCX from '../components/docx/LoadingDOCX';
 import DOCXViewer from '../components/docx/DOCXViewer';
 import DOCXOutline from '../components/docx/DOCXOutline';
@@ -42,13 +40,44 @@ export default function DOCXLearning() {
     setIsLoading(true);
 
     try {
-      const arrayBuffer = await file.arrayBuffer();
-      const mammothResult = await mammoth.extractRawText({ arrayBuffer });
-      const extractedText = mammothResult?.value || '';
-      const normalized = buildDocxLearningModel(extractedText, file.name);
-      setPreviewText(normalized.extractedText || extractedText);
-      const payload = await generateDocxLearningPackage(file.name, normalized, user?.uid || 'guest');
-      const parsed = parseDocxLearningPayload(payload);
+      const result = await runUniversalLearningPipeline({
+        file,
+        sourceHint: 'docx'
+      });
+      const normalized = result.sourceModel;
+      const unified = result.learningSession;
+      setPreviewText(normalized.extractedText || normalized.overview || '');
+
+      const parsed = {
+        id: `docx-${Date.now()}`,
+        title: unified.title || normalized.title || file.name,
+        level: result.sourceMeta?.difficulty || 'Structured',
+        summary: unified.summary,
+        objectives: unified.keyConcepts || [],
+        lessons: [
+          { title: 'Beginner', content: unified.beginnerLesson || '' },
+          { title: 'Intermediate', content: unified.intermediateLesson || '' },
+          { title: 'Advanced', content: unified.advancedLesson || '' }
+        ],
+        outline: {
+          sections: normalized.sections || normalized.chapters || [],
+          definitions: unified.importantDefinitions || normalized.definitions || [],
+          tables: normalized.tables || [],
+          concepts: unified.keyConcepts || normalized.concepts || [],
+          bookmarks: normalized.bookmarks || []
+        },
+        keyConcepts: unified.keyConcepts || [],
+        importantDefinitions: unified.importantDefinitions || [],
+        examples: unified.examples || [],
+        realWorldApplications: unified.realWorldApplications || [],
+        revisionNotes: unified.revisionNotes || [],
+        cheatSheet: unified.cheatSheet || [],
+        flashcards: unified.flashcards || [],
+        quiz: unified.quiz || [],
+        mindMap: unified.mindMap || '',
+        learningRoadmap: unified.learningRoadmap || []
+      };
+
       setSession(parsed);
       if (user?.uid) {
         await saveDocxLearningRecord(user.uid, {
@@ -56,7 +85,7 @@ export default function DOCXLearning() {
           fileName: file.name,
           createdAt: new Date().toISOString(),
           package: parsed,
-          previewText: normalized.extractedText || extractedText,
+          previewText: normalized.extractedText || normalized.overview || '',
         });
         const fresh = await getUserDocxLearning(user.uid);
         setSavedSessions(fresh || []);
@@ -110,11 +139,11 @@ export default function DOCXLearning() {
         <div className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
           <DOCXViewer fileName={docxFile?.name} previewText={filteredPreview} onSearch={setSearchTerm} />
           <DOCXOutline
-            sections={session?.outline?.sections?.map((item) => item.title) || []}
-            definitions={session?.outline?.definitions?.map((item) => item.term || item) || []}
-            tables={session?.outline?.tables?.map((item) => item.title || item) || []}
-            concepts={session?.outline?.concepts?.map((item) => item.title || item) || []}
-            bookmarks={session?.outline?.bookmarks?.map((item) => item.title || item) || []}
+            sections={session?.outline?.sections?.map((item) => item?.title || item) || []}
+            definitions={session?.outline?.definitions?.map((item) => item?.term || item?.title || item) || []}
+            tables={session?.outline?.tables?.map((item) => item?.title || item) || []}
+            concepts={session?.outline?.concepts?.map((item) => item?.title || item) || []}
+            bookmarks={session?.outline?.bookmarks?.map((item) => item?.title || item) || []}
           />
         </div>
 

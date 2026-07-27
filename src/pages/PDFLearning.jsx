@@ -1,9 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { UploadCloud, FileText, Sparkles, BookOpen, Search, Bookmark, Download, Trash2, Pencil, RotateCcw } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import { getDakshaLessonPackage } from '../services/aiService';
+import { runUniversalLearningPipeline } from '../services/universalLearningPipeline';
 import { savePdfLearningRecord, getUserPdfLearning, deletePdfLearningRecord } from '../services/firestoreService';
-import { buildPdfLearningModel, parsePdfLearningPayload } from '../utils/pdfLearningUtils';
 import LoadingPDF from '../components/pdf/LoadingPDF';
 import PDFViewer from '../components/pdf/PDFViewer';
 import PDFOutline from '../components/pdf/PDFOutline';
@@ -47,19 +46,27 @@ export default function PDFLearning() {
     setBookmarks([]);
 
     try {
-      const arrayBuffer = await selectedFile.arrayBuffer();
-      const text = new TextDecoder().decode(arrayBuffer);
-      const extractedText = text || '';
-      const builtModel = buildPdfLearningModel(extractedText, selectedFile.name);
+      const result = await runUniversalLearningPipeline({
+        file: selectedFile,
+        sourceHint: 'pdf'
+      });
+      const builtModel = result.sourceModel;
       setModel(builtModel);
       setPreviewText(builtModel.overview);
 
-      const payload = await getDakshaLessonPackage(extractedText || builtModel.overview, 'pdf', selectedFile.name);
-      const parsed = parsePdfLearningPayload(payload);
+      const parsed = result.learningSession;
       setLesson(parsed);
 
       if (user?.uid) {
-        await savePdfLearningRecord(user.uid, selectedFile.name, builtModel, parsed, {});
+        await savePdfLearningRecord(
+          user.uid,
+          selectedFile.name,
+          builtModel,
+          parsed,
+          parsed.summary || '',
+          parsed.quiz || [],
+          parsed.flashcards || []
+        );
         const refreshed = await getUserPdfLearning(user.uid);
         setSavedRecords(refreshed);
       }

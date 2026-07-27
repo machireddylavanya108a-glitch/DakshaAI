@@ -1,8 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { saveCameraLearningRecord, getUserCameraLearning, deleteCameraLearningRecord, renameCameraLearningRecord, saveCameraBookmark } from '../services/firestoreService';
-import { generateCameraLearningPackage } from '../services/aiService';
-import { normalizeCameraLearningPayload } from '../utils/cameraLearningUtils';
+import { runUniversalLearningPipeline } from '../services/universalLearningPipeline';
 import CameraCapture from '../components/camera/CameraCapture';
 import OCRPreview from '../components/camera/OCRPreview';
 import ExtractedText from '../components/camera/ExtractedText';
@@ -71,25 +70,47 @@ export default function CameraLearning() {
     setLesson(null);
 
     try {
-      const imageData = file ? await file.arrayBuffer() : null;
-      const base64 = imageData ? btoa(String.fromCharCode(...new Uint8Array(imageData))) : '';
-      const sampleText = ocrText || 'This image contains a heading, a paragraph, and some key concepts. The text should be used to build a lesson.';
-      const payload = await generateCameraLearningPackage(sampleText, fileName || 'camera-image', previewUrl, user?.uid || 'guest');
-      const normalized = normalizeCameraLearningPayload(payload, fileName || 'camera-image');
-      setAnalysis(normalized.analysis);
-      setLesson(normalized.lesson);
-      setOcrText(normalized.ocrText || sampleText);
+      const result = await runUniversalLearningPipeline({
+        file,
+        sourceHint: 'camera-ocr',
+        ocrText: ocrText || 'Captured image content pending OCR extraction.',
+        sourceName: fileName || 'camera-image'
+      });
+
+      const lessonPayload = result.learningSession;
+      const analysisPayload = {
+        summary: lessonPayload.summary,
+        detectedElements: {
+          headings: result.sourceModel.headings || [],
+          paragraphs: result.sourceModel.subheadings || [],
+          tables: result.sourceModel.tables || [],
+          handwrittenText: [],
+          formulas: result.sourceModel.formulas || [],
+          diagrams: result.sourceModel.diagrams || [],
+          codeSnippets: result.sourceModel.codeBlocks || [],
+          concepts: lessonPayload.keyConcepts || []
+        },
+        keyConcepts: lessonPayload.keyConcepts || [],
+        definitions: lessonPayload.importantDefinitions || [],
+        formulas: result.sourceModel.formulas || [],
+        diagrams: result.sourceModel.diagrams || [],
+        qualityWarnings: []
+      };
+
+      setAnalysis(analysisPayload);
+      setLesson(lessonPayload);
+      setOcrText(result.sourceModel.extractedText || ocrText || 'No OCR text extracted.');
 
       if (user?.uid) {
         await saveCameraLearningRecord(user.uid, {
           id: `camera-${Date.now()}`,
           imageName: fileName || 'camera-image',
-          ocrText: normalized.ocrText || sampleText,
-          analysis: normalized.analysis,
-          lesson: normalized.lesson,
-          summary: normalized.lesson.summary,
-          quiz: normalized.lesson.quiz,
-          flashcards: normalized.lesson.flashcards,
+          ocrText: result.sourceModel.extractedText || ocrText || '',
+          analysis: analysisPayload,
+          lesson: lessonPayload,
+          summary: lessonPayload.summary,
+          quiz: lessonPayload.quiz,
+          flashcards: lessonPayload.flashcards,
           createdAt: new Date().toISOString()
         });
         const fresh = await getUserCameraLearning(user.uid);
