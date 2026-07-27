@@ -1387,3 +1387,142 @@ export async function getUserScenes(userId) {
     return [];
   }
 }
+
+export async function saveSceneTimeline(userId, sceneId, timeline = []) {
+  try {
+    const timelineId = `${userId}_${sceneId}`;
+    await setDoc(doc(db, 'sceneTimelines', timelineId), {
+      userId,
+      sceneId,
+      timeline,
+      updatedAt: serverTimestamp(),
+      createdAt: serverTimestamp()
+    }, { merge: true });
+    return true;
+  } catch (error) {
+    console.error('Error saving scene timeline:', error);
+    return false;
+  }
+}
+
+export async function saveLessonAnimations(userId, sceneId, animations = []) {
+  try {
+    const animationId = `${userId}_${sceneId}`;
+    await setDoc(doc(db, 'lessonAnimations', animationId), {
+      userId,
+      sceneId,
+      animations,
+      updatedAt: serverTimestamp(),
+      createdAt: serverTimestamp()
+    }, { merge: true });
+    return true;
+  } catch (error) {
+    console.error('Error saving lesson animations:', error);
+    return false;
+  }
+}
+
+export async function saveCameraPreset(userId, sceneId, preset = {}) {
+  try {
+    const presetId = `${userId}_${sceneId}`;
+    await setDoc(doc(db, 'cameraPresets', presetId), {
+      userId,
+      sceneId,
+      preset,
+      updatedAt: serverTimestamp(),
+      createdAt: serverTimestamp()
+    }, { merge: true });
+    return true;
+  } catch (error) {
+    console.error('Error saving camera preset:', error);
+    return false;
+  }
+}
+
+export async function saveEnvironmentPreset(userId, sceneId, preset = {}) {
+  try {
+    const presetId = `${userId}_${sceneId}`;
+    await setDoc(doc(db, 'environmentPresets', presetId), {
+      userId,
+      sceneId,
+      preset,
+      updatedAt: serverTimestamp(),
+      createdAt: serverTimestamp()
+    }, { merge: true });
+    return true;
+  } catch (error) {
+    console.error('Error saving environment preset:', error);
+    return false;
+  }
+}
+
+export async function saveUserBookmark(userId, bookmark = {}) {
+  try {
+    const sceneId = bookmark?.sceneId || 'scene';
+    const bookmarkId = `${userId}_${sceneId}_${bookmark?.stepIndex || 0}_${Date.now()}`;
+    await setDoc(doc(db, 'userBookmarks', bookmarkId), {
+      userId,
+      ...bookmark,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp()
+    }, { merge: true });
+    return true;
+  } catch (error) {
+    console.error('Error saving user bookmark:', error);
+    return false;
+  }
+}
+
+export async function saveSceneHistory(userId, entry = {}) {
+  try {
+    const historyId = `${userId}_${entry?.sceneId || 'scene'}_${Date.now()}`;
+    await setDoc(doc(db, 'sceneHistory', historyId), {
+      userId,
+      ...entry,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp()
+    }, { merge: true });
+    return true;
+  } catch (error) {
+    console.error('Error saving scene history:', error);
+    return false;
+  }
+}
+
+export async function getUserSceneBookmarks(userId) {
+  try {
+    return await readCachedCollection('userBookmarks', userId, async () => {
+      const q = query(collection(db, 'userBookmarks'), where('userId', '==', userId));
+      const querySnapshot = await getDocs(q);
+      const bookmarks = [];
+      querySnapshot.forEach((docSnapshot) => bookmarks.push({ id: docSnapshot.id, ...docSnapshot.data() }));
+      return bookmarks.sort((a, b) => {
+        const aTime = a.updatedAt?.toMillis ? a.updatedAt.toMillis() : 0;
+        const bTime = b.updatedAt?.toMillis ? b.updatedAt.toMillis() : 0;
+        return bTime - aTime;
+      });
+    });
+  } catch (error) {
+    console.error('Error fetching scene bookmarks:', error);
+    return [];
+  }
+}
+
+export async function getUserSceneHistory(userId) {
+  try {
+    return await readCachedCollection('sceneHistory', userId, async () => {
+      const q = query(collection(db, 'sceneHistory'), where('userId', '==', userId));
+      const querySnapshot = await getDocs(q);
+      const entries = [];
+      querySnapshot.forEach((docSnapshot) => entries.push({ id: docSnapshot.id, ...docSnapshot.data() }));
+      return entries.sort((a, b) => {
+        const aTime = a.updatedAt?.toMillis ? a.updatedAt.toMillis() : 0;
+        const bTime = b.updatedAt?.toMillis ? b.updatedAt.toMillis() : 0;
+        return bTime - aTime;
+      });
+    });
+  } catch (error) {
+    console.error('Error fetching scene history:', error);
+    return [];
+  }
+}

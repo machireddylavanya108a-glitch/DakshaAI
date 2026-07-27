@@ -1,7 +1,14 @@
 import { useEffect, useState } from 'react';
 import { generateAutomaticScene } from './SceneGenerator';
 import { getSceneCacheKey, readSceneCache, writeSceneCache } from './SceneCache';
-import { saveAutomaticSceneBundle } from '../../services/firestoreService';
+import {
+  saveAutomaticSceneBundle,
+  saveCameraPreset,
+  saveEnvironmentPreset,
+  saveLessonAnimations,
+  saveSceneHistory,
+  saveSceneTimeline
+} from '../../services/firestoreService';
 
 export default function SceneManager({ content = '', sourceType = 'typed-topic', lessonContext = '', userId, onSceneReady, onStatusChange }) {
   const [status, setStatus] = useState('idle');
@@ -45,6 +52,30 @@ export default function SceneManager({ content = '', sourceType = 'typed-topic',
             scene: generated.scene,
             plan: generated.plan
           });
+
+          await Promise.all([
+            saveSceneTimeline(userId, generated.id, generated.scene?.timeline || generated.plan?.timeline || []),
+            saveLessonAnimations(userId, generated.id, generated.plan?.timeline?.map((step) => ({
+              id: step.id,
+              target: step.target,
+              animation: step.animation,
+              durationMs: step.durationMs
+            })) || []),
+            saveCameraPreset(userId, generated.id, {
+              mode: 'orbit',
+              cues: generated.scene?.cameraCues || generated.plan?.cameraCues || []
+            }),
+            saveEnvironmentPreset(userId, generated.id, {
+              subject: generated.plan?.subject || 'general',
+              suggestion: generated.plan?.subject || 'classroom'
+            }),
+            saveSceneHistory(userId, {
+              sceneId: generated.id,
+              type: 'scene-generated',
+              sourceType,
+              lessonTopic: text.slice(0, 140)
+            })
+          ]);
         }
       } catch (error) {
         console.error('Scene generation error:', error);
