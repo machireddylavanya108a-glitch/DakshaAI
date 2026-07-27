@@ -1,6 +1,6 @@
-import { Canvas } from '@react-three/fiber';
+import { Canvas, useFrame } from '@react-three/fiber';
 import { OrbitControls, Environment, Html } from '@react-three/drei';
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { buildAutoFocusState } from './AutoFocus';
 import { getHighlightPreset } from './ObjectHighlighter';
@@ -36,7 +36,8 @@ export default function SceneViewer({
   activeTimelineStep = null,
   showDynamicLabels = true,
   lodLevel = 'high',
-  performanceProfile = 'balanced'
+  performanceProfile = 'balanced',
+  onCameraStateChange
 }) {
   const [hovered, setHovered] = useState(null);
   const objects = useMemo(() => scene?.objects || [], [scene]);
@@ -92,6 +93,7 @@ export default function SceneViewer({
 
   return (
     <Canvas shadows camera={{ position: cameraPosition, fov: 45 }}>
+      <CameraStateReporter onCameraStateChange={onCameraStateChange} />
       <fog attach="fog" args={['#020617', sceneLighting.fogNear, sceneLighting.fogFar]} />
       <ambientLight intensity={sceneLighting.ambient} />
       <directionalLight position={[5, 8, 5]} intensity={sceneLighting.directional} castShadow />
@@ -168,6 +170,33 @@ export default function SceneViewer({
       </Html>
     </Canvas>
   );
+}
+
+function CameraStateReporter({ onCameraStateChange }) {
+  const lastStateRef = useRef('');
+  const lastEmitRef = useRef(0);
+
+  useFrame((state) => {
+    if (!onCameraStateChange) return;
+    const position = state.camera?.position;
+    if (!position) return;
+
+    const now = Date.now();
+    if (now - lastEmitRef.current < 450) return;
+
+    const snapshot = [
+      Number(position.x.toFixed(2)),
+      Number(position.y.toFixed(2)),
+      Number(position.z.toFixed(2))
+    ];
+    const key = snapshot.join('|');
+    if (key === lastStateRef.current) return;
+
+    lastStateRef.current = key;
+    lastEmitRef.current = now;
+    onCameraStateChange(snapshot);
+  });
+  return null;
 }
 
 function animationPausedByProfile(profile = 'balanced') {

@@ -1526,3 +1526,89 @@ export async function getUserSceneHistory(userId) {
     return [];
   }
 }
+
+export async function savePausedLesson(userId, payload) {
+  try {
+    const pauseId = payload?.pauseId || `${userId}_${Date.now()}`;
+    await setDoc(doc(db, 'pausedLessons', pauseId), {
+      userId,
+      pauseId,
+      lessonType: payload?.lessonType || 'general',
+      topic: payload?.topic || 'General Lesson',
+      sessionId: payload?.sessionId || '',
+      state: payload?.state || {},
+      updatedAtMs: Date.now(),
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp()
+    }, { merge: true });
+    return { ok: true, pauseId };
+  } catch (error) {
+    console.error('Error saving paused lesson:', error);
+    return { ok: false, pauseId: null };
+  }
+}
+
+export async function saveQuestionHistory(userId, payload) {
+  try {
+    const questionId = payload?.questionId || `${userId}_${Date.now()}`;
+    await setDoc(doc(db, 'questionHistory', questionId), {
+      userId,
+      questionId,
+      lessonType: payload?.lessonType || 'general',
+      topic: payload?.topic || 'General Lesson',
+      question: payload?.question || '',
+      answer: payload?.answer || '',
+      language: payload?.language || 'English',
+      explanationStyle: payload?.explanationStyle || 'balanced',
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp()
+    }, { merge: true });
+    return { ok: true, questionId };
+  } catch (error) {
+    console.error('Error saving question history:', error);
+    return { ok: false, questionId: null };
+  }
+}
+
+export async function saveAiConversation(userId, payload) {
+  try {
+    const conversationId = payload?.conversationId || `${userId}_${Date.now()}`;
+    await setDoc(doc(db, 'aiConversations', conversationId), {
+      userId,
+      conversationId,
+      lessonType: payload?.lessonType || 'general',
+      topic: payload?.topic || 'General Lesson',
+      messages: Array.isArray(payload?.messages) ? payload.messages : [],
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp()
+    }, { merge: true });
+    return { ok: true, conversationId };
+  } catch (error) {
+    console.error('Error saving AI conversation:', error);
+    return { ok: false, conversationId: null };
+  }
+}
+
+export async function saveLearningState(userId, payload) {
+  try {
+    const stateId = payload?.stateId || `${userId}_${payload?.lessonType || 'general'}`;
+    await setDoc(doc(db, 'learningState', stateId), {
+      userId,
+      stateId,
+      lessonType: payload?.lessonType || 'general',
+      topic: payload?.topic || 'General Lesson',
+      conceptsNotUnderstood: Array.isArray(payload?.conceptsNotUnderstood) ? payload.conceptsNotUnderstood : [],
+      languagesUsed: Array.isArray(payload?.languagesUsed) ? payload.languagesUsed : ['English'],
+      preferredStyle: payload?.preferredStyle || 'balanced',
+      difficultyLevel: payload?.difficultyLevel || 'normal',
+      lastState: payload?.lastState || {},
+      updatedAtMs: Date.now(),
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp()
+    }, { merge: true });
+    return { ok: true, stateId };
+  } catch (error) {
+    console.error('Error saving learning state:', error);
+    return { ok: false, stateId: null };
+  }
+}

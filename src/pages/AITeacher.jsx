@@ -9,6 +9,7 @@ import LessonTimeline from '../components/aiTeacher/LessonTimeline';
 import QuestionPanel from '../components/aiTeacher/QuestionPanel';
 import TeachingMode from '../components/aiTeacher/TeachingMode';
 import VoiceController from '../components/aiTeacher/VoiceController';
+import InteractiveLessonPauseSystem from '../components/common/InteractiveLessonPauseSystem';
 import { useAuth } from '../context/AuthContext';
 import {
   getLatestLessonSession,
@@ -167,6 +168,28 @@ function answerQuestion(question, topic, chapterTitle, mode) {
   }
 
   return `Great question. In this part, ${topic} is connected to ${chapterTitle.toLowerCase()} through applied practice and feedback.`;
+}
+
+function extractLanguageFromQuestion(question = '', fallbackMode) {
+  const normalized = String(question || '').toLowerCase();
+  if (normalized.includes('telugu')) return 'Telugu';
+  if (normalized.includes('hindi')) return 'Hindi';
+  if (normalized.includes('translate')) return fallbackMode.secondaryLanguage || fallbackMode.primaryLanguage;
+  return fallbackMode.primaryLanguage || 'English';
+}
+
+function transformAnswerByRequest(answer = '', question = '') {
+  const normalized = String(question || '').toLowerCase();
+  if (normalized.includes('explain easier')) {
+    return `Simple version: ${answer}`;
+  }
+  if (normalized.includes('explain deeper')) {
+    return `${answer}\n\nDeep view: this concept also links to practical reasoning, trade-offs, and applied decision-making.`;
+  }
+  if (normalized.includes('summarize')) {
+    return `Summary: ${answer.split('.').slice(0, 2).join('.').trim()}.`;
+  }
+  return answer;
 }
 
 export default function AITeacher() {
@@ -568,6 +591,65 @@ export default function AITeacher() {
     recognition.start();
   };
 
+  const capturePauseState = () => ({
+    sessionId,
+    currentLesson: topic,
+    currentChapter: currentChapterTitle,
+    currentTopic: topic,
+    currentSlide: currentStepIndex,
+    currentStepIndex,
+    currentChapterIndex,
+    animationTimestamp: Date.now(),
+    cameraPosition: null,
+    narrationSentence: displayedText || currentStep?.content || '',
+    quizProgress: progressPercent,
+    teachingMode,
+    voicePreferences,
+    messages,
+    weakTopics,
+    bookmarks,
+    replayNonce,
+    whiteboardActions
+  });
+
+  const restorePauseState = (state) => {
+    if (!state) return;
+    if (Number.isFinite(state.currentChapterIndex)) setCurrentChapterIndex(state.currentChapterIndex);
+    if (Number.isFinite(state.currentStepIndex)) setCurrentStepIndex(state.currentStepIndex);
+    if (state.currentLesson) setTopic(state.currentLesson);
+    if (Array.isArray(state.messages)) setMessages(state.messages);
+    if (Array.isArray(state.weakTopics)) setWeakTopics(state.weakTopics);
+    if (Array.isArray(state.bookmarks)) setBookmarks(state.bookmarks);
+    if (Array.isArray(state.whiteboardActions)) setWhiteboardActions(state.whiteboardActions);
+    setInterrupting(false);
+    setIsPlaying(true);
+  };
+
+  const handleLessonPauseAsk = (question) => {
+    const language = extractLanguageFromQuestion(question, teachingMode);
+    const raw = answerQuestion(question, topic, currentChapter?.title || 'Current chapter', {
+      ...teachingMode,
+      primaryLanguage: language
+    });
+    const answer = transformAnswerByRequest(raw, question);
+
+    setInterrupting(true);
+    setIsPlaying(false);
+    setMessages((prev) => [
+      ...prev,
+      { role: 'learner', content: question },
+      { role: 'assistant', content: withMixedLanguage(answer, { ...teachingMode, primaryLanguage: language }) }
+    ]);
+
+    if (/(didn't understand|explain again|confusing|hard|easier|why)/i.test(question)) {
+      setWeakTopics((prev) => {
+        const set = new Set(prev);
+        set.add(currentChapter?.title || 'Current chapter');
+        return Array.from(set);
+      });
+    }
+  };
+
   const currentChapterTitle = currentChapter?.title || 'Lesson Chapter';
 
   return (
@@ -601,6 +683,27 @@ export default function AITeacher() {
 
         <div className="grid gap-6 xl:grid-cols-[1.4fr_0.8fr]">
           <div className="space-y-6">
+            <InteractiveLessonPauseSystem
+              lessonType="ai-teacher"
+              userId={user?.uid}
+              topic={topic}
+              captureState={capturePauseState}
+              onPlay={() => {
+                setInterrupting(false);
+                setIsPlaying(true);
+                setReplayNonce((value) => value + 1);
+              }}
+              onPause={() => {
+                setInterrupting(true);
+                setIsPlaying(false);
+              }}
+              onNext={goNext}
+              onPrevious={goPrevious}
+              onRepeat={() => setReplayNonce((value) => value + 1)}
+              onSkip={goNext}
+              onRestoreState={restorePauseState}
+            />
+
             <LessonPlayer
               topic={topic}
               chapter={currentChapter}
@@ -622,7 +725,7 @@ export default function AITeacher() {
               onFast={() => setVoicePreferences((prev) => ({ ...prev, speed: 'fast' }))}
             />
 
-            <QuestionPanel onAsk={askQuestion} />
+            <QuestionPanel onAsk={handleLessonPauseAsk} />
             <ConversationHistory messages={messages} />
 
             <section className="rounded-[1.75rem] border border-white/10 bg-slate-900/80 p-5 shadow-xl shadow-slate-950/30">

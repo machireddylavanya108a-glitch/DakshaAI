@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { Search, Sparkles, BookOpen, Layers3, BrainCircuit, Target, Focus, PlayCircle, Film, Camera, Monitor, Save } from 'lucide-react';
 import AnnotationLabel from '../components/3d/AnnotationLabel';
 import SceneTimeline from '../components/3d/SceneTimeline';
+import InteractiveLessonPauseSystem from '../components/common/InteractiveLessonPauseSystem';
 import {
   getUserSceneBookmarks,
   saveSceneHistory,
@@ -121,6 +122,7 @@ export default function Learning3D() {
   const [lodLevel, setLodLevel] = useState('high');
   const [performanceProfile, setPerformanceProfile] = useState('balanced');
   const [bookmarks, setBookmarks] = useState([]);
+  const [sceneCameraPosition, setSceneCameraPosition] = useState([0, 0, 0]);
 
   const effectiveContent = useMemo(() => {
     const direct = `${topic}\n${sourceContent}`.trim();
@@ -316,6 +318,67 @@ export default function Learning3D() {
     setIsPipMode((value) => !value);
   };
 
+  const capturePauseState = () => ({
+    sessionId: sceneId || `scene-${Date.now()}`,
+    currentLesson: topic,
+    currentChapter: currentStep?.title || topic,
+    currentTopic: topic,
+    currentSlide: activeStepIndex,
+    animationTimestamp: Date.now(),
+    cameraPosition: sceneCameraPosition,
+    narrationSentence: currentStep?.narration || scenePlan?.summary || sceneData?.summary || '',
+    quizProgress: assessmentTasks.length > 0 ? Math.round((assessmentPromptIndex / assessmentTasks.length) * 100) : 0,
+    sceneId,
+    sourceType,
+    sourceContent,
+    sourcePayload,
+    selectedPart,
+    activeStepIndex,
+    animationPaused,
+    isTimelinePlaying,
+    pausedByLearner,
+    autoRotate,
+    cameraMode,
+    highlightMode,
+    environmentPreset,
+    sceneEffects,
+    lessonMode,
+    motionSpeed,
+    assessmentPromptIndex,
+    assessmentFeedback,
+    learnerQuestion,
+    learnerAnswer,
+    lodLevel,
+    performanceProfile
+  });
+
+  const restorePauseState = (state) => {
+    if (!state) return;
+    if (state.currentLesson) setTopic(state.currentLesson);
+    if (state.sourceType) setSourceType(state.sourceType);
+    if (typeof state.sourceContent === 'string') setSourceContent(state.sourceContent);
+    if (typeof state.sourcePayload === 'string') setSourcePayload(state.sourcePayload);
+    if (typeof state.selectedPart === 'string') setSelectedPart(state.selectedPart);
+    if (Number.isFinite(state.activeStepIndex)) setActiveStepIndex(state.activeStepIndex);
+    if (typeof state.animationPaused === 'boolean') setAnimationPaused(state.animationPaused);
+    if (typeof state.isTimelinePlaying === 'boolean') setIsTimelinePlaying(state.isTimelinePlaying);
+    if (typeof state.pausedByLearner === 'boolean') setPausedByLearner(state.pausedByLearner);
+    if (typeof state.autoRotate === 'boolean') setAutoRotate(state.autoRotate);
+    if (typeof state.cameraMode === 'string') setCameraMode(state.cameraMode);
+    if (typeof state.highlightMode === 'string') setHighlightMode(state.highlightMode);
+    if (typeof state.environmentPreset === 'string') setEnvironmentPreset(state.environmentPreset);
+    if (Array.isArray(state.sceneEffects)) setSceneEffects(state.sceneEffects);
+    if (typeof state.lessonMode === 'string') setLessonMode(state.lessonMode);
+    if (Number.isFinite(state.motionSpeed)) setMotionSpeed(state.motionSpeed);
+    if (Number.isFinite(state.assessmentPromptIndex)) setAssessmentPromptIndex(state.assessmentPromptIndex);
+    if (typeof state.assessmentFeedback === 'string') setAssessmentFeedback(state.assessmentFeedback);
+    if (typeof state.learnerQuestion === 'string') setLearnerQuestion(state.learnerQuestion);
+    if (typeof state.learnerAnswer === 'string') setLearnerAnswer(state.learnerAnswer);
+    if (typeof state.lodLevel === 'string') setLodLevel(state.lodLevel);
+    if (typeof state.performanceProfile === 'string') setPerformanceProfile(state.performanceProfile);
+    if (Array.isArray(state.cameraPosition)) setSceneCameraPosition(state.cameraPosition);
+  };
+
   return (
     <div className="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(16,185,129,0.16),_transparent_35%),linear-gradient(135deg,_#020617_0%,_#0f172a_45%,_#111827_100%)] px-4 py-8 text-slate-100 sm:px-6 lg:px-8">
       <div className="mx-auto flex max-w-7xl flex-col gap-6">
@@ -363,6 +426,20 @@ export default function Learning3D() {
 
         <div className="grid gap-6 xl:grid-cols-[1.15fr_0.85fr]">
           <div className="space-y-6">
+            <InteractiveLessonPauseSystem
+              lessonType="learning-3d"
+              userId={user?.uid}
+              topic={topic}
+              captureState={capturePauseState}
+              onPlay={handleResumeLesson}
+              onPause={handlePauseLesson}
+              onNext={() => setActiveStepIndex((value) => Math.min(sceneSteps.length - 1, value + 1))}
+              onPrevious={() => setActiveStepIndex((value) => Math.max(0, value - 1))}
+              onRepeat={() => setActiveStepIndex((value) => value)}
+              onSkip={() => setActiveStepIndex((value) => Math.min(sceneSteps.length - 1, value + 1))}
+              onRestoreState={restorePauseState}
+            />
+
             <div className="rounded-[2rem] border border-white/10 bg-slate-900/75 p-4 shadow-2xl shadow-slate-950/40 backdrop-blur-xl resize-y overflow-auto">
               <div className="mb-4 flex flex-col gap-3">
                 <div className="flex items-center gap-2 text-emerald-300"><Search className="h-4 w-4" /> Source-aware lesson analysis</div>
@@ -469,6 +546,7 @@ export default function Learning3D() {
                         showDynamicLabels={showLabels}
                         lodLevel={lodLevel}
                         performanceProfile={performanceProfile}
+                        onCameraStateChange={setSceneCameraPosition}
                       />
                     </Suspense>
                   </div>
