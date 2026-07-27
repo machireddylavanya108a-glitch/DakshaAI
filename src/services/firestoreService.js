@@ -549,6 +549,138 @@ export async function deletePersonalizedLearningPlan(userId, planId) {
   }
 }
 
+export async function saveLessonSession(userId, payload) {
+  try {
+    const sessionId = payload?.sessionId || `${userId}_${Date.now()}`;
+    await setDoc(doc(db, 'lessonSessions', sessionId), {
+      userId,
+      sessionId,
+      topic: payload?.topic || 'General Lesson',
+      teachingMode: payload?.teachingMode || {},
+      chapterIndex: Number.isFinite(payload?.chapterIndex) ? payload.chapterIndex : 0,
+      stepIndex: Number.isFinite(payload?.stepIndex) ? payload.stepIndex : 0,
+      paused: Boolean(payload?.paused),
+      weakTopics: Array.isArray(payload?.weakTopics) ? payload.weakTopics : [],
+      bookmarks: Array.isArray(payload?.bookmarks) ? payload.bookmarks : [],
+      progressPercent: Number.isFinite(payload?.progressPercent) ? payload.progressPercent : 0,
+      updatedAtMs: Date.now(),
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp()
+    }, { merge: true });
+
+    return { ok: true, sessionId };
+  } catch (error) {
+    console.error('Error saving lesson session:', error);
+    return { ok: false, sessionId: null };
+  }
+}
+
+export async function saveLessonHistory(userId, payload) {
+  try {
+    await addDoc(collection(db, 'lessonHistory'), {
+      userId,
+      topic: payload?.topic || 'General Lesson',
+      summary: payload?.summary || '',
+      progressPercent: Number.isFinite(payload?.progressPercent) ? payload.progressPercent : 0,
+      weakTopics: Array.isArray(payload?.weakTopics) ? payload.weakTopics : [],
+      createdAt: serverTimestamp()
+    });
+    return true;
+  } catch (error) {
+    console.error('Error saving lesson history:', error);
+    return false;
+  }
+}
+
+export async function saveConversationHistory(userId, sessionId, messages = []) {
+  try {
+    await setDoc(doc(db, 'conversationHistory', sessionId), {
+      userId,
+      sessionId,
+      messages,
+      updatedAt: serverTimestamp(),
+      createdAt: serverTimestamp()
+    }, { merge: true });
+    return true;
+  } catch (error) {
+    console.error('Error saving conversation history:', error);
+    return false;
+  }
+}
+
+export async function saveLessonBookmark(userId, payload) {
+  try {
+    const bookmarkId = payload?.bookmarkId || `${userId}_${Date.now()}`;
+    await setDoc(doc(db, 'lessonBookmarks', bookmarkId), {
+      userId,
+      topic: payload?.topic || 'General Lesson',
+      chapterIndex: Number.isFinite(payload?.chapterIndex) ? payload.chapterIndex : 0,
+      note: payload?.note || '',
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp()
+    }, { merge: true });
+    return true;
+  } catch (error) {
+    console.error('Error saving lesson bookmark:', error);
+    return false;
+  }
+}
+
+export async function saveLessonProgress(userId, payload) {
+  try {
+    const progressId = payload?.progressId || `${userId}_${toSafeId(payload?.topic || 'general')}`;
+    await setDoc(doc(db, 'lessonProgress', progressId), {
+      userId,
+      progressId,
+      topic: payload?.topic || 'General Lesson',
+      chapterIndex: Number.isFinite(payload?.chapterIndex) ? payload.chapterIndex : 0,
+      stepIndex: Number.isFinite(payload?.stepIndex) ? payload.stepIndex : 0,
+      progressPercent: Number.isFinite(payload?.progressPercent) ? payload.progressPercent : 0,
+      weakTopics: Array.isArray(payload?.weakTopics) ? payload.weakTopics : [],
+      updatedAtMs: Date.now(),
+      updatedAt: serverTimestamp(),
+      createdAt: serverTimestamp()
+    }, { merge: true });
+    return true;
+  } catch (error) {
+    console.error('Error saving lesson progress:', error);
+    return false;
+  }
+}
+
+export async function saveVoicePreference(userId, preference) {
+  try {
+    const preferenceId = `${userId}_voice`;
+    await setDoc(doc(db, 'voicePreferences', preferenceId), {
+      userId,
+      voiceType: preference?.voiceType || 'natural',
+      speed: preference?.speed || 'normal',
+      captions: Boolean(preference?.captions),
+      subtitles: Boolean(preference?.subtitles),
+      updatedAt: serverTimestamp(),
+      createdAt: serverTimestamp()
+    }, { merge: true });
+    return true;
+  } catch (error) {
+    console.error('Error saving voice preference:', error);
+    return false;
+  }
+}
+
+export async function getLatestLessonSession(userId) {
+  try {
+    const q = query(collection(db, 'lessonSessions'), where('userId', '==', userId));
+    const snapshot = await getDocs(q);
+    const sessions = [];
+    snapshot.forEach((docSnapshot) => sessions.push({ id: docSnapshot.id, ...docSnapshot.data() }));
+    sessions.sort((a, b) => (b.updatedAtMs || 0) - (a.updatedAtMs || 0));
+    return sessions[0] || null;
+  } catch (error) {
+    console.error('Error fetching latest lesson session:', error);
+    return null;
+  }
+}
+
 export async function saveCameraLearningRecord(userId, payload) {
   try {
     const recordId = payload?.id || `${userId}_${Date.now()}`;
