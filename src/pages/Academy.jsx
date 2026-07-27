@@ -1,16 +1,14 @@
 import { useMemo, useState, useEffect } from 'react';
 import { Search, Loader, BookOpen, Brain, GraduationCap, Briefcase, PenTool, HelpCircle, Layers, StickyNote, FileText, Network, Save, CheckCircle, Code, Music, HeartPulse, Wrench, Camera, ArrowRight, Trophy, Sparkles, RotateCcw, Copy, Download, Target, TrendingUp, BriefcaseBusiness, ShieldCheck, BadgeCheck } from 'lucide-react';
-import { generateSkillRoadmap } from '../services/aiService';
-import { saveSkillRoadmap, getUserSkillRoadmaps, deleteSkillRoadmap } from '../services/firestoreService';
+import { getUserPersonalizedLearningPlans, savePersonalizedLearningPlan, deletePersonalizedLearningPlan } from '../services/firestoreService';
 import { useAuth } from '../context/AuthContext';
 import SkillCard from '../components/academy/SkillCard';
 import SkillSection from '../components/academy/SkillSection';
-import RoadmapTimeline from '../components/academy/RoadmapTimeline';
-import SkillProgress from '../components/academy/SkillProgress';
 import SkillHeader from '../components/academy/SkillHeader';
 import LoadingAcademy from '../components/academy/LoadingAcademy';
-import { normalizeSkillRoadmap } from '../utils/skillAcademyUtils';
 import LearningInterviewModal from '../components/common/LearningInterviewModal';
+import PersonalizedLearningDashboard from '../components/common/PersonalizedLearningDashboard';
+import { buildPersonalizedLearningPlan } from '../utils/personalizedLearningEngine';
 
 const skillCards = [
   { icon: Code, title: 'Python', description: 'Build automation, web apps, AI tools, and data workflows.' },
@@ -28,7 +26,7 @@ export default function Academy() {
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
-  const [skillRoadmap, setSkillRoadmap] = useState(null);
+  const [learningPlan, setLearningPlan] = useState(null);
   const [savedRoadmaps, setSavedRoadmaps] = useState([]);
   const [activeSkill, setActiveSkill] = useState('Python');
   const [savedStatus, setSavedStatus] = useState('');
@@ -41,7 +39,7 @@ export default function Academy() {
       return;
     }
 
-    const roadmaps = await getUserSkillRoadmaps(user.uid);
+    const roadmaps = await getUserPersonalizedLearningPlans(user.uid);
     setSavedRoadmaps(roadmaps);
   };
 
@@ -62,22 +60,29 @@ export default function Academy() {
     setLoading(true);
     setErrorMessage('');
     setSavedStatus('');
-    setSkillRoadmap(null);
+    setLearningPlan(null);
 
     try {
-      const payload = await generateSkillRoadmap(topic, interviewAnswers);
-      const normalized = normalizeSkillRoadmap(payload, topic);
-      setSkillRoadmap(normalized);
+      const plan = buildPersonalizedLearningPlan({
+        interviewAnswers: {
+          ...(interviewAnswers || {}),
+          learnTopic: interviewAnswers?.learnTopic || topic
+        },
+        sourceContext: 'academy',
+        sourceLabel: topic,
+        skillHint: topic
+      });
+      setLearningPlan(plan);
       if (user) {
-        const saved = await saveSkillRoadmap(user.uid, topic, normalized);
-        if (saved) {
-          setSavedStatus('Roadmap saved to Firebase.');
+        const saved = await savePersonalizedLearningPlan(user.uid, plan, 'academy');
+        if (saved?.ok) {
+          setSavedStatus('Personalized plan saved to Firebase.');
           await loadSavedRoadmaps();
         }
       }
     } catch (error) {
       console.error('Quick skill generation error:', error);
-      setErrorMessage('The skill engine could not generate a roadmap right now. Please try again.');
+      setErrorMessage('The personalized learning engine could not generate your plan right now. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -104,33 +109,33 @@ export default function Academy() {
   };
 
   const handleSaveCurrent = async () => {
-    if (!skillRoadmap || !user) return;
-    const saved = await saveSkillRoadmap(user.uid, skillRoadmap.skill, skillRoadmap);
-    if (saved) {
-      setSavedStatus('Current roadmap saved to Firebase.');
+    if (!learningPlan || !user) return;
+    const saved = await savePersonalizedLearningPlan(user.uid, learningPlan, 'academy');
+    if (saved?.ok) {
+      setSavedStatus('Current personalized plan saved to Firebase.');
       await loadSavedRoadmaps();
     } else {
-      setSavedStatus('Could not save the current roadmap.');
+      setSavedStatus('Could not save the current personalized plan.');
     }
   };
 
   const handleDelete = async (roadmapId) => {
     if (!user) return;
-    const deleted = await deleteSkillRoadmap(user.uid, roadmapId);
+    const deleted = await deletePersonalizedLearningPlan(user.uid, roadmapId);
     if (deleted) {
-      setSavedStatus('Roadmap deleted.');
+      setSavedStatus('Personalized plan deleted.');
       await loadSavedRoadmaps();
     }
   };
 
   const handleRegenerate = async () => {
-    if (!skillRoadmap?.skill) return;
-    openInterviewForSkill(skillRoadmap.skill);
+    if (!learningPlan?.topic) return;
+    openInterviewForSkill(learningPlan.topic);
   };
 
   const handleLoad = (item) => {
-    setSkillRoadmap(item.roadmap);
-    setActiveSkill(item.skill);
+    setLearningPlan({ id: item.id, ...item });
+    setActiveSkill(item.topic || item.analytics?.skill || 'Skill');
     setSavedStatus('Loaded from Firebase.');
     setErrorMessage('');
   };
@@ -164,139 +169,34 @@ export default function Academy() {
 
         {loading && <LoadingAcademy />}
 
-        {skillRoadmap && !loading && (
+        {learningPlan && !loading && (
           <div className="space-y-6">
-            <SkillSection title={`${skillRoadmap.skill} Roadmap`} description="A complete professional learning blueprint from foundation to execution.">
-              <div className="grid gap-4 lg:grid-cols-3">
-                <SkillProgress value={25} label="Foundation" />
-                <SkillProgress value={55} label="Practice" />
-                <SkillProgress value={85} label="Career Readiness" />
-              </div>
+            <SkillSection title={`${learningPlan.topic} Personalized Plan`} description="Interview-first personalized learning journey with adaptive dependencies, milestones, and career outcomes.">
               <div className="mt-6 flex flex-wrap gap-3">
-                <button onClick={handleSaveCurrent} className="inline-flex items-center gap-2 rounded-2xl border border-slate-700 bg-slate-950/70 px-4 py-2 text-sm text-slate-200 hover:border-indigo-500"> <Save className="h-4 w-4" /> Save Roadmap</button>
+                <button onClick={handleSaveCurrent} className="inline-flex items-center gap-2 rounded-2xl border border-slate-700 bg-slate-950/70 px-4 py-2 text-sm text-slate-200 hover:border-indigo-500"> <Save className="h-4 w-4" /> Save Plan</button>
                 <button onClick={handleRegenerate} className="inline-flex items-center gap-2 rounded-2xl border border-slate-700 bg-slate-950/70 px-4 py-2 text-sm text-slate-200 hover:border-indigo-500"> <RotateCcw className="h-4 w-4" /> Regenerate</button>
-                <button onClick={() => navigator.clipboard?.writeText(JSON.stringify(skillRoadmap, null, 2))} className="inline-flex items-center gap-2 rounded-2xl border border-slate-700 bg-slate-950/70 px-4 py-2 text-sm text-slate-200 hover:border-indigo-500"> <Copy className="h-4 w-4" /> Copy JSON</button>
+                <button onClick={() => navigator.clipboard?.writeText(JSON.stringify(learningPlan, null, 2))} className="inline-flex items-center gap-2 rounded-2xl border border-slate-700 bg-slate-950/70 px-4 py-2 text-sm text-slate-200 hover:border-indigo-500"> <Copy className="h-4 w-4" /> Copy JSON</button>
               </div>
             </SkillSection>
 
-            <div className="grid gap-6 lg:grid-cols-2">
-              <SkillSection title="Skill Overview" description="The big picture and why this skill matters.">
-                <p className="text-sm leading-8 text-slate-300">{skillRoadmap.skillOverview}</p>
-              </SkillSection>
-              <SkillSection title="Daily Study Plan" description="A practical routine for steady progress.">
-                <RoadmapTimeline items={skillRoadmap.dailyStudyPlan} />
-              </SkillSection>
-            </div>
-
-            <div className="grid gap-6 lg:grid-cols-2">
-              <SkillSection title="Beginner Roadmap" description="The foundation phase for confident first steps.">
-                <RoadmapTimeline items={skillRoadmap.beginnerRoadmap} />
-              </SkillSection>
-              <SkillSection title="Intermediate Roadmap" description="Move from concepts to real application and output.">
-                <RoadmapTimeline items={skillRoadmap.intermediateRoadmap} />
-              </SkillSection>
-            </div>
-
-            <SkillSection title="Advanced Roadmap" description="How to grow into an expert and stand out professionally.">
-              <RoadmapTimeline items={skillRoadmap.advancedRoadmap} />
-            </SkillSection>
-
-            <div className="grid gap-6 lg:grid-cols-2">
-              <SkillSection title="Weekly Goals" description="Targets to hit with consistency.">
-                <RoadmapTimeline items={skillRoadmap.weeklyGoals} />
-              </SkillSection>
-              <SkillSection title="Monthly Goals" description="Longer-term milestones for growth.">
-                <RoadmapTimeline items={skillRoadmap.monthlyGoals} />
-              </SkillSection>
-            </div>
-
-            <div className="grid gap-6 lg:grid-cols-2">
-              <SkillSection title="Required Tools" description="What you need to begin learning effectively.">
-                <RoadmapTimeline items={skillRoadmap.requiredTools} />
-              </SkillSection>
-              <SkillSection title="Resources" description="Free and paid options to learn faster.">
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <div className="rounded-2xl border border-slate-800 bg-slate-950/70 p-4">
-                    <h4 className="mb-3 font-semibold text-white">Free Resources</h4>
-                    <RoadmapTimeline items={skillRoadmap.freeResources} />
-                  </div>
-                  <div className="rounded-2xl border border-slate-800 bg-slate-950/70 p-4">
-                    <h4 className="mb-3 font-semibold text-white">Paid Resources</h4>
-                    <RoadmapTimeline items={skillRoadmap.paidResources} />
-                  </div>
-                </div>
-              </SkillSection>
-            </div>
-
-            <div className="grid gap-6 lg:grid-cols-2">
-              <SkillSection title="Best YouTube Channels" description="Channels worth following for practice and guidance.">
-                <RoadmapTimeline items={skillRoadmap.bestYouTubeChannels} />
-              </SkillSection>
-              <SkillSection title="Best Books & Websites" description="Reliable mentors and references to deepen your learning.">
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <div className="rounded-2xl border border-slate-800 bg-slate-950/70 p-4">
-                    <h4 className="mb-3 font-semibold text-white">Books</h4>
-                    <RoadmapTimeline items={skillRoadmap.bestBooks} />
-                  </div>
-                  <div className="rounded-2xl border border-slate-800 bg-slate-950/70 p-4">
-                    <h4 className="mb-3 font-semibold text-white">Websites</h4>
-                    <RoadmapTimeline items={skillRoadmap.bestWebsites} />
-                  </div>
-                </div>
-              </SkillSection>
-            </div>
-
-            <div className="grid gap-6 lg:grid-cols-2">
-              <SkillSection title="Projects" description="Build tangible work to make your learning visible.">
-                <RoadmapTimeline items={skillRoadmap.projects} />
-              </SkillSection>
-              <SkillSection title="Portfolio Ideas" description="Ways to turn your work into compelling proof of growth.">
-                <RoadmapTimeline items={skillRoadmap.portfolioIdeas} />
-              </SkillSection>
-            </div>
-
-            <div className="grid gap-6 lg:grid-cols-2">
-              <SkillSection title="Internship Preparation" description="How to become internship-ready.">
-                <RoadmapTimeline items={skillRoadmap.internshipPreparation} />
-              </SkillSection>
-              <SkillSection title="Job Preparation" description="Stand out in interviews and applications.">
-                <RoadmapTimeline items={skillRoadmap.jobPreparation} />
-              </SkillSection>
-            </div>
-
-            <div className="grid gap-6 lg:grid-cols-2">
-              <SkillSection title="Freelancing Guide" description="How to turn skill into income.">
-                <RoadmapTimeline items={skillRoadmap.freelancingGuide} />
-              </SkillSection>
-              <SkillSection title="Business Opportunities" description="How to create value and build momentum.">
-                <RoadmapTimeline items={skillRoadmap.businessOpportunities} />
-              </SkillSection>
-            </div>
-
-            <div className="grid gap-6 lg:grid-cols-2">
-              <SkillSection title="Future Scope" description="Where this skill is heading next.">
-                <RoadmapTimeline items={skillRoadmap.futureScope} />
-              </SkillSection>
-              <SkillSection title="Salary Information" description="A realistic view of earning potential.">
-                <p className="text-sm leading-8 text-slate-300">{skillRoadmap.salaryInformation}</p>
-              </SkillSection>
-            </div>
-
-            <SkillSection title="Final Checklist" description="A compact finish line to track your readiness.">
-              <RoadmapTimeline items={skillRoadmap.finalChecklist} />
-            </SkillSection>
+            <PersonalizedLearningDashboard
+              plan={learningPlan}
+              onResume={() => {
+                setSavedStatus('Resume mode activated. Continue with the next upcoming lesson.');
+              }}
+            />
           </div>
         )}
 
-        <SkillSection title="Saved Roadmaps" description="Your most recent skill roadmaps stored in Firebase.">
+        <SkillSection title="Saved Personalized Plans" description="Your interview-first plans stored in Firebase.">
           {savedRoadmaps.length > 0 ? (
             <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
               {savedRoadmaps.map((item) => (
                 <div key={item.id} className="rounded-[1.6rem] border border-slate-800 bg-slate-950/70 p-5">
                   <div className="mb-3 flex items-center justify-between gap-3">
                     <div>
-                      <h4 className="font-semibold text-white">{item.skill}</h4>
-                      <p className="text-sm text-slate-400">Saved roadmap</p>
+                      <h4 className="font-semibold text-white">{item.topic || item.analytics?.skill || 'Learning Plan'}</h4>
+                      <p className="text-sm text-slate-400">Saved personalized plan</p>
                     </div>
                     <BadgeCheck className="h-5 w-5 text-indigo-400" />
                   </div>
@@ -308,7 +208,7 @@ export default function Academy() {
               ))}
             </div>
           ) : (
-            <p className="text-sm text-slate-400">No saved roadmaps yet. Generate one to begin building your portfolio.</p>
+            <p className="text-sm text-slate-400">No saved personalized plans yet. Start an AI interview to generate your first adaptive journey.</p>
           )}
         </SkillSection>
       </div>

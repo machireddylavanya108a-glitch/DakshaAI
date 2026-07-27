@@ -2,9 +2,11 @@ import { useRef, useState } from 'react';
 import { validateUploadFile } from '../utils/security';
 import { UploadCloud, FileText, Mic, Sparkles, Loader, Link as LinkIcon, Youtube, Type } from 'lucide-react';
 import { getDakshaImageResponse, getDakshaDocumentAnalysis, getDakshaLessonPackage } from '../services/aiService';
-import { saveDocumentAnalysis, saveLessonPackage } from '../services/firestoreService';
+import { saveDocumentAnalysis, saveLessonPackage, savePersonalizedLearningPlan } from '../services/firestoreService';
 import { useAuth } from '../context/AuthContext';
 import LearningInterviewModal from '../components/common/LearningInterviewModal';
+import PersonalizedLearningDashboard from '../components/common/PersonalizedLearningDashboard';
+import { buildPersonalizedLearningPlan } from '../utils/personalizedLearningEngine';
 
 let pdfJsLoader;
 const loadPdfJs = async () => {
@@ -54,6 +56,7 @@ export default function Scanner() {
   const [loading, setLoading] = useState(false);
   const [saveStatus, setSaveStatus] = useState('');
   const [lessonStatus, setLessonStatus] = useState('');
+  const [learningPlan, setLearningPlan] = useState(null);
   const [interviewOpen, setInterviewOpen] = useState(false);
   const [interviewSeedTopic, setInterviewSeedTopic] = useState('');
   const [interviewSourceLabel, setInterviewSourceLabel] = useState('');
@@ -145,16 +148,31 @@ export default function Scanner() {
     }
   };
 
-  const handleDocumentAnalysis = async (text, file) => {
+  const handleDocumentAnalysis = async (text, file, interviewAnswers = {}, sourceContext = 'document') => {
     const analysis = await getDakshaDocumentAnalysis(text.substring(0, 50000), file.name, file.type || file.name);
     setAnalysisResult(analysis);
     await saveAnalysisResult(analysis, file);
     const lessonPackageResult = await getDakshaLessonPackage(text.substring(0, 50000), 'document', file.name);
     setLessonPackage(lessonPackageResult);
     await saveLessonPackageResult(lessonPackageResult, file);
+
+    const plan = buildPersonalizedLearningPlan({
+      interviewAnswers: {
+        ...(interviewAnswers || {}),
+        learnTopic: interviewAnswers?.learnTopic || file.name
+      },
+      sourceContext,
+      sourceLabel: file.name,
+      sourceSummary: text.slice(0, 600),
+      skillHint: file.name
+    });
+    setLearningPlan(plan);
+    if (user) {
+      await savePersonalizedLearningPlan(user.uid, plan, 'scanner');
+    }
   };
 
-  const processTextSource = async (text, sourceName, sourceType = 'text/plain') => {
+  const processTextSource = async (text, sourceName, sourceType = 'text/plain', interviewAnswers = {}, sourceContext = 'text') => {
     const normalized = String(text || '').trim();
     if (!normalized) return;
     setLoading(true);
@@ -167,7 +185,7 @@ export default function Scanner() {
         name: sourceName,
         type: sourceType,
         size: normalized.length
-      });
+      }, interviewAnswers, sourceContext);
     } catch (error) {
       console.error('Universal source analysis error:', error);
       setSaveStatus('An error occurred while processing this source.');
@@ -179,22 +197,22 @@ export default function Scanner() {
   const handleWebsiteSubmit = async () => {
     const url = websiteUrl.trim();
     if (!url) return;
-    startInterviewBeforeAnalysis(`I uploaded a website: ${url}`, url, async () => {
-      await processTextSource(`Website source: ${url}`, url, 'text/url');
+    startInterviewBeforeAnalysis(`I uploaded a website: ${url}`, url, async (interviewAnswers) => {
+      await processTextSource(`Website source: ${url}`, url, 'text/url', interviewAnswers, 'website');
     });
   };
 
   const handleYoutubeSubmit = async () => {
     const url = youtubeUrl.trim();
     if (!url) return;
-    startInterviewBeforeAnalysis(`I uploaded a YouTube lesson: ${url}`, url, async () => {
-      await processTextSource(`YouTube source: ${url}`, url, 'text/youtube');
+    startInterviewBeforeAnalysis(`I uploaded a YouTube lesson: ${url}`, url, async (interviewAnswers) => {
+      await processTextSource(`YouTube source: ${url}`, url, 'text/youtube', interviewAnswers, 'youtube');
     });
   };
 
   const handleTextSubmit = async () => {
-    startInterviewBeforeAnalysis('Teach me this pasted material', 'pasted-text.txt', async () => {
-      await processTextSource(sourceText, 'pasted-text.txt', 'text/plain');
+    startInterviewBeforeAnalysis('Teach me this pasted material', 'pasted-text.txt', async (interviewAnswers) => {
+      await processTextSource(sourceText, 'pasted-text.txt', 'text/plain', interviewAnswers, 'text');
     });
   };
 
@@ -214,8 +232,8 @@ export default function Scanner() {
     recognition.onresult = async (event) => {
       const transcript = event.results?.[0]?.[0]?.transcript || '';
       setSourceText(transcript);
-      startInterviewBeforeAnalysis('Teach me from my voice input', 'voice-input.txt', async () => {
-        await processTextSource(transcript, 'voice-input.txt', 'text/voice');
+      startInterviewBeforeAnalysis('Teach me from my voice input', 'voice-input.txt', async (interviewAnswers) => {
+        await processTextSource(transcript, 'voice-input.txt', 'text/voice', interviewAnswers, 'voice');
       });
       setVoiceListening(false);
     };
@@ -232,7 +250,7 @@ export default function Scanner() {
     recognition.start();
   };
 
-  const processFile = async (file) => {
+  const processFile = async (file, interviewAnswers = {}) => {
     setLoading(true);
 
     try {
@@ -268,6 +286,20 @@ export default function Scanner() {
           const lessonPackageResult = await getDakshaLessonPackage(aiResponse, 'image', file.name);
           setLessonPackage(lessonPackageResult);
           await saveLessonPackageResult(lessonPackageResult, file);
+          const plan = buildPersonalizedLearningPlan({
+            interviewAnswers: {
+              ...(interviewAnswers || {}),
+              learnTopic: interviewAnswers?.learnTopic || file.name
+            },
+            sourceContext: 'image',
+            sourceLabel: file.name,
+            sourceSummary: aiResponse.slice(0, 600),
+            skillHint: file.name
+          });
+          setLearningPlan(plan);
+          if (user) {
+            await savePersonalizedLearningPlan(user.uid, plan, 'scanner');
+          }
           setLoading(false);
         };
         reader.readAsDataURL(file);
@@ -284,7 +316,7 @@ export default function Scanner() {
             textContent += text.items.map((item) => item.str).join(' ') + ' ';
           }
           setFilePreview(textContent.substring(0, 1200));
-          await handleDocumentAnalysis(textContent, file);
+          await handleDocumentAnalysis(textContent, file, interviewAnswers, 'pdf');
           setLoading(false);
         };
         reader.readAsArrayBuffer(file);
@@ -296,7 +328,7 @@ export default function Scanner() {
           const result = await mammoth.extractRawText({ arrayBuffer });
           const textContent = result.value;
           setFilePreview(textContent.substring(0, 1200));
-          await handleDocumentAnalysis(textContent, file);
+          await handleDocumentAnalysis(textContent, file, interviewAnswers, 'docx');
           setLoading(false);
         };
         reader.readAsArrayBuffer(file);
@@ -306,7 +338,7 @@ export default function Scanner() {
           const arrayBuffer = reader.result;
           const textContent = await extractPptxText(arrayBuffer);
           setFilePreview(textContent.substring(0, 1200));
-          await handleDocumentAnalysis(textContent, file);
+          await handleDocumentAnalysis(textContent, file, interviewAnswers, 'pptx');
           setLoading(false);
         };
         reader.readAsArrayBuffer(file);
@@ -316,7 +348,7 @@ export default function Scanner() {
           const htmlString = reader.result;
           const textContent = parseHtmlText(htmlString);
           setFilePreview(textContent.substring(0, 1200));
-          await handleDocumentAnalysis(textContent, file);
+          await handleDocumentAnalysis(textContent, file, interviewAnswers, 'html');
           setLoading(false);
         };
         reader.readAsText(file);
@@ -325,7 +357,7 @@ export default function Scanner() {
         reader.onloadend = async () => {
           const textContent = reader.result;
           setFilePreview(textContent.substring(0, 1200));
-          await handleDocumentAnalysis(textContent, file);
+          await handleDocumentAnalysis(textContent, file, interviewAnswers, 'markdown');
           setLoading(false);
         };
         reader.readAsText(file);
@@ -335,7 +367,7 @@ export default function Scanner() {
           const csvString = reader.result;
           const textContent = parseCsvText(csvString);
           setFilePreview(textContent.substring(0, 1200));
-          await handleDocumentAnalysis(textContent, file);
+          await handleDocumentAnalysis(textContent, file, interviewAnswers, 'csv');
           setLoading(false);
         };
         reader.readAsText(file);
@@ -344,7 +376,7 @@ export default function Scanner() {
         reader.onloadend = async () => {
           const textContent = reader.result;
           setFilePreview(textContent.substring(0, 1200));
-          await handleDocumentAnalysis(textContent, file);
+          await handleDocumentAnalysis(textContent, file, interviewAnswers, 'text');
           setLoading(false);
         };
         reader.readAsText(file);
@@ -381,8 +413,8 @@ export default function Scanner() {
       setSaveStatus('');
       setLessonStatus('');
 
-      startInterviewBeforeAnalysis(`I uploaded ${file.name}`, file.name, async () => {
-        await processFile(file);
+      startInterviewBeforeAnalysis(`I uploaded ${file.name}`, file.name, async (interviewAnswers) => {
+        await processFile(file, interviewAnswers);
       });
     }
   };
@@ -633,6 +665,17 @@ export default function Scanner() {
           </div>
         </div>
 
+        {learningPlan && (
+          <div className="mt-10">
+            <PersonalizedLearningDashboard
+              plan={learningPlan}
+              onResume={() => {
+                setLessonStatus('Resume your personalized journey from upcoming lessons.');
+              }}
+            />
+          </div>
+        )}
+
         {lessonPackage && (
           <div className="mt-10 rounded-3xl border border-slate-800 bg-slate-900 p-6 shadow-xl shadow-slate-950/20">
             <div className="mb-6 flex items-center justify-between gap-4">
@@ -707,12 +750,12 @@ export default function Scanner() {
         sourceLabel={interviewSourceLabel}
         initialTopic={interviewSeedTopic}
         onClose={() => setInterviewOpen(false)}
-        onComplete={async () => {
+        onComplete={async (interviewAnswers) => {
           setInterviewOpen(false);
           if (pendingActionRef.current) {
             const action = pendingActionRef.current;
             pendingActionRef.current = null;
-            await action();
+            await action(interviewAnswers);
           }
         }}
       />

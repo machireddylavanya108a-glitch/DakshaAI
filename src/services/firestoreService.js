@@ -426,6 +426,129 @@ export async function completeLearningInterview(userId, interviewPayload) {
   }
 }
 
+function toSafeId(value = '') {
+  return String(value || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '');
+}
+
+export async function savePersonalizedLearningPlan(userId, learningPlan, source = 'academy') {
+  try {
+    const topic = learningPlan?.topic || 'general-learning';
+    const planId = learningPlan?.id || `${userId}_${toSafeId(topic)}_${Date.now()}`;
+    const base = {
+      userId,
+      planId,
+      topic,
+      source,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp()
+    };
+
+    await Promise.all([
+      setDoc(doc(db, 'learningPlans', planId), {
+        ...base,
+        topic,
+        profile: learningPlan?.profile || {},
+        analytics: learningPlan?.analytics || {},
+        plan: learningPlan?.plan || {},
+        estimatedCompletion: learningPlan?.estimatedCompletion || {},
+        inputSource: learningPlan?.inputSource || {},
+        adaptiveLearning: learningPlan?.adaptiveLearning || {},
+        knowledgeDependency: learningPlan?.knowledgeDependency || {},
+        lessonEngine: learningPlan?.lessonEngine || {},
+        progress: learningPlan?.progress || {},
+        statistics: learningPlan?.statistics || {}
+      }, { merge: true }),
+      setDoc(doc(db, 'learningRoadmaps', planId), {
+        ...base,
+        roadmap: learningPlan?.knowledgeDependency?.chain || [],
+        recommendations: learningPlan?.plan?.aiRecommendations || [],
+        portfolioRoadmap: learningPlan?.plan?.portfolioRoadmap || [],
+        futureTrends: learningPlan?.plan?.futureTrends || []
+      }, { merge: true }),
+      setDoc(doc(db, 'learningProgress', planId), {
+        ...base,
+        progress: learningPlan?.progress || {}
+      }, { merge: true }),
+      setDoc(doc(db, 'learningStatistics', planId), {
+        ...base,
+        statistics: learningPlan?.statistics || {}
+      }, { merge: true }),
+      setDoc(doc(db, 'dailyPlans', planId), {
+        ...base,
+        dailySchedule: learningPlan?.plan?.dailySchedule || []
+      }, { merge: true }),
+      setDoc(doc(db, 'weeklyPlans', planId), {
+        ...base,
+        weeklyMilestones: learningPlan?.plan?.weeklyMilestones || []
+      }, { merge: true }),
+      setDoc(doc(db, 'monthlyPlans', planId), {
+        ...base,
+        monthlyMilestones: learningPlan?.plan?.monthlyMilestones || []
+      }, { merge: true }),
+      setDoc(doc(db, 'careerGoals', planId), {
+        ...base,
+        certifications: learningPlan?.plan?.certifications || [],
+        internshipPreparation: learningPlan?.plan?.internshipPreparation || [],
+        jobPreparation: learningPlan?.plan?.jobPreparation || [],
+        freelancingRoadmap: learningPlan?.plan?.freelancingRoadmap || [],
+        startupBusinessOpportunities: learningPlan?.plan?.startupBusinessOpportunities || [],
+        careerPaths: learningPlan?.plan?.careerPaths || [],
+        salaryInformation: learningPlan?.plan?.salaryInformation || ''
+      }, { merge: true })
+    ]);
+
+    return { ok: true, planId };
+  } catch (error) {
+    console.error('Error saving personalized learning plan:', error);
+    return { ok: false, planId: null };
+  }
+}
+
+export async function getUserPersonalizedLearningPlans(userId) {
+  try {
+    return await readCachedCollection('learningPlans', userId, async () => {
+      const q = query(collection(db, 'learningPlans'), where('userId', '==', userId));
+      const querySnapshot = await getDocs(q);
+      const plans = [];
+      querySnapshot.forEach((docSnapshot) => {
+        plans.push({ id: docSnapshot.id, ...docSnapshot.data() });
+      });
+
+      return plans.sort((a, b) => {
+        const aTime = a.updatedAt?.toMillis ? a.updatedAt.toMillis() : 0;
+        const bTime = b.updatedAt?.toMillis ? b.updatedAt.toMillis() : 0;
+        return bTime - aTime;
+      });
+    });
+  } catch (error) {
+    console.error('Error fetching personalized learning plans:', error);
+    return [];
+  }
+}
+
+export async function deletePersonalizedLearningPlan(userId, planId) {
+  try {
+    await Promise.all([
+      deleteDoc(doc(db, 'learningPlans', planId)),
+      deleteDoc(doc(db, 'learningRoadmaps', planId)),
+      deleteDoc(doc(db, 'learningProgress', planId)),
+      deleteDoc(doc(db, 'learningStatistics', planId)),
+      deleteDoc(doc(db, 'dailyPlans', planId)),
+      deleteDoc(doc(db, 'weeklyPlans', planId)),
+      deleteDoc(doc(db, 'monthlyPlans', planId)),
+      deleteDoc(doc(db, 'careerGoals', planId))
+    ]);
+    return true;
+  } catch (error) {
+    console.error('Error deleting personalized learning plan:', error);
+    return false;
+  }
+}
+
 export async function saveCameraLearningRecord(userId, payload) {
   try {
     const recordId = payload?.id || `${userId}_${Date.now()}`;
