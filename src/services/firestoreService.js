@@ -1306,3 +1306,84 @@ export async function getUserQuizScores(userId) {
     return [];
   }
 }
+
+export async function saveAutomaticSceneBundle(userId, payload) {
+  try {
+    const sceneId = payload?.sceneId || `${userId}_${Date.now()}`;
+    const topic = payload?.scene?.title || 'Automatic Scene';
+
+    await Promise.all([
+      setDoc(doc(db, 'sceneLibrary', sceneId), {
+        userId,
+        sceneId,
+        topic,
+        subject: payload?.plan?.subject || 'general',
+        sourceType: payload?.sourceType || 'typed-topic',
+        reusableAssets: payload?.scene?.reusableAssets || [],
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+      }, { merge: true }),
+      setDoc(doc(db, 'sceneTemplates', sceneId), {
+        userId,
+        sceneId,
+        template: {
+          objects: payload?.scene?.objects || [],
+          timeline: payload?.scene?.timeline || [],
+          cameraCues: payload?.scene?.cameraCues || []
+        },
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+      }, { merge: true }),
+      setDoc(doc(db, 'lessonScenes', sceneId), {
+        userId,
+        sceneId,
+        lessonContent: payload?.lessonContent?.slice(0, 6000) || '',
+        scene: payload?.scene || {},
+        plan: payload?.plan || {},
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+      }, { merge: true }),
+      setDoc(doc(db, 'userScenes', sceneId), {
+        userId,
+        sceneId,
+        topic,
+        status: 'ready',
+        sourceType: payload?.sourceType || 'typed-topic',
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+      }, { merge: true }),
+      setDoc(doc(db, 'sceneCache', sceneId), {
+        userId,
+        sceneId,
+        scene: payload?.scene || {},
+        plan: payload?.plan || {},
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+      }, { merge: true })
+    ]);
+
+    return { ok: true, sceneId };
+  } catch (error) {
+    console.error('Error saving automatic scene bundle:', error);
+    return { ok: false, sceneId: null };
+  }
+}
+
+export async function getUserScenes(userId) {
+  try {
+    return await readCachedCollection('userScenes', userId, async () => {
+      const q = query(collection(db, 'userScenes'), where('userId', '==', userId));
+      const querySnapshot = await getDocs(q);
+      const scenes = [];
+      querySnapshot.forEach((docSnapshot) => scenes.push({ id: docSnapshot.id, ...docSnapshot.data() }));
+      return scenes.sort((a, b) => {
+        const aTime = a.updatedAt?.toMillis ? a.updatedAt.toMillis() : 0;
+        const bTime = b.updatedAt?.toMillis ? b.updatedAt.toMillis() : 0;
+        return bTime - aTime;
+      });
+    });
+  } catch (error) {
+    console.error('Error fetching user scenes:', error);
+    return [];
+  }
+}

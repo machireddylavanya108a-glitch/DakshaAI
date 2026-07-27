@@ -1,121 +1,85 @@
-import { useEffect, useMemo, useState } from 'react';
+import { Suspense, lazy, useEffect, useMemo, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
-import { Search, Sparkles, BookOpen, Cpu, Layers3, Fullscreen, RefreshCw, BrainCircuit } from 'lucide-react';
-import { addDoc, collection } from 'firebase/firestore';
-import { db } from '../firebase/firebaseConfig';
-import { categories, filterModels, getModelById } from '../utils/learning3dUtils';
-import { buildUniversalLesson } from '../utils/learning3dUniversal';
-import SceneCanvas from '../components/3d/SceneCanvas';
-import CameraControls from '../components/3d/CameraControls';
-import ModelSelector from '../components/3d/ModelSelector';
+import { Search, Sparkles, BookOpen, Layers3, BrainCircuit, Target, Focus, PlayCircle } from 'lucide-react';
 import AnnotationLabel from '../components/3d/AnnotationLabel';
-import ConceptMapView from '../components/3d/ConceptMapView';
+import SceneTimeline from '../components/3d/SceneTimeline';
 
-const explanationMap = {
-  heart: {
-    parts: ['Atria', 'Ventricles', 'Valves'],
-    functions: 'Pumps blood throughout the body while maintaining circulation.',
-    working: 'The chambers coordinate contractions to move oxygen-rich and oxygen-poor blood efficiently.',
-    applications: 'Used in medical training, cardiovascular diagnostics, and health education.',
-    interviewQuestions: ['How does the heart maintain a heartbeat?', 'What is the role of valves?'],
-    practiceQuestions: ['Name the four chambers of the heart.', 'How do valves affect circulation?']
-  },
-  brain: {
-    parts: ['Cerebrum', 'Cerebellum', 'Brainstem'],
-    functions: 'Coordinates thought, balance, and essential autonomic functions.',
-    working: 'Neural signals pass through regions to interpret data and govern movement.',
-    applications: 'Useful in neuroscience, mental health training, and AI-inspired neural networks.',
-    interviewQuestions: ['How do the cerebrum and cerebellum differ?', 'Why is the brainstem critical?'],
-    practiceQuestions: ['List the main brain regions.', 'Explain how the brain controls movement.']
-  },
-  'solar-system': {
-    parts: ['Sun', 'Earth', 'Mars'],
-    functions: 'Shows planetary motion and the structure of our star system.',
-    working: 'Gravity and orbital motion determine how planets move around the sun.',
-    applications: 'Supports astronomy lessons, cosmology, and mission planning.',
-    interviewQuestions: ['What keeps planets in orbit?', 'Why do planets have different years?'],
-    practiceQuestions: ['Name the terrestrial planets.', 'Explain the role of gravity in orbits.']
-  },
-  'electric-motor': {
-    parts: ['Rotor', 'Stator', 'Coils'],
-    functions: 'Converts electrical energy into rotational mechanical motion.',
-    working: 'Magnetic fields push and pull the rotor as current flows through the coils.',
-    applications: 'Found in drones, appliances, robotics, and transportation systems.',
-    interviewQuestions: ['What is the difference between rotor and stator?', 'How does magnetic field interaction create motion?'],
-    practiceQuestions: ['Explain how current induces rotation.', 'Name a real-world use of an electric motor.']
-  },
-  'dna': {
-    parts: ['Base Pairs', 'Sugar Backbone', 'Helix Twist'],
-    functions: 'Stores hereditary information and supports biological replication.',
-    working: 'The double helix preserves sequence information and enables copying.',
-    applications: 'Used in genetics, biotechnology, and medical research.',
-    interviewQuestions: ['What is the purpose of base pairing?', 'Why is DNA called the blueprint of life?'],
-    practiceQuestions: ['Describe the structure of DNA.', 'How does DNA replicate?']
-  },
-  atom: {
-    parts: ['Nucleus', 'Electrons', 'Orbitals'],
-    functions: 'Represents the fundamental building block of matter.',
-    working: 'Protons and neutrons form the nucleus while electrons occupy orbitals.',
-    applications: 'Essential for chemistry, materials science, and quantum concepts.',
-    interviewQuestions: ['What makes an atom neutral?', 'What does the nucleus contain?'],
-    practiceQuestions: ['Name the three main subatomic particles.', 'How do electrons differ from protons?']
-  },
-  'earth-layers': {
-    parts: ['Crust', 'Mantle', 'Core'],
-    functions: 'Shows how the structure of Earth influences geology and tectonics.',
-    working: 'Heat and pressure create movement and geological activity across layers.',
-    applications: 'Useful for environmental science, volcanology, and geology careers.',
-    interviewQuestions: ['What is the thinnest layer of Earth?', 'How do tectonic plates interact?'],
-    practiceQuestions: ['Identify Earth’s major layers.', 'Explain the role of the mantle.']
-  },
-  cell: {
-    parts: ['Membrane', 'Nucleus', 'Organelles'],
-    functions: 'Represents the smallest functional unit of life.',
-    working: 'Organelles coordinate tasks that keep the cell alive and active.',
-    applications: 'Found in biology, microsystems, and healthcare education.',
-    interviewQuestions: ['What is the function of the cell membrane?', 'Why is the nucleus important?'],
-    practiceQuestions: ['Describe the role of organelles.', 'Explain what makes a cell alive.']
-  },
-  cpu: {
-    parts: ['Core', 'Cache', 'Registers'],
-    functions: 'Executes instructions and supports computation for digital devices.',
-    working: 'Data moves between components to fetch, decode, and process instructions.',
-    applications: 'Important for computer engineering, embedded systems, and hardware interviews.',
-    interviewQuestions: ['How does a CPU process instructions?', 'What does cache improve?'],
-    practiceQuestions: ['Describe the role of the CPU core.', 'Why is cache important for performance?']
-  },
-  bridge: {
-    parts: ['Deck', 'Supports', 'Tension Members'],
-    functions: 'Illustrates how structures manage load and maintain stability.',
-    working: 'Load paths transfer weight into supports and foundations.',
-    applications: 'Helpful for civil engineering, structural design, and architecture careers.',
-    interviewQuestions: ['How do supports increase stability?', 'What role do tension members play?'],
-    practiceQuestions: ['Name the structural parts of a bridge.', 'How does a bridge distribute load?']
+const SceneLoader = lazy(() => import('../components/3d/SceneLoader'));
+const SceneViewer = lazy(() => import('../components/3d/SceneViewer'));
+const SceneController = lazy(() => import('../components/3d/SceneController'));
+
+const sourceOptions = [
+  'typed-topic',
+  'pdf',
+  'docx',
+  'ppt',
+  'book',
+  'notes',
+  'camera-ocr',
+  'image',
+  'handwritten-notes',
+  'youtube',
+  'website',
+  'ai-teacher-lesson'
+];
+
+function readTeacherContextFromStorage() {
+  try {
+    const keys = Object.keys(localStorage || {});
+    const sessionKey = keys.find((item) => item.startsWith('daksha:ai-teacher:session:'));
+    if (!sessionKey) return '';
+    const payload = JSON.parse(localStorage.getItem(sessionKey) || '{}');
+    return `${payload?.topic || ''} ${payload?.chapterIndex !== undefined ? `chapter ${payload.chapterIndex + 1}` : ''}`.trim();
+  } catch (error) {
+    console.error('Unable to load AI teacher lesson context:', error);
+    return '';
   }
-};
+}
 
 export default function Learning3D() {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const [query, setQuery] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState('All');
-  const [selectedModelId, setSelectedModelId] = useState('heart');
-  const [selectedPart, setSelectedPart] = useState('Atria');
-  const [selectedNode, setSelectedNode] = useState('');
+  const [topic, setTopic] = useState('Heart Surgery');
+  const [sourceType, setSourceType] = useState('typed-topic');
+  const [sourceContent, setSourceContent] = useState('Explain heart surgery procedure with organs, doctor, and medical tools.');
+  const [selectedPart, setSelectedPart] = useState('');
+  const [hideInactive, setHideInactive] = useState(false);
+  const [measurementMode, setMeasurementMode] = useState(false);
+  const [practiceMode, setPracticeMode] = useState(false);
+  const [assessmentMode, setAssessmentMode] = useState(false);
+  const [activeStepIndex, setActiveStepIndex] = useState(0);
   const [autoRotate, setAutoRotate] = useState(true);
   const [explodeView, setExplodeView] = useState(false);
+  const [crossSection, setCrossSection] = useState(false);
+  const [xRay, setXRay] = useState(false);
+  const [showLabels, setShowLabels] = useState(true);
+  const [animationPaused, setAnimationPaused] = useState(false);
+  const [motionSpeed, setMotionSpeed] = useState(1);
+  const [isTimelinePlaying, setIsTimelinePlaying] = useState(true);
   const [loading, setLoading] = useState(true);
-  const [offline, setOffline] = useState(false);
+  const [sceneData, setSceneData] = useState(null);
+  const [scenePlan, setScenePlan] = useState(null);
+  const [sceneStatus, setSceneStatus] = useState('idle');
+  const [sceneId, setSceneId] = useState('');
+  const [hotspotInfo, setHotspotInfo] = useState(null);
+  const [assessmentPromptIndex, setAssessmentPromptIndex] = useState(0);
+  const [assessmentFeedback, setAssessmentFeedback] = useState('');
+  const [sourcePayload, setSourcePayload] = useState('');
+  const [syncMode, setSyncMode] = useState(true);
 
-  const models = useMemo(() => filterModels(query, selectedCategory), [query, selectedCategory]);
-  const universalLesson = useMemo(() => buildUniversalLesson(query || 'Learning Topic'), [query]);
-  const activeModel = selectedModelId === 'universal'
-    ? { id: 'universal', name: query || 'Universal Concept Map', category: 'Universal', description: universalLesson.summary }
-    : getModelById(selectedModelId);
-  const explanation = explanationMap[selectedModelId] || explanationMap.heart;
-  const showUniversalFallback = Boolean(query && models.length === 0);
-  const selectorModels = useMemo(() => (showUniversalFallback ? [{ id: 'universal', name: 'Universal Concept Map', category: 'Dynamic' }] : models), [models, showUniversalFallback]);
+  const effectiveContent = useMemo(() => {
+    const direct = `${topic}\n${sourceContent}`.trim();
+    if (sourceType === 'ai-teacher-lesson') {
+      return `${topic}\n${sourcePayload || readTeacherContextFromStorage()}`.trim();
+    }
+    return direct;
+  }, [topic, sourceContent, sourceType, sourcePayload]);
+
+  const sceneSteps = scenePlan?.timeline || [];
+  const currentStep = sceneSteps[activeStepIndex] || null;
+  const assessmentTasks = scenePlan?.assessment?.tasks || [];
+  const practiceTasks = scenePlan?.practiceMode?.tasks || [];
 
   useEffect(() => {
     const timer = setTimeout(() => setLoading(false), 500);
@@ -123,40 +87,66 @@ export default function Learning3D() {
   }, []);
 
   useEffect(() => {
-    setSelectedNode('');
-    setSelectedPart('Core');
-  }, [query, selectedModelId]);
+    if (!sceneSteps.length || !isTimelinePlaying || animationPaused) return undefined;
+
+    const step = sceneSteps[activeStepIndex] || sceneSteps[0];
+    const duration = Math.max(1000, Math.round((step?.durationMs || 1600) / Math.max(0.5, motionSpeed)));
+    const timer = setTimeout(() => {
+      setActiveStepIndex((value) => (value + 1) % sceneSteps.length);
+    }, duration);
+
+    return () => clearTimeout(timer);
+  }, [sceneSteps, activeStepIndex, isTimelinePlaying, animationPaused, motionSpeed]);
 
   useEffect(() => {
-    if (query && models.length === 0) {
-      setSelectedModelId('universal');
+    if (!syncMode || !currentStep?.target) return;
+    setSelectedPart(currentStep.target);
+  }, [currentStep, syncMode]);
+
+  const onObjectSelected = (object) => {
+    if (!object) return;
+    setSelectedPart(object.label);
+    setHotspotInfo(object);
+
+    if (assessmentMode && assessmentTasks.length > 0) {
+      const expectedTask = assessmentTasks[assessmentPromptIndex] || '';
+      const isCorrect = expectedTask.toLowerCase().includes(object.label.toLowerCase());
+      setAssessmentFeedback(isCorrect ? `Correct: ${object.label}` : `Try again. Hint: ${expectedTask}`);
+      if (isCorrect) {
+        setAssessmentPromptIndex((value) => Math.min(value + 1, assessmentTasks.length - 1));
+      }
+    }
+  };
+
+  const handleFullscreen = () => {
+    const root = document.documentElement;
+    if (!document.fullscreenElement) {
+      root.requestFullscreen?.();
       return;
     }
+    document.exitFullscreen?.();
+  };
 
-    if (selectedModelId === 'universal' && models.length > 0) {
-      setSelectedModelId(models[0]?.id || 'heart');
+  const resetSceneView = () => {
+    setSelectedPart('');
+    setExplodeView(false);
+    setCrossSection(false);
+    setXRay(false);
+    setShowLabels(true);
+    setAnimationPaused(false);
+    setHideInactive(false);
+    setMeasurementMode(false);
+    setMotionSpeed(1);
+  };
+
+  const loadAITeacherLesson = () => {
+    const context = readTeacherContextFromStorage();
+    if (context) {
+      setSourcePayload(context);
+      setSourceContent(context);
+      setSourceType('ai-teacher-lesson');
     }
-  }, [query, models, selectedModelId]);
-
-  useEffect(() => {
-    if (!user?.uid) return;
-    const saveHistory = async () => {
-      try {
-        await addDoc(collection(db, 'learning3DHistory'), {
-          userId: user.uid,
-          modelName: activeModel.name,
-          category: activeModel.category,
-          timeSpent: 5,
-          lastViewed: new Date(),
-          createdAt: new Date()
-        });
-      } catch (error) {
-        console.error('Error saving learning 3D history:', error);
-        setOffline(true);
-      }
-    };
-    saveHistory();
-  }, [activeModel?.name, activeModel?.category, user?.uid]);
+  };
 
   return (
     <div className="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(16,185,129,0.16),_transparent_35%),linear-gradient(135deg,_#020617_0%,_#0f172a_45%,_#111827_100%)] px-4 py-8 text-slate-100 sm:px-6 lg:px-8">
@@ -165,95 +155,191 @@ export default function Learning3D() {
           <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
             <div>
               <p className="text-sm uppercase tracking-[0.35em] text-emerald-300">Professional 3D Learning Engine</p>
-              <h1 className="mt-2 text-3xl font-semibold text-white sm:text-4xl">Explore ideas in motion with interactive 3D models</h1>
-              <p className="mt-3 max-w-2xl text-sm text-slate-400 sm:text-base">Search concepts, inspect each part, and learn from AI-guided explanations that connect visuals to real-world understanding.</p>
+              <h1 className="mt-2 text-3xl font-semibold text-white sm:text-4xl">Automatic 3D Visual Learning for any lesson source</h1>
+              <p className="mt-3 max-w-3xl text-sm text-slate-400 sm:text-base">Daksha AI analyzes the lesson, selects reusable 3D assets, composes scene plans, synchronizes with teaching flow, and delivers interactive hotspots, simulations, practice, and assessment automatically.</p>
             </div>
             <button onClick={() => navigate('/dashboard')} className="rounded-2xl border border-slate-700 bg-slate-950/70 px-4 py-2 text-sm text-slate-200">Back to Dashboard</button>
           </div>
         </div>
 
-        {offline ? <div className="rounded-[1.5rem] border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-amber-300">History syncing is temporarily unavailable, but the 3D experience remains available.</div> : null}
-
         <div className="grid gap-6 xl:grid-cols-[1.15fr_0.85fr]">
           <div className="space-y-6">
-            <div className="rounded-[2rem] border border-white/10 bg-slate-900/75 p-4 shadow-2xl shadow-slate-950/40 backdrop-blur-xl">
-              <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-                <div className="flex items-center gap-2 text-emerald-300"><Search className="h-4 w-4" /> Universal knowledge search</div>
+            <div className="rounded-[2rem] border border-white/10 bg-slate-900/75 p-4 shadow-2xl shadow-slate-950/40 backdrop-blur-xl resize-y overflow-auto">
+              <div className="mb-4 flex flex-col gap-3">
+                <div className="flex items-center gap-2 text-emerald-300"><Search className="h-4 w-4" /> Source-aware lesson analysis</div>
+                <div className="grid gap-3 md:grid-cols-2">
+                  <label className="text-sm text-slate-300">
+                    Input Source
+                    <select value={sourceType} onChange={(event) => setSourceType(event.target.value)} className="mt-1 w-full rounded-xl border border-white/10 bg-slate-950/70 px-3 py-2 text-sm text-slate-200">
+                      {sourceOptions.map((option) => (
+                        <option key={option} value={option}>{option}</option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="text-sm text-slate-300">
+                    Topic
+                    <input value={topic} onChange={(event) => setTopic(event.target.value)} placeholder="Heart Surgery, Car Engine, Solar System..." className="mt-1 w-full rounded-xl border border-white/10 bg-slate-950/70 px-3 py-2 text-sm text-slate-200 outline-none" />
+                  </label>
+                </div>
+                <textarea
+                  value={sourceContent}
+                  onChange={(event) => setSourceContent(event.target.value)}
+                  placeholder="Paste lesson content from PDF, DOCX, PPT, notes, OCR, image, website, YouTube transcript, or AI teacher lesson."
+                  className="min-h-28 w-full rounded-xl border border-white/10 bg-slate-950/70 px-3 py-2 text-sm text-slate-200 outline-none"
+                />
                 <div className="flex flex-wrap gap-2">
-                  <select value={selectedCategory} onChange={(event) => setSelectedCategory(event.target.value)} className="rounded-full border border-white/10 bg-slate-950/70 px-3 py-2 text-sm text-slate-200">
-                    <option value="All">All Categories</option>
-                    {categories.map((category) => <option key={category} value={category}>{category}</option>)}
-                  </select>
-                  <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Try any topic: AI, Accounting, Solar System..." className="rounded-full border border-white/10 bg-slate-950/70 px-3 py-2 text-sm text-slate-200 outline-none" />
+                  <button onClick={loadAITeacherLesson} className="rounded-xl border border-slate-700 bg-slate-950/70 px-3 py-2 text-sm text-slate-200">Sync AI Teacher Lesson</button>
+                  <button onClick={() => setSyncMode((value) => !value)} className="rounded-xl border border-slate-700 bg-slate-950/70 px-3 py-2 text-sm text-slate-200">{syncMode ? 'Disable' : 'Enable'} Teacher Sync</button>
+                  <span className="rounded-xl border border-cyan-500/30 bg-cyan-500/10 px-3 py-2 text-xs text-cyan-100">Scene status: {sceneStatus}</span>
                 </div>
               </div>
-              <ModelSelector models={selectorModels} selectedModelId={selectedModelId} onSelect={setSelectedModelId} />
             </div>
 
-            <div className="rounded-[2rem] border border-white/10 bg-slate-900/75 p-4 shadow-2xl shadow-slate-950/40 backdrop-blur-xl">
+            <div className="rounded-[2rem] border border-white/10 bg-slate-900/75 p-4 shadow-2xl shadow-slate-950/40 backdrop-blur-xl resize-y overflow-auto">
               <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
                 <div>
                   <p className="text-sm uppercase tracking-[0.25em] text-slate-400">Interactive 3D Model</p>
-                  <h2 className="text-xl font-semibold text-white">{showUniversalFallback ? query || 'Universal Concept Map' : activeModel.name}</h2>
+                  <h2 className="text-xl font-semibold text-white">{sceneData?.title || 'Automatic Scene Generator'}</h2>
                 </div>
-                <CameraControls onReset={() => setSelectedPart(activeModel.name)} onToggleRotate={() => setAutoRotate((value) => !value)} autoRotate={autoRotate} onToggleExplode={() => setExplodeView((value) => !value)} />
+                <Suspense fallback={<div className="rounded-full border border-white/10 bg-slate-950/70 px-3 py-2 text-xs text-slate-400">Loading controls...</div>}>
+                  <SceneController
+                    onToggleExploded={() => setExplodeView((value) => !value)}
+                    onToggleCrossSection={() => setCrossSection((value) => !value)}
+                    onToggleXRay={() => setXRay((value) => !value)}
+                    onToggleHideInactive={() => setHideInactive((value) => !value)}
+                    onToggleLabels={() => setShowLabels((value) => !value)}
+                    onToggleMeasurement={() => setMeasurementMode((value) => !value)}
+                    onToggleAnimation={() => { setAnimationPaused((value) => !value); setAutoRotate((value) => !value); }}
+                    onTogglePracticeMode={() => setPracticeMode((value) => !value)}
+                    onToggleAssessmentMode={() => setAssessmentMode((value) => !value)}
+                    onResetView={resetSceneView}
+                    onFullscreen={handleFullscreen}
+                    onSlowMotion={() => setMotionSpeed(0.6)}
+                    onNormalMotion={() => setMotionSpeed(1)}
+                    onFastMotion={() => setMotionSpeed(1.6)}
+                    controls={[]}
+                  />
+                </Suspense>
               </div>
-              {loading ? <div className="rounded-[2rem] border border-white/10 bg-slate-950/70 p-8 text-center text-slate-400">Preparing your immersive lesson...</div> : showUniversalFallback ? (
+              {loading ? <div className="rounded-[2rem] border border-white/10 bg-slate-950/70 p-8 text-center text-slate-400">Preparing your immersive lesson...</div> : (
                 <div className="space-y-4 rounded-[2rem] border border-white/10 bg-slate-950/70 p-5">
-                  <div className="rounded-[1.2rem] border border-emerald-500/20 bg-emerald-500/10 p-4 text-sm text-emerald-100">
-                    No exact 3D model was found, so Daksha AI generated an adaptive concept visualization for your topic.
+                  <Suspense fallback={<div className="text-sm text-slate-400">Loading scene model...</div>}>
+                    <SceneLoader
+                      content={effectiveContent}
+                      sourceType={sourceType}
+                      sourcePayload={sourcePayload}
+                      userId={user?.uid}
+                      onStatusChange={setSceneStatus}
+                      onPlanReady={(plan) => {
+                        setScenePlan(plan);
+                        setActiveStepIndex(0);
+                        setAssessmentPromptIndex(0);
+                        setAssessmentFeedback('');
+                      }}
+                      onSceneReady={(scene, generatedSceneId) => {
+                        setSceneData(scene);
+                        setSceneId(generatedSceneId || '');
+                        setSelectedPart(scene?.labels?.[0] || '');
+                      }}
+                    />
+                  </Suspense>
+                  <div className="rounded-[1.2rem] border border-emerald-500/20 bg-emerald-500/10 p-4 text-sm text-emerald-100">{sceneData?.summary || 'Generating scene plan from lesson content...'}</div>
+                  <div className="h-[420px] overflow-hidden rounded-[2rem] border border-white/10 bg-slate-950/70 shadow-2xl shadow-slate-950/40">
+                    <Suspense fallback={<div className="grid h-full place-items-center text-sm text-slate-400">Loading 3D viewer...</div>}>
+                      <SceneViewer
+                        scene={sceneData}
+                        selectedPart={selectedPart}
+                        onSelectPart={setSelectedPart}
+                        onHotspot={onObjectSelected}
+                        autoRotate={!animationPaused && autoRotate}
+                        exploded={explodeView}
+                        crossSection={crossSection}
+                        xRay={xRay}
+                        showLabels={showLabels}
+                        hideInactive={hideInactive}
+                        measurementMode={measurementMode}
+                        motionSpeed={motionSpeed}
+                      />
+                    </Suspense>
                   </div>
-                  <ConceptMapView concept={universalLesson} selectedNode={selectedNode} onSelectNode={setSelectedNode} />
+
+                  <SceneTimeline
+                    steps={sceneSteps}
+                    activeIndex={activeStepIndex}
+                    isPlaying={isTimelinePlaying}
+                    onPlayPause={() => setIsTimelinePlaying((value) => !value)}
+                    onRestart={() => {
+                      setActiveStepIndex(0);
+                      setIsTimelinePlaying(true);
+                    }}
+                    onPrevious={() => setActiveStepIndex((value) => Math.max(0, value - 1))}
+                    onNext={() => setActiveStepIndex((value) => Math.min(sceneSteps.length - 1, value + 1))}
+                    onJump={(index) => setActiveStepIndex(index)}
+                  />
                 </div>
-              ) : <SceneCanvas model={activeModel} selectedPart={selectedPart} onSelectPart={setSelectedPart} />}
+              )}
             </div>
           </div>
 
           <div className="space-y-6">
-            <div className="rounded-[2rem] border border-white/10 bg-slate-900/75 p-5 shadow-2xl shadow-slate-950/40 backdrop-blur-xl">
+            <div className="rounded-[2rem] border border-white/10 bg-slate-900/75 p-5 shadow-2xl shadow-slate-950/40 backdrop-blur-xl resize-y overflow-auto">
               <div className="flex items-center gap-2 text-emerald-300"><Sparkles className="h-4 w-4" /> AI Explanation Panel</div>
-              <h3 className="mt-3 text-xl font-semibold text-white">{query || activeModel.name}</h3>
-              <p className="mt-2 text-sm text-slate-400">{showUniversalFallback ? universalLesson.summary : activeModel.description}</p>
+              <h3 className="mt-3 text-xl font-semibold text-white">{topic}</h3>
+              <p className="mt-2 text-sm text-slate-400">{scenePlan?.summary || 'Scene analysis is preparing subject and object detection...'}</p>
               <div className="mt-4 grid gap-3">
                 <div className="rounded-[1.2rem] border border-white/10 bg-slate-950/70 p-4">
-                  <p className="text-sm font-semibold text-white">Concept structure</p>
-                  <div className="mt-2 flex flex-wrap gap-2">{(showUniversalFallback ? universalLesson.conceptMap : explanation.parts).map((part) => <AnnotationLabel key={typeof part === 'string' ? part : part.label} label={typeof part === 'string' ? part : part.label} active={selectedPart === (typeof part === 'string' ? part : part.label) || selectedNode === (typeof part === 'string' ? part : part.label)} onClick={() => { setSelectedPart(typeof part === 'string' ? part : part.label); setSelectedNode(typeof part === 'string' ? part : part.label); }} />)}</div>
+                  <p className="text-sm font-semibold text-white">Detected objects and hotspots</p>
+                  <div className="mt-2 flex flex-wrap gap-2">{(sceneData?.labels || []).map((part) => <AnnotationLabel key={part} label={part} active={selectedPart === part} onClick={() => setSelectedPart(part)} />)}</div>
                 </div>
                 <div className="rounded-[1.2rem] border border-white/10 bg-slate-950/70 p-4">
-                  <p className="text-sm font-semibold text-white">Functions</p>
-                  <p className="mt-2 text-sm text-slate-400">{showUniversalFallback ? universalLesson.sections[0]?.body : explanation.functions}</p>
+                  <p className="text-sm font-semibold text-white">Subject and simulation mode</p>
+                  <p className="mt-2 text-sm text-slate-400">Subject: {scenePlan?.subject || 'Detecting...'}</p>
+                  <p className="mt-2 text-sm text-slate-400">Simulation Engine: {sceneData?.simulationMode || 'Preparing...'}</p>
+                  <p className="mt-2 text-sm text-slate-400">Scene ID: {sceneId || 'pending'}</p>
                 </div>
                 <div className="rounded-[1.2rem] border border-white/10 bg-slate-950/70 p-4">
-                  <p className="text-sm font-semibold text-white">Working</p>
-                  <p className="mt-2 text-sm text-slate-400">{showUniversalFallback ? universalLesson.sections[1]?.body : explanation.working}</p>
+                  <p className="text-sm font-semibold text-white">Hotspot detail</p>
+                  {hotspotInfo ? (
+                    <div className="mt-2 text-sm text-slate-300">
+                      <p className="font-semibold text-cyan-200">{hotspotInfo.label}</p>
+                      <p className="mt-1 text-slate-400">Category: {hotspotInfo.category}</p>
+                      <ul className="mt-2 list-disc space-y-1 pl-5 text-slate-300">
+                        {(hotspotInfo.facts || []).map((item) => <li key={item}>{item}</li>)}
+                      </ul>
+                    </div>
+                  ) : <p className="mt-2 text-sm text-slate-400">Click any object to see AI explanation, function, working, and facts.</p>}
                 </div>
                 <div className="rounded-[1.2rem] border border-white/10 bg-slate-950/70 p-4">
-                  <p className="text-sm font-semibold text-white">Real-world applications</p>
-                  <p className="mt-2 text-sm text-slate-400">{showUniversalFallback ? universalLesson.sections[2]?.body : explanation.applications}</p>
+                  <p className="text-sm font-semibold text-white">AI Camera + Animation cues</p>
+                  <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-slate-400">
+                    {(scenePlan?.cameraCues || []).slice(0, 5).map((item) => <li key={item.stepId}>{item.action} on {item.target}</li>)}
+                  </ul>
                 </div>
               </div>
             </div>
 
-            <div className="rounded-[2rem] border border-white/10 bg-slate-900/75 p-5 shadow-2xl shadow-slate-950/40 backdrop-blur-xl">
-              <div className="flex items-center gap-2 text-sky-300"><BrainCircuit className="h-4 w-4" /> Interview & Practice</div>
+            <div className="rounded-[2rem] border border-white/10 bg-slate-900/75 p-5 shadow-2xl shadow-slate-950/40 backdrop-blur-xl resize-y overflow-auto">
+              <div className="flex items-center gap-2 text-sky-300"><BrainCircuit className="h-4 w-4" /> Practice + Assessment</div>
               <div className="mt-4 space-y-3">
                 <div className="rounded-[1.2rem] border border-white/10 bg-slate-950/70 p-4">
-                  <p className="text-sm font-semibold text-white">Common interview questions</p>
-                  <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-slate-400">{(showUniversalFallback ? universalLesson.conceptMap : explanation.interviewQuestions).map((item) => <li key={typeof item === 'string' ? item : item.label}>{typeof item === 'string' ? item : item.label}</li>)}</ul>
+                  <p className="text-sm font-semibold text-white">Practice Mode {practiceMode ? '(Active)' : '(Inactive)'}</p>
+                  <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-slate-400">{practiceTasks.map((item) => <li key={item}>{item}</li>)}</ul>
                 </div>
                 <div className="rounded-[1.2rem] border border-white/10 bg-slate-950/70 p-4">
-                  <p className="text-sm font-semibold text-white">Practice questions</p>
-                  <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-slate-400">{(showUniversalFallback ? universalLesson.sections[3]?.body.split('.').filter(Boolean) : explanation.practiceQuestions).map((item) => <li key={item}>{item}</li>)}</ul>
+                  <p className="text-sm font-semibold text-white">Assessment Mode {assessmentMode ? '(Active)' : '(Inactive)'}</p>
+                  <p className="mt-2 text-sm text-slate-300">Current prompt: {assessmentTasks[assessmentPromptIndex] || 'No prompt yet.'}</p>
+                  <p className="mt-2 text-xs text-cyan-200">{assessmentFeedback || 'Click objects to answer the prompt.'}</p>
                 </div>
               </div>
             </div>
 
-            <div className="rounded-[2rem] border border-white/10 bg-slate-900/75 p-5 shadow-2xl shadow-slate-950/40 backdrop-blur-xl">
-              <div className="flex items-center gap-2 text-violet-300"><Layers3 className="h-4 w-4" /> Recent Models</div>
-              <div className="mt-4 grid gap-3">
-                <div className="rounded-[1.2rem] border border-white/10 bg-slate-950/70 p-4 text-sm text-slate-300">Recently viewed: {query || activeModel.name}</div>
-                <div className="rounded-[1.2rem] border border-white/10 bg-slate-950/70 p-4 text-sm text-slate-300">Favorites: Dynamic concept maps and AI visuals</div>
-                <div className="rounded-[1.2rem] border border-white/10 bg-slate-950/70 p-4 text-sm text-slate-300">Most explored: Any subject, course, skill, or product</div>
+            <div className="rounded-[2rem] border border-white/10 bg-slate-900/75 p-5 shadow-2xl shadow-slate-950/40 backdrop-blur-xl resize-y overflow-auto">
+              <div className="flex items-center gap-2 text-violet-300"><Layers3 className="h-4 w-4" /> Engine Capabilities</div>
+              <div className="mt-4 grid gap-3 text-sm text-slate-300">
+                <div className="rounded-[1.2rem] border border-white/10 bg-slate-950/70 p-4"><Target className="mb-2 h-4 w-4 text-cyan-300" /> Automatic model selection and reusable asset composition</div>
+                <div className="rounded-[1.2rem] border border-white/10 bg-slate-950/70 p-4"><Focus className="mb-2 h-4 w-4 text-cyan-300" /> AI camera focus, orbit, cinematic cues, slow motion, replay support</div>
+                <div className="rounded-[1.2rem] border border-white/10 bg-slate-950/70 p-4"><PlayCircle className="mb-2 h-4 w-4 text-cyan-300" /> Timeline play, pause, resume, restart, jump-to-step, synced teaching cues</div>
+                <div className="rounded-[1.2rem] border border-white/10 bg-slate-950/70 p-4"><BookOpen className="mb-2 h-4 w-4 text-cyan-300" /> VR-ready and AR-ready architecture flags for future expansion</div>
               </div>
             </div>
           </div>
