@@ -24,6 +24,8 @@ export default function VoicePlayer({ isSpeaking, voiceSpeed, voicePitch, onSpee
         </label>
       </div>
 
+      <p className="mt-4 text-sm text-slate-400">The voice now leans into warm pacing, pauses, and subtle emphasis so explanations feel more like a live professor guiding you.</p>
+
       <div className="mt-5 flex flex-wrap gap-3">
         <button onClick={onPauseResume} className="rounded-2xl border border-slate-700 bg-slate-950/70 px-4 py-2 text-sm text-slate-200">
           {paused ? 'Resume' : 'Pause'}

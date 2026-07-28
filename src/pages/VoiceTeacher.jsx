@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { saveVoiceLesson, getUserVoiceLessons, deleteVoiceLesson, renameVoiceLesson, bookmarkVoiceLesson } from '../services/firestoreService';
 import { getDakshaResponse } from '../services/aiService';
+import { buildVoiceTeachingPrompt, buildVoiceTeachingProfile } from '../utils/aiVoiceTeacherEngine.js';
 import VoiceRecorder from '../components/voice/VoiceRecorder';
 import VoicePlayer from '../components/voice/VoicePlayer';
 import ConversationBubble from '../components/voice/ConversationBubble';
@@ -262,9 +263,11 @@ export default function VoiceTeacher() {
     setLoading(true);
     setError('');
     try {
-      const assistantReply = await getDakshaResponse(`Teach me about ${promptText} in a ${teacherMode} style. Respond in ${resolvedLanguage}. Keep the explanation concise, helpful, and preserve technical terms when necessary.`, resolvedLanguage);
+      const profile = buildVoiceTeachingProfile(promptText, resolvedLanguage, teacherMode);
+      const prompt = buildVoiceTeachingPrompt(promptText, resolvedLanguage, teacherMode);
+      const assistantReply = await getDakshaResponse(prompt, resolvedLanguage);
       const userEntry = { role: 'user', text: promptText, timestamp: new Date().toLocaleTimeString() };
-      const assistantEntry = { role: 'assistant', text: assistantReply, timestamp: new Date().toLocaleTimeString() };
+      const assistantEntry = { role: 'assistant', text: assistantReply, timestamp: new Date().toLocaleTimeString(), profile };
       setConversation((prev) => [...prev, userEntry, assistantEntry]);
       speakText(assistantReply, resolvedLanguage);
       if (user?.uid) {

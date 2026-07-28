@@ -44,6 +44,7 @@ export default function VoiceControls({ teacherMode, setTeacherMode, language, s
           ))}
         </select>
         <p className="mt-3 text-sm text-slate-400">Detected language: {detectedLanguage || language}</p>
+        <p className="mt-2 text-sm text-slate-500">The tutor adapts to beginner, intermediate, or advanced questions and can blend a second language for clarity.</p>
       </div>
     </div>
   );
