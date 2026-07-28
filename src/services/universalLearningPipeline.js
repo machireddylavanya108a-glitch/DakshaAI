@@ -310,22 +310,23 @@ function buildSourceModel({ sourceName, sourceType, extractedText, slides, intel
 }
 
 function buildLessonSession(packageData, sourceModel, detections, metadata, intelligenceProfile) {
-  const summary = safeString(packageData.summary || packageData.completeCourse || packageData.beginnerExplanation).slice(0, 3000);
-  const beginnerLesson = safeString(packageData.beginnerLesson || packageData.beginnerExplanation || summary);
+  const fallbackPackage = packageData && typeof packageData === 'object' ? packageData : {};
+  const summary = safeString(fallbackPackage.summary || fallbackPackage.completeCourse || fallbackPackage.beginnerExplanation || sourceModel.overview || metadata.subject).slice(0, 3000);
+  const beginnerLesson = safeString(fallbackPackage.beginnerLesson || fallbackPackage.beginnerExplanation || summary || `Start with the key ideas from ${metadata.subject || 'this lesson'} and build understanding from the main concepts first.`);
   const intermediateLesson = safeString(packageData.intermediateLesson || packageData.intermediateExplanation || beginnerLesson);
   const advancedLesson = safeString(packageData.advancedLesson || packageData.advancedExplanation || intermediateLesson);
-  const keyConcepts = normalizeList(packageData.keyConcepts || packageData.realWorldExamples || sourceModel.sections).slice(0, 10);
-  const importantDefinitions = normalizeList(packageData.importantDefinitions || sourceModel.definitions).slice(0, 10);
-  const examples = normalizeList(packageData.examples || packageData.realWorldExamples).slice(0, 10);
-  const realWorldApplications = normalizeList(packageData.realWorldApplications || packageData.realWorldExamples).slice(0, 8);
-  const revisionNotes = normalizeList(packageData.revisionNotes || packageData.revisionNotesText || sourceModel.sections).slice(0, 10);
-  const cheatSheet = normalizeList(packageData.cheatSheet || sourceModel.sections).slice(0, 10);
-  const flashcards = Array.isArray(packageData.flashcards) ? packageData.flashcards : [];
-  const quiz = Array.isArray(packageData.quiz) ? packageData.quiz : [];
-  const practiceQuestions = Array.isArray(packageData.practiceQuestions) ? packageData.practiceQuestions : quiz.map((item) => item.question).filter(Boolean);
+  const keyConcepts = normalizeList(fallbackPackage.keyConcepts || fallbackPackage.realWorldExamples || sourceModel.sections).slice(0, 10);
+  const importantDefinitions = normalizeList(fallbackPackage.importantDefinitions || sourceModel.definitions).slice(0, 10);
+  const examples = normalizeList(fallbackPackage.examples || fallbackPackage.realWorldExamples).slice(0, 10);
+  const realWorldApplications = normalizeList(fallbackPackage.realWorldApplications || fallbackPackage.realWorldExamples).slice(0, 8);
+  const revisionNotes = normalizeList(fallbackPackage.revisionNotes || fallbackPackage.revisionNotesText || sourceModel.sections).slice(0, 10);
+  const cheatSheet = normalizeList(fallbackPackage.cheatSheet || sourceModel.sections).slice(0, 10);
+  const flashcards = Array.isArray(fallbackPackage.flashcards) ? fallbackPackage.flashcards : [];
+  const quiz = Array.isArray(fallbackPackage.quiz) ? fallbackPackage.quiz : [];
+  const practiceQuestions = Array.isArray(fallbackPackage.practiceQuestions) ? fallbackPackage.practiceQuestions : quiz.map((item) => item.question).filter(Boolean);
 
   return {
-    title: intelligenceProfile?.title || sourceModel.title || metadata.sourceName,
+    title: intelligenceProfile?.title || sourceModel.title || metadata.sourceName || 'Adaptive lesson',
     summary,
     beginnerLesson,
     intermediateLesson,
@@ -514,13 +515,17 @@ export async function runUniversalLearningPipeline({
     detectPracticalSkills: detections.practicalSkills.length > 0
   };
 
-  const packagePayload = await getDakshaLessonPackage(
+  let packagePayload = await getDakshaLessonPackage(
     sourceModel.extractedText || `${metadata.subject} ${metadata.sourceType}`,
     metadata.sourceType,
     metadata.sourceName
   );
 
-  const learningSession = buildLessonSession(packagePayload || {}, sourceModel, detections, metadata, intelligenceProfile);
+  if (!packagePayload || typeof packagePayload !== 'object') {
+    packagePayload = {};
+  }
+
+  const learningSession = buildLessonSession(packagePayload, sourceModel, detections, metadata, intelligenceProfile);
 
   return {
     sourceMeta: {

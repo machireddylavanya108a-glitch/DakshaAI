@@ -182,17 +182,35 @@ function buildAssetPlan(content = '', domain = 'General', entities = []) {
 }
 
 export function buildSceneBlueprint(content = '', sourceType = 'typed-topic') {
-  const domain = detectDomain(content);
+  const domain = detectDomain(content) || 'General';
   const entities = chooseEntities(content, domain);
   const assetPlan = buildAssetPlan(content, domain, entities);
+  const fallbackEntities = entities.length ? entities : [
+    { name: 'Core concept', category: domain, role: 'focus', concept: 'concept' },
+    { name: 'Practice loop', category: domain, role: 'support', concept: 'practice' },
+    { name: 'Review step', category: domain, role: 'support', concept: 'review' }
+  ];
+  const safeAssetPlan = assetPlan.length ? assetPlan : fallbackEntities.map((entity, index) => ({
+    assetId: `fallback-${index + 1}`,
+    label: `${entity.name} asset`,
+    category: entity.category,
+    icon: '🧩',
+    focus: entity.name,
+    lod: 'medium',
+    compression: 'balanced',
+    lazyLoading: true,
+    optimization: 'fallback',
+    compositePlan: null,
+    rankScore: 1
+  }));
 
   return {
     domain,
     sourceType,
     concepts: tokenizeConcepts(content),
-    entities,
-    assetPlan,
-    summary: `Dynamic ${domain.toLowerCase()} scene constructed from lesson content and ${sourceType} input.`,
+    entities: fallbackEntities,
+    assetPlan: safeAssetPlan,
+    summary: `A practical ${domain.toLowerCase()} scene was built from the available lesson content and ${sourceType} input.`,
     sceneTitle: `${domain} learning scene`
   };
 }

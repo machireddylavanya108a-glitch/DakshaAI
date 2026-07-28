@@ -9,6 +9,7 @@ import LearningInterviewModal from '../components/common/LearningInterviewModal'
 import PersonalizedLearningDashboard from '../components/common/PersonalizedLearningDashboard';
 import { buildPersonalizedLearningPlan } from '../utils/personalizedLearningEngine';
 import { persistLearningSession } from '../services/learningSessionOrchestrator';
+import { deriveLearningTitle, buildFallbackLessonPackage } from '../utils/learningContentUtils';
 
 const tabs = ['Overview', 'Summary', 'Topics', 'Keywords', 'Quiz', 'Flashcards'];
 
@@ -117,9 +118,28 @@ export default function Scanner() {
     const suite = buildUniversalLearningArtifacts(result);
     const intelligenceProfile = result.intelligenceProfile || result.sourceMeta?.intelligenceProfile || null;
 
+    const derivedTitle = deriveLearningTitle(sourceName, sourceContext === 'document' ? 'Adaptive lesson' : sourceName);
+    const fallbackSuite = buildFallbackLessonPackage({ title: derivedTitle, summary: suite.learningSession?.summary || result.sourceModel?.overview || '' });
+    const safeSuite = {
+      ...suite,
+      completeCourse: suite.completeCourse || fallbackSuite.completeCourse,
+      beginnerExplanation: suite.beginnerExplanation || fallbackSuite.beginnerExplanation,
+      intermediateExplanation: suite.intermediateExplanation || fallbackSuite.intermediateExplanation,
+      advancedExplanation: suite.advancedExplanation || fallbackSuite.advancedExplanation,
+      learningRoadmap: suite.learningRoadmap?.length ? suite.learningRoadmap : fallbackSuite.learningRoadmap,
+      cheatSheet: suite.cheatSheet || fallbackSuite.cheatSheet,
+      mindMap: suite.mindMap || fallbackSuite.mindMap,
+      revisionNotes: suite.revisionNotes || fallbackSuite.revisionNotes,
+      realWorldExamples: suite.realWorldExamples?.length ? suite.realWorldExamples : fallbackSuite.realWorldExamples,
+      interviewQuestions: suite.interviewQuestions?.length ? suite.interviewQuestions : fallbackSuite.interviewQuestions,
+      practiceQuestions: suite.practiceQuestions?.length ? suite.practiceQuestions : fallbackSuite.practiceQuestions,
+      quiz: suite.quiz?.length ? suite.quiz : fallbackSuite.quiz,
+      flashcards: suite.flashcards?.length ? suite.flashcards : fallbackSuite.flashcards
+    };
+
     const analysis = {
-      overview: suite.learningSession?.summary || result.sourceModel?.overview || '',
-      summary: suite.learningSession?.summary || '',
+      overview: safeSuite.learningSession?.summary || result.sourceModel?.overview || '',
+      summary: safeSuite.learningSession?.summary || '',
       topics: suite.learningSession?.keyConcepts || [],
       keywords: suite.learningSession?.keyConcepts || [],
       definitions: suite.learningSession?.importantDefinitions || [],
@@ -145,10 +165,10 @@ export default function Scanner() {
     }
 
     setAnalysisResult(analysis);
-    setLessonPackage(suite);
+    setLessonPackage(safeSuite);
     setFilePreview((result.sourceModel?.extractedText || result.sourceModel?.overview || '').slice(0, 1200));
     await saveAnalysisResult(analysis, file || { name: sourceName, type: sourceType, size: String(text || '').length });
-    await saveLessonPackageResult(suite, file || { name: sourceName, type: sourceType, size: String(text || '').length });
+    await saveLessonPackageResult(safeSuite, file || { name: sourceName, type: sourceType, size: String(text || '').length });
 
     const plan = buildPersonalizedLearningPlan({
       interviewAnswers: {
@@ -173,7 +193,7 @@ export default function Scanner() {
           difficulty: result.sourceMeta?.difficulty || 'Medium',
           sourceMeta: result.sourceMeta,
           learningSession: suite.learningSession,
-          lessonSuite: suite,
+          lessonSuite: safeSuite,
           plan,
           memory: suite.memoryEntry,
           progress: suite.progressEntry,
@@ -200,7 +220,7 @@ export default function Scanner() {
       ? intelligenceProfile.followUpPrompt
       : 'Universal scanner completed.';
     setSaveStatus(finalStatus);
-    setLessonStatus(intelligenceProfile?.followUpPrompt ? 'Need more context to finish the lesson map.' : 'Learning suite generated.');
+    setLessonStatus(intelligenceProfile?.followUpPrompt ? 'Need more context to finish the lesson map. Retry AI or ask the learner for details.' : 'Learning suite generated.');
   };
 
   const processTextSource = async (text, sourceName, sourceType = 'text/plain', interviewAnswers = {}, sourceContext = 'text') => {
@@ -632,63 +652,67 @@ export default function Scanner() {
           <div className="mt-10 rounded-3xl border border-slate-800 bg-slate-900 p-6 shadow-xl shadow-slate-950/20">
             <div className="mb-6 flex items-center justify-between gap-4">
               <div>
-                <h2 className="text-2xl font-semibold">Lesson Package</h2>
-                <p className="text-slate-400">Automatically generated course content, quizzes, flashcards, cheat sheet, and roadmap.</p>
+                <h2 className="text-2xl font-semibold">Adaptive Learning Suite</h2>
+                <p className="text-slate-400">Generated course content, quizzes, flashcards, cheat sheet, and roadmap with recovery options when AI output is incomplete.</p>
               </div>
-              <span className="rounded-full bg-indigo-500/15 px-4 py-2 text-sm text-indigo-200">Premium Learning</span>
+              <div className="flex gap-2">
+                <span className="rounded-full bg-emerald-500/15 px-4 py-2 text-sm text-emerald-200">Retry AI</span>
+                <span className="rounded-full bg-cyan-500/15 px-4 py-2 text-sm text-cyan-200">Fallback AI</span>
+                <span className="rounded-full bg-indigo-500/15 px-4 py-2 text-sm text-indigo-200">Vision AI</span>
+              </div>
             </div>
             <div className="grid gap-4 lg:grid-cols-2">
               <div className="rounded-3xl border border-slate-800 bg-slate-950 p-5">
                 <h3 className="text-xl font-semibold mb-3">Complete Course</h3>
-                <p className="text-slate-300 leading-relaxed whitespace-pre-wrap">{lessonPackage.completeCourse || 'No course content generated.'}</p>
+                <p className="text-slate-300 leading-relaxed whitespace-pre-wrap">{lessonPackage.completeCourse || 'The learning summary is being assembled from the uploaded material. You can retry AI or ask the learner for more context.'}</p>
               </div>
               <div className="rounded-3xl border border-slate-800 bg-slate-950 p-5">
                 <h3 className="text-xl font-semibold mb-3">Learning Roadmap</h3>
-                <p className="text-slate-300 leading-relaxed whitespace-pre-wrap">{lessonPackage.learningRoadmap || 'No roadmap generated.'}</p>
+                <p className="text-slate-300 leading-relaxed whitespace-pre-wrap">{Array.isArray(lessonPackage.learningRoadmap) ? lessonPackage.learningRoadmap.join('\n') : lessonPackage.learningRoadmap || 'The roadmap is being assembled from the available concepts. Retry AI or generate a partial lesson if the content is limited.'}</p>
               </div>
               <div className="rounded-3xl border border-slate-800 bg-slate-950 p-5">
                 <h3 className="text-xl font-semibold mb-3">Cheat Sheet</h3>
-                <p className="text-slate-300 leading-relaxed whitespace-pre-wrap">{lessonPackage.cheatSheet || 'No cheat sheet generated.'}</p>
+                <p className="text-slate-300 leading-relaxed whitespace-pre-wrap">{lessonPackage.cheatSheet || 'The study sheet will appear as soon as the key ideas are extracted. You can continue with a partial lesson while AI finishes the rest.'}</p>
               </div>
               <div className="rounded-3xl border border-slate-800 bg-slate-950 p-5">
                 <h3 className="text-xl font-semibold mb-3">Mind Map</h3>
-                <p className="text-slate-300 leading-relaxed whitespace-pre-wrap">{lessonPackage.mindMap || 'No mind map generated.'}</p>
+                <p className="text-slate-300 leading-relaxed whitespace-pre-wrap">{lessonPackage.mindMap || 'A concept map will be generated from the extracted ideas once the main concepts are identified.'}</p>
               </div>
               <div className="rounded-3xl border border-slate-800 bg-slate-950 p-5">
                 <h3 className="text-xl font-semibold mb-3">Beginner</h3>
-                <p className="text-slate-300 leading-relaxed whitespace-pre-wrap">{lessonPackage.beginnerExplanation || 'No beginner explanation generated.'}</p>
+                <p className="text-slate-300 leading-relaxed whitespace-pre-wrap">{lessonPackage.beginnerExplanation || 'A beginner-friendly explanation will be created from the uploaded content. Choose Retry AI or Fallback AI if you need an immediate version.'}</p>
               </div>
               <div className="rounded-3xl border border-slate-800 bg-slate-950 p-5">
                 <h3 className="text-xl font-semibold mb-3">Intermediate</h3>
-                <p className="text-slate-300 leading-relaxed whitespace-pre-wrap">{lessonPackage.intermediateExplanation || 'No intermediate explanation generated.'}</p>
+                <p className="text-slate-300 leading-relaxed whitespace-pre-wrap">{lessonPackage.intermediateExplanation || 'The intermediate layer is being prepared. The lesson can still be used with the partial content while the full explanation completes.'}</p>
               </div>
               <div className="rounded-3xl border border-slate-800 bg-slate-950 p-5">
                 <h3 className="text-xl font-semibold mb-3">Advanced</h3>
-                <p className="text-slate-300 leading-relaxed whitespace-pre-wrap">{lessonPackage.advancedExplanation || 'No advanced explanation generated.'}</p>
+                <p className="text-slate-300 leading-relaxed whitespace-pre-wrap">{lessonPackage.advancedExplanation || 'The advanced explanation will appear after the key concepts are structured. Partial delivery remains available right away.'}</p>
               </div>
               <div className="rounded-3xl border border-slate-800 bg-slate-950 p-5">
                 <h3 className="text-xl font-semibold mb-3">Revision Notes</h3>
-                <p className="text-slate-300 leading-relaxed whitespace-pre-wrap">{lessonPackage.revisionNotes || 'No revision notes generated.'}</p>
+                <p className="text-slate-300 leading-relaxed whitespace-pre-wrap">{lessonPackage.revisionNotes || 'Revision notes are being prepared from the extracted concepts. Continue with the partial lesson and revisit later.'}</p>
               </div>
               <div className="rounded-3xl border border-slate-800 bg-slate-950 p-5">
                 <h3 className="text-xl font-semibold mb-3">Real-world Examples</h3>
-                <p className="text-slate-300 leading-relaxed whitespace-pre-wrap">{lessonPackage.realWorldExamples || 'No examples generated.'}</p>
+                <p className="text-slate-300 leading-relaxed whitespace-pre-wrap">{Array.isArray(lessonPackage.realWorldExamples) ? lessonPackage.realWorldExamples.join('\n') : lessonPackage.realWorldExamples || 'Practical examples will be added as soon as the key concepts are available.'}</p>
               </div>
               <div className="rounded-3xl border border-slate-800 bg-slate-950 p-5">
                 <h3 className="text-xl font-semibold mb-3">Interview Questions</h3>
-                <p className="text-slate-300 leading-relaxed whitespace-pre-wrap">{lessonPackage.interviewQuestions || 'No interview questions generated.'}</p>
+                <p className="text-slate-300 leading-relaxed whitespace-pre-wrap">{Array.isArray(lessonPackage.interviewQuestions) ? lessonPackage.interviewQuestions.join('\n') : lessonPackage.interviewQuestions || 'Interview-ready questions will be generated from the lesson structure once the content is sufficient.'}</p>
               </div>
               <div className="rounded-3xl border border-slate-800 bg-slate-950 p-5">
                 <h3 className="text-xl font-semibold mb-3">Practice Questions</h3>
-                <p className="text-slate-300 leading-relaxed whitespace-pre-wrap">{lessonPackage.practiceQuestions || 'No practice questions generated.'}</p>
+                <p className="text-slate-300 leading-relaxed whitespace-pre-wrap">{Array.isArray(lessonPackage.practiceQuestions) ? lessonPackage.practiceQuestions.join('\n') : lessonPackage.practiceQuestions || 'Practice prompts will be generated once the lesson outline is ready.'}</p>
               </div>
               <div className="rounded-3xl border border-slate-800 bg-slate-950 p-5">
                 <h3 className="text-xl font-semibold mb-3">Quiz</h3>
-                <p className="text-slate-300 leading-relaxed whitespace-pre-wrap">{lessonPackage.quiz || 'No quiz generated.'}</p>
+                <p className="text-slate-300 leading-relaxed whitespace-pre-wrap">{Array.isArray(lessonPackage.quiz) ? lessonPackage.quiz.map((item) => item.question || item).join('\n') : lessonPackage.quiz || 'A quiz will be generated after the lesson content is structured.'}</p>
               </div>
               <div className="rounded-3xl border border-slate-800 bg-slate-950 p-5">
                 <h3 className="text-xl font-semibold mb-3">Flashcards</h3>
-                <p className="text-slate-300 leading-relaxed whitespace-pre-wrap">{lessonPackage.flashcards || 'No flashcards generated.'}</p>
+                <p className="text-slate-300 leading-relaxed whitespace-pre-wrap">{Array.isArray(lessonPackage.flashcards) ? lessonPackage.flashcards.map((item) => `${item.front || ''}: ${item.back || ''}`).filter(Boolean).join('\n') : lessonPackage.flashcards || 'Flashcards will be generated after the core concepts are identified.'}</p>
               </div>
             </div>
           </div>

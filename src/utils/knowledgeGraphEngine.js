@@ -50,11 +50,18 @@ export function buildKnowledgeGraph({
   revisions = [],
   sourceText = ''
 } = {}) {
-  const conceptList = buildConcepts(topic, prereqs, [...relatedTopics, ...advancedTopics, ...similarTopics, ...revisions], sourceText);
-  const nodes = conceptList.map((concept, index) => ({ id: `node-${index + 1}`, label: concept }));
+  const safeTopic = normalize(topic, 'Learning topic');
+  const conceptList = buildConcepts(safeTopic, prereqs, [...relatedTopics, ...advancedTopics, ...similarTopics, ...revisions], sourceText);
+  const nodes = conceptList.length
+    ? conceptList.map((concept, index) => ({ id: `node-${index + 1}`, label: concept }))
+    : [{ id: 'node-1', label: 'Core concept' }, { id: 'node-2', label: 'Practice loop' }];
   const edges = [];
 
-  if (topic) edges.push({ from: 'node-1', to: 'node-2', relation: 'focuses-on' });
+  if (nodes.length === 1) {
+    nodes.push({ id: 'node-2', label: 'Practice loop' });
+  }
+
+  if (nodes.length > 1) edges.push({ from: nodes[0].id, to: nodes[1].id, relation: 'focuses-on' });
   prereqs.forEach((prereq) => {
     const targetIndex = nodes.findIndex((node) => node.label === prereq) + 1;
     if (targetIndex > 1) edges.push({ from: `node-${targetIndex}`, to: 'node-1', relation: 'prerequisite' });
@@ -83,7 +90,7 @@ export function buildKnowledgeGraph({
   const futureTopics = buildFutureTopics(advancedTopics, similarTopics, relatedTopics);
 
   return {
-    topic: normalize(topic, 'Learning Topic'),
+    topic: safeTopic,
     nodes,
     edges,
     conceptGraph: nodes.map((node) => node.label),
