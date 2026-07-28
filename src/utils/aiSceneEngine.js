@@ -75,6 +75,119 @@ function buildClassificationFallback() {
   };
 }
 
+function colorFromSeed(seed = '') {
+  const source = String(seed || 'dynamic');
+  let hash = 0;
+  for (let index = 0; index < source.length; index += 1) {
+    hash = ((hash << 5) - hash + source.charCodeAt(index)) | 0;
+  }
+  const hue = Math.abs(hash) % 360;
+  return `hsl(${hue} 72% 58%)`;
+}
+
+function toVector3(value, fallback) {
+  if (Array.isArray(value) && value.length === 3) {
+    const numbers = value.map((item) => Number(item));
+    if (numbers.every((item) => Number.isFinite(item))) return numbers;
+  }
+  return fallback;
+}
+
+function getRuntimeNodes(runtimeScene, predicate) {
+  const nodes = runtimeScene?.graph?.toJSON?.()?.nodes;
+  if (!Array.isArray(nodes)) return [];
+  return nodes.filter((node) => predicate(node));
+}
+
+function materializeRenderObjects(runtimeScene, fallbackObjects = []) {
+  const objectNodes = getRuntimeNodes(runtimeScene, (node) => {
+    const sourceKey = String(node?.metadata?.sourceKey || '').toLowerCase();
+    const kind = String(node?.kind || '').toLowerCase();
+    return sourceKey === 'objects' || kind === 'object';
+  });
+
+  if (!objectNodes.length) return fallbackObjects;
+
+  return objectNodes.map((node, index) => {
+    const raw = node?.properties || {};
+    const metadata = raw?.metadata && typeof raw.metadata === 'object' ? raw.metadata : {};
+    const details = raw?.properties && typeof raw.properties === 'object' ? raw.properties : {};
+    const fallbackLabel = `Object ${index + 1}`;
+    const label = raw.name || raw.label || fallbackLabel;
+    const category = raw.type || metadata.category || node.kind || 'dynamic';
+    return {
+      id: node.id,
+      label,
+      category,
+      asset: metadata.asset || raw.asset || 'concept-node',
+      color: details.color || colorFromSeed(category),
+      position: toVector3(raw.position, [index * 1.2, 0, 0]),
+      size: toVector3(raw.scale || raw.size, [0.95, 0.95, 0.95]),
+      facts: Array.isArray(details.facts) && details.facts.length
+        ? details.facts
+        : [`${label} is a dynamic scene concept.`]
+    };
+  });
+}
+
+function materializeLabels(runtimeScene, renderObjects = []) {
+  const objectById = new Map(renderObjects.map((item) => [item.id, item]));
+  const labelNodes = getRuntimeNodes(runtimeScene, (node) => String(node?.metadata?.sourceKey || '').toLowerCase() === 'labels');
+  if (!labelNodes.length) {
+    return renderObjects.map((item) => ({ id: item.id, text: item.label, position: item.position }));
+  }
+
+  return labelNodes.map((node, index) => {
+    const raw = node?.properties || {};
+    const target = objectById.get(raw.targetObjectId);
+    return {
+      id: node.id,
+      text: raw.text || target?.label || `Label ${index + 1}`,
+      position: target?.position || [0, 0, 0]
+    };
+  });
+}
+
+function materializeHotspots(runtimeScene, renderObjects = []) {
+  const objectById = new Map(renderObjects.map((item) => [item.id, item]));
+  const interactionNodes = getRuntimeNodes(runtimeScene, (node) => String(node?.metadata?.sourceKey || '').toLowerCase() === 'interactions');
+  if (!interactionNodes.length) {
+    return renderObjects.map((item, index) => ({
+      id: `hotspot-${index + 1}`,
+      label: item.label,
+      details: item.facts,
+      position: item.position
+    }));
+  }
+
+  return interactionNodes.map((node, index) => {
+    const raw = node?.properties || {};
+    const target = objectById.get(raw.targetObjectId);
+    return {
+      id: node.id,
+      label: raw.label || target?.label || `Hotspot ${index + 1}`,
+      details: Array.isArray(raw.details) && raw.details.length ? raw.details : (target?.facts || []),
+      position: target?.position || [0, 0, 0]
+    };
+  });
+}
+
+function materializeTimeline(runtimeScene, fallbackTimeline = []) {
+  const timelineNodes = getRuntimeNodes(runtimeScene, (node) => String(node?.metadata?.sourceKey || '').toLowerCase() === 'timeline');
+  if (!timelineNodes.length) return fallbackTimeline;
+
+  return timelineNodes.map((node, index) => {
+    const raw = node?.properties || {};
+    return {
+      id: node.id,
+      title: raw.title || `Step ${index + 1}`,
+      cameraMode: raw?.camera?.movement?.mode || 'orbit',
+      durationMs: Number(raw.duration || 0),
+      replay: true
+    };
+  });
+}
+
 export function classifyUniversalSubject(content = '', sourceType = 'typed-topic') {
   const normalizedContent = String(content || '').trim();
   const manager = createAssetManager();
@@ -281,6 +394,9 @@ export function buildSceneFromBlueprint(blueprint) {
     fallbackSubject: blueprint?.domain || 'General Learning'
   });
   const runtimeScene = loadScene(processedScene);
+  const renderObjects = materializeRenderObjects(runtimeScene, objects);
+  const renderLabels = materializeLabels(runtimeScene, renderObjects);
+  const renderHotspots = materializeHotspots(runtimeScene, renderObjects);
 
   return {
     ...processedScene,
@@ -290,9 +406,9 @@ export function buildSceneFromBlueprint(blueprint) {
     category: blueprint?.domain || 'Custom',
     supports3D: true,
     fallbackType: '3d',
-    objects,
-    labels: objects.map((item) => item.label),
-    hotspots: objects.map((item) => ({ label: item.label, category: item.category, details: item.facts })),
+    objects: renderObjects,
+    labels: renderLabels.map((item) => item.text),
+    hotspots: renderHotspots,
     summary,
     assetPlan,
     reusableAssets: assetPlan.map((item) => item.assetId).filter(Boolean),
@@ -390,13 +506,12 @@ export function buildAuto3DSceneForLesson(content = '', sourceType = 'typed-topi
     size: object.size,
     color: object.color
   }));
-
   const labels = models.map((model) => ({ id: model.id, text: model.label, position: model.position }));
   const hotspots = scene.hotspots.map((hotspot, index) => ({
-    id: `hotspot-${index + 1}`,
+    id: hotspot.id || `hotspot-${index + 1}`,
     label: hotspot.label,
     details: hotspot.details,
-    position: models[index]?.position || [0, 0, 0]
+    position: models[index]?.position || hotspot.position || [0, 0, 0]
   }));
   const measurements = models.map((model, index) => ({
     id: `measurement-${index + 1}`,
@@ -445,6 +560,10 @@ export function buildAuto3DSceneForLesson(content = '', sourceType = 'typed-topi
     fallbackSubject: scene.domain || 'General Learning'
   });
   const runtimeScene = loadScene(processedScene);
+  const runtimeObjects = materializeRenderObjects(runtimeScene, scene.objects);
+  const runtimeLabels = materializeLabels(runtimeScene, runtimeObjects);
+  const runtimeHotspots = materializeHotspots(runtimeScene, runtimeObjects);
+  const runtimeTimeline = materializeTimeline(runtimeScene, timeline);
 
   return {
     ...processedScene,
@@ -456,14 +575,14 @@ export function buildAuto3DSceneForLesson(content = '', sourceType = 'typed-topi
     subDomain: scene.subDomain,
     classification: scene.classification,
     models,
-    labels,
+    labels: runtimeLabels,
     animations: animationPlan,
-    hotspots,
+    hotspots: runtimeHotspots,
     measurements,
     crossSections,
     xRay,
     explodedView,
-    timeline,
+    timeline: runtimeTimeline,
     replay: true,
     autoAnimationState,
     summary: scene.summary,
