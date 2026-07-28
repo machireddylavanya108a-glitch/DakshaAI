@@ -1,6 +1,7 @@
 import { createRoot } from 'react-dom/client'
 import App from './App.jsx'
 import './styles/globals.css'
+import { installProductionOptimizations } from './utils/productionOptimizations.js'
 
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', async () => {
@@ -13,6 +14,8 @@ if ('serviceWorker' in navigator) {
     await Promise.all(registrations.map((registration) => registration.unregister()));
   });
 }
+
+installProductionOptimizations();
 
 createRoot(document.getElementById('root')).render(
   <App />,

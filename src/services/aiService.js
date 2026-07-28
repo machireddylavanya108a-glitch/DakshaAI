@@ -1,6 +1,7 @@
 import OpenAI from 'openai';
-import { compressImageDataUrl, getCachedValue, setCachedValue } from '../utils/cache.js';
+import { compressImageDataUrl, getCachedValue, setCachedValue, getIndexedDBItem, setIndexedDBItem } from '../utils/cache.js';
 import { sanitizePrompt, rateLimiter } from '../utils/security.js';
+import { splitTextIntoChunks, TaskQueue, withRetry } from '../utils/productionOptimizations.js';
 
 const runtimeEnv = typeof import.meta !== 'undefined' && import.meta.env ? import.meta.env : {};
 const openaiApiKey = runtimeEnv.VITE_OPENROUTER_API_KEY || '';
@@ -12,6 +13,8 @@ const openai = openaiApiKey
       dangerouslyAllowBrowser: true
     })
   : null;
+
+const aiTaskQueue = new TaskQueue({ concurrency: 2, retries: 2, retryDelay: 250 });
 
 function hasAiCredentials() {
   return Boolean(openaiApiKey);
@@ -61,6 +64,21 @@ function getCacheKey(prefix, payload) {
   return `${prefix}:${String(payload || '').slice(0, 180)}`;
 }
 
+async function readCachedResponse(cacheKey, ttl = 1000 * 60 * 10) {
+  const memoryHit = getCachedValue(cacheKey, ttl);
+  if (memoryHit) return memoryHit;
+  const indexedHit = await getIndexedDBItem('ai-responses', cacheKey);
+  if (indexedHit) {
+    setCachedValue(cacheKey, indexedHit, ttl);
+  }
+  return indexedHit;
+}
+
+async function writeCachedResponse(cacheKey, value, ttl = 1000 * 60 * 10) {
+  setCachedValue(cacheKey, value, ttl);
+  await setIndexedDBItem('ai-responses', cacheKey, value);
+}
+
 async function callProtectedModel(request, { retries = 2, timeoutMs = 20000 } = {}) {
   const rate = rateLimiter('ai-request', 20, 60_000);
   if (!rate.allowed) {
@@ -85,24 +103,36 @@ async function callProtectedModel(request, { retries = 2, timeoutMs = 20000 } = 
 
 export async function getDakshaResponse(prompt, language = "English") {
   const cacheKey = getCacheKey(`ai-response:${language}`, prompt);
-  const cached = getCachedValue(cacheKey, 1000 * 60 * 10);
+  const cached = await readCachedResponse(cacheKey, 1000 * 60 * 10);
   if (cached) return cached;
   if (!hasAiCredentials()) return getMissingAuthMessage();
+
+  const safePrompt = sanitizePrompt(prompt);
+  const safeInput = optimizeTextPayload(safePrompt, 12000);
+  if (safeInput.length > 12000) {
+    const chunks = splitTextIntoChunks(safeInput, 6000);
+    const chunkResults = await Promise.all(chunks.map((chunk) => aiTaskQueue.enqueue(() => callProtectedModel(() => openai.chat.completions.create({
+      model: 'deepseek/deepseek-v3:free',
+      messages: [
+        { role: 'system', content: `${DAKSHA_SYSTEM_PROMPT} You MUST respond entirely in ${language}.` },
+        { role: 'user', content: chunk }
+      ]
+    })))));
+    const content = chunkResults.map((item) => item?.choices?.[0]?.message?.content || '').join('\n\n');
+    await writeCachedResponse(cacheKey, content, 1000 * 60 * 10);
+    return content;
+  }
+
   try {
-    const safePrompt = sanitizePrompt(prompt);
-    const safeInput = optimizeTextPayload(safePrompt, 12000);
-    if (safeInput.length > 12000) {
-      throw new Error('Input exceeds the supported request size.');
-    }
-    const response = await callProtectedModel(() => openai.chat.completions.create({
+    const response = await withRetry(() => aiTaskQueue.enqueue(() => callProtectedModel(() => openai.chat.completions.create({
       model: 'deepseek/deepseek-v3:free',
       messages: [
         { role: 'system', content: `${DAKSHA_SYSTEM_PROMPT} You MUST respond entirely in ${language}.` },
         { role: 'user', content: safeInput }
       ]
-    }));
+    }))), { retries: 2, delay: 250 });
     const content = response.choices[0].message.content;
-    setCachedValue(cacheKey, content, 1000 * 60 * 10);
+    await writeCachedResponse(cacheKey, content, 1000 * 60 * 10);
     return content;
   } catch (error) {
     console.error("AI Error:", error);

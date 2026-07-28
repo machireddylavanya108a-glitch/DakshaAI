@@ -1,5 +1,6 @@
-const CACHE_NAME = 'daksha-ai-v2';
-const APP_SHELL = ['/', '/index.html', '/favicon.svg'];
+const CACHE_NAME = 'daksha-ai-v3';
+const APP_SHELL = ['/', '/index.html', '/favicon.svg', '/manifest.webmanifest'];
+const CDN_ASSETS = ['https://www.gstatic.com/firebasejs/ui/2.0.0/firebase-ui.css'];
 
 function isRangeRequest(request) {
   return request.headers.has('range') || request.headers.has('Range');
@@ -62,6 +63,7 @@ self.addEventListener('install', (event) => {
     try {
       const cache = await caches.open(CACHE_NAME);
       await cache.addAll(APP_SHELL);
+      await Promise.allSettled(CDN_ASSETS.map((asset) => cache.add(asset)));
     } catch (error) {
       console.error('Service worker install cache error:', error);
     }

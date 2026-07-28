@@ -10,6 +10,7 @@ import LearningInterviewModal from '../components/common/LearningInterviewModal'
 import PersonalizedLearningDashboard from '../components/common/PersonalizedLearningDashboard';
 import { buildPersonalizedLearningPlan } from '../utils/personalizedLearningEngine';
 import { buildSkillAcademyMentorPlan } from '../utils/skillAcademyMentorEngine';
+import { buildKnowledgeGraph } from '../utils/knowledgeGraphEngine';
 
 const skillCards = [
   { icon: Code, title: 'Python', description: 'Build automation, web apps, AI tools, and data workflows.' },
@@ -80,6 +81,14 @@ export default function Academy() {
           learnTopic: interviewAnswers?.learnTopic || topic
         }
       });
+      const knowledgeGraph = buildKnowledgeGraph({
+        topic,
+        prereqs: mentorPlan.mentor?.roadmap?.slice(0, 3) || [],
+        relatedTopics: mentorPlan.mentor?.projects?.slice(0, 3) || [],
+        advancedTopics: mentorPlan.mentor?.careerRoadmap?.slice(0, 3) || [],
+        similarTopics: mentorPlan.mentor?.freelancingRoadmap?.slice(0, 3) || [],
+        revisions: mentorPlan.mentor?.portfolio?.slice(0, 3) || []
+      });
       const plan = {
         ...personalized,
         mentor: mentorPlan.mentor,
@@ -90,7 +99,8 @@ export default function Academy() {
           language: mentorPlan.language,
           speed: mentorPlan.speed,
           interviewSummary: mentorPlan.mentor.interviewSummary
-        }
+        },
+        knowledgeGraph
       };
       setLearningPlan(plan);
       if (user) {
@@ -240,6 +250,21 @@ export default function Academy() {
             </div>
 
             <div className="grid gap-6 xl:grid-cols-2">
+              <div className="rounded-[2rem] border border-white/10 bg-slate-900/80 p-6 shadow-2xl shadow-slate-950/40">
+                <p className="text-xs uppercase tracking-[0.3em] text-cyan-300">Knowledge Graph Explorer</p>
+                <div className="mt-4 space-y-3 text-sm text-slate-300">
+                  <p><span className="text-cyan-200">Concept Graph:</span> {learningPlan?.knowledgeGraph?.conceptGraph?.join(' → ')}</p>
+                  <p><span className="text-cyan-200">Skill Graph:</span> {learningPlan?.knowledgeGraph?.skillGraph?.join(' → ')}</p>
+                  <p><span className="text-cyan-200">Relationship Graph:</span> {learningPlan?.knowledgeGraph?.relationshipGraph?.map((item) => `${item.from} → ${item.to} (${item.relation})`).join(' | ')}</p>
+                  <p><span className="text-cyan-200">Prerequisites:</span> {learningPlan?.knowledgeGraph?.prerequisites?.join(', ')}</p>
+                  <p><span className="text-cyan-200">Next Concepts:</span> {learningPlan?.knowledgeGraph?.nextConcepts?.join(', ')}</p>
+                  <p><span className="text-cyan-200">Similar Topics:</span> {learningPlan?.knowledgeGraph?.similarTopics?.join(', ')}</p>
+                  <p><span className="text-cyan-200">Advanced Topics:</span> {learningPlan?.knowledgeGraph?.advancedTopics?.join(', ')}</p>
+                  <p><span className="text-cyan-200">Revision Graph:</span> {learningPlan?.knowledgeGraph?.revisionGraph?.join(', ')}</p>
+                  <p><span className="text-cyan-200">Learning Tree:</span> {learningPlan?.knowledgeGraph?.learningTree?.join(' → ')}</p>
+                  <p><span className="text-cyan-200">Dependency Graph:</span> {learningPlan?.knowledgeGraph?.dependencyGraph?.map((item) => `${item.from} → ${item.to}`).join(' | ')}</p>
+                </div>
+              </div>
               <div className="rounded-[2rem] border border-white/10 bg-slate-900/80 p-6 shadow-2xl shadow-slate-950/40">
                 <p className="text-xs uppercase tracking-[0.3em] text-cyan-300">AI Teacher Plan</p>
                 <p className="mt-3 text-sm text-slate-300">{learningPlan?.mentor?.aiTeacherPlan}</p>

@@ -1,4 +1,4 @@
-import { Suspense, lazy, useEffect, useMemo, useState } from 'react';
+import { Suspense, lazy, useDeferredValue, useEffect, useMemo, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { Search, Sparkles, BookOpen, Layers3, BrainCircuit, Target, Focus, PlayCircle, Film, Camera, Monitor, Save } from 'lucide-react';
@@ -12,6 +12,7 @@ import {
 } from '../services/firestoreService';
 import { buildSceneBlueprint, buildSceneFromBlueprint } from '../utils/aiSceneEngine.js';
 import { buildAnimationPlan, buildAutoAnimationState } from '../utils/aiAnimationEngine.js';
+import { withRetry } from '../utils/productionOptimizations.js';
 
 const SceneLoader = lazy(() => import('../components/3d/SceneLoader'));
 const SceneViewer = lazy(() => import('../components/3d/SceneViewer'));
@@ -135,6 +136,7 @@ export default function Learning3D() {
     }
     return direct;
   }, [topic, sourceContent, sourceType, sourcePayload]);
+  const deferredContent = useDeferredValue(effectiveContent);
 
   const sceneSteps = scenePlan?.timeline || [];
   const currentStep = sceneSteps[activeStepIndex] || null;
@@ -147,10 +149,10 @@ export default function Learning3D() {
   }, []);
 
   useEffect(() => {
-    const blueprint = buildSceneBlueprint(effectiveContent, sourceType);
+    const blueprint = buildSceneBlueprint(deferredContent, sourceType);
     const dynamicScene = buildSceneFromBlueprint(blueprint);
-    const autoAnimationState = buildAutoAnimationState(effectiveContent, { sceneEffects });
-    const nextAnimationPlan = buildAnimationPlan(effectiveContent, sceneSteps.length ? sceneSteps : blueprint.entities.map((entity, index) => ({ id: `auto-${index + 1}`, title: `Explore ${entity.name}`, target: entity.name })));
+    const autoAnimationState = buildAutoAnimationState(deferredContent, { sceneEffects });
+    const nextAnimationPlan = buildAnimationPlan(deferredContent, sceneSteps.length ? sceneSteps : blueprint.entities.map((entity, index) => ({ id: `auto-${index + 1}`, title: `Explore ${entity.name}`, target: entity.name })));
     setSceneData((current) => current ? { ...current, ...dynamicScene, summary: dynamicScene.summary } : dynamicScene);
     setScenePlan((current) => current ? { ...current, subject: blueprint.domain, summary: blueprint.summary, assetPlan: blueprint.assetPlan } : {
       sceneTitle: blueprint.sceneTitle,
@@ -178,7 +180,7 @@ export default function Learning3D() {
     setShowLabels(autoAnimationState.showAnimatedLabels);
     setTransparency(autoAnimationState.transparency);
     setSceneStatus(`Scene engine ready for ${blueprint.domain}`);
-  }, [effectiveContent, sourceType]);
+  }, [deferredContent, sourceType]);
 
   useEffect(() => {
     if (!user?.uid) return;
@@ -287,14 +289,14 @@ export default function Learning3D() {
     setLearnerAnswer(answer);
 
     if (user?.uid) {
-      await saveSceneHistory(user.uid, {
+      await withRetry(() => saveSceneHistory(user.uid, {
         sceneId,
         type: 'learner-question',
         question,
         answer,
         stepIndex: activeStepIndex,
         target: selectedPart || ''
-      });
+      }), { retries: 2, delay: 200 });
     }
   };
 
@@ -307,18 +309,18 @@ export default function Learning3D() {
       topic,
       stepTitle: sceneSteps[bookmark.stepIndex]?.title || `Step ${bookmark.stepIndex + 1}`
     };
-    await saveUserBookmark(user.uid, payload);
+    await withRetry(() => saveUserBookmark(user.uid, payload), { retries: 2, delay: 200 });
     setBookmarks((value) => [payload, ...value].slice(0, 8));
   };
 
   const handleHistory = async (entry) => {
     if (!user?.uid) return;
-    await saveSceneHistory(user.uid, {
+    await withRetry(() => saveSceneHistory(user.uid, {
       ...entry,
       sceneId: sceneId || 'scene',
       lessonMode,
       topic
-    });
+    }), { retries: 2, delay: 200 });
   };
 
   const handleJumpToBookmark = (bookmark) => {
@@ -331,13 +333,13 @@ export default function Learning3D() {
   const handleStudioScreenshot = async () => {
     const screenshot = captureCanvasScreenshot();
     if (!screenshot || !user?.uid) return;
-    await saveSceneHistory(user.uid, {
+    await withRetry(() => saveSceneHistory(user.uid, {
       sceneId: sceneId || 'scene',
       type: 'scene-screenshot',
       screenshot,
       stepIndex: activeStepIndex,
       target: selectedPart || ''
-    });
+    }), { retries: 2, delay: 200 });
   };
 
   const handleExportSceneNotes = async () => {

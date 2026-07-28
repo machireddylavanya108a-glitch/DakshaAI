@@ -14,7 +14,8 @@ export default defineConfig({
     target: 'es2022',
     cssCodeSplit: true,
     sourcemap: false,
-    chunkSizeWarningLimit: 1000,
+    chunkSizeWarningLimit: 1200,
+    reportCompressedSize: true,
     rollupOptions: {
       output: {
         manualChunks(id) {
@@ -29,6 +30,9 @@ export default defineConfig({
           }
           if (id.includes('openai')) {
             return 'ai-core';
+          }
+          if (id.includes('react-router') || id.includes('react-router-dom')) {
+            return 'router';
           }
           if (id.includes('node_modules')) {
             return 'vendor';

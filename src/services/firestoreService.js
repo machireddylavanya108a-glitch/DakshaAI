@@ -498,6 +498,11 @@ export async function savePersonalizedLearningPlan(userId, learningPlan, source 
         startupBusinessOpportunities: learningPlan?.plan?.startupBusinessOpportunities || [],
         careerPaths: learningPlan?.plan?.careerPaths || [],
         salaryInformation: learningPlan?.plan?.salaryInformation || ''
+      }, { merge: true }),
+      setDoc(doc(db, 'knowledgeGraphs', planId), {
+        ...base,
+        knowledgeGraph: learningPlan?.knowledgeGraph || {},
+        mentorProfile: learningPlan?.mentorProfile || {}
       }, { merge: true })
     ]);
 
