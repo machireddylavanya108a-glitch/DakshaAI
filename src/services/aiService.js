@@ -3,15 +3,20 @@ import { compressImageDataUrl, getCachedValue, setCachedValue, getIndexedDBItem,
 import { sanitizePrompt } from '../utils/security.js';
 import { splitTextIntoChunks, TaskQueue, withRetry } from '../utils/productionOptimizations.js';
 import { getConfiguredTextModels, getConfiguredVisionModels } from '../config/aiModels.js';
+import { AI_CONFIG, reportAiConfigWarnings } from '../config/aiConfig.js';
 
 const runtimeEnv = typeof import.meta !== 'undefined' && import.meta.env ? import.meta.env : {};
-const openaiApiKey = runtimeEnv.VITE_OPENROUTER_API_KEY || '';
+const openaiApiKey = AI_CONFIG.apiKey;
 const appOrigin = typeof window !== 'undefined' && window.location?.origin ? window.location.origin : (runtimeEnv.VITE_APP_URL || 'https://daksha.ai');
+
+if (!openaiApiKey) {
+  reportAiConfigWarnings(console);
+}
 
 const openai = openaiApiKey
   ? new OpenAI({
       apiKey: openaiApiKey,
-      baseURL: 'https://openrouter.ai/api/v1',
+      baseURL: AI_CONFIG.baseUrl,
       dangerouslyAllowBrowser: true,
       defaultHeaders: {
         Authorization: `Bearer ${openaiApiKey}`,
@@ -688,12 +693,13 @@ Important concepts: ${JSON.stringify(videoModel?.importantConcepts || [])}
 Code snippets: ${JSON.stringify(videoModel?.codeSnippets || [])}
 Formulas: ${JSON.stringify(videoModel?.formulas || [])}`;
 
-    const response = await openai.chat.completions.create({
-      model: 'deepseek/deepseek-v3:free',
+    const { response } = await callModelWithFallback({
+      requestType: 'text',
       messages: [
         { role: 'system', content: `${DAKSHA_SYSTEM_PROMPT} You MUST return only valid JSON for YouTube learning generation.` },
         { role: 'user', content: prompt }
-      ]
+      ],
+      models: getConfiguredTextModels()
     });
 
     const content = response.choices[0].message.content;
@@ -803,12 +809,13 @@ Image name: ${imageName}
 User id: ${userId}
 Extracted OCR text: ${extractedText}`;
 
-    const response = await openai.chat.completions.create({
-      model: 'deepseek/deepseek-v3:free',
+    const { response } = await callModelWithFallback({
+      requestType: 'text',
       messages: [
         { role: 'system', content: `${DAKSHA_SYSTEM_PROMPT} You MUST return only valid JSON for camera OCR learning.` },
         { role: 'user', content: prompt }
-      ]
+      ],
+      models: getConfiguredTextModels()
     });
 
     const content = response.choices[0].message.content;
@@ -961,12 +968,13 @@ Images: ${JSON.stringify(websiteModel?.images || [])}
 Formulas: ${JSON.stringify(websiteModel?.formulas || [])}
 Concepts: ${JSON.stringify(websiteModel?.concepts || [])}`;
 
-    const response = await openai.chat.completions.create({
-      model: 'deepseek/deepseek-v3:free',
+    const { response } = await callModelWithFallback({
+      requestType: 'text',
       messages: [
         { role: 'system', content: `${DAKSHA_SYSTEM_PROMPT} You MUST return only valid JSON for website learning generation.` },
         { role: 'user', content: prompt }
-      ]
+      ],
+      models: getConfiguredTextModels()
     });
 
     const content = response.choices[0].message.content;
@@ -1060,12 +1068,13 @@ Formulas: ${JSON.stringify(docxModel?.formulas || [])}
 Highlights: ${JSON.stringify(docxModel?.highlights || [])}
 Extracted text: ${docxModel?.extractedText || ''}`;
 
-    const response = await openai.chat.completions.create({
-      model: 'deepseek/deepseek-v3:free',
+    const { response } = await callModelWithFallback({
+      requestType: 'text',
       messages: [
         { role: 'system', content: `${DAKSHA_SYSTEM_PROMPT} You MUST return only valid JSON for DOCX learning generation.` },
         { role: 'user', content: prompt }
-      ]
+      ],
+      models: getConfiguredTextModels()
     });
 
     const content = response.choices[0].message.content;
@@ -1167,8 +1176,8 @@ export async function generateSkillRoadmap(skill, learningProfile = null) {
     : '';
 
   try {
-    const response = await openai.chat.completions.create({
-      model: 'deepseek/deepseek-v3:free',
+    const { response } = await callModelWithFallback({
+      requestType: 'text',
       messages: [
         { role: 'system', content: `${DAKSHA_SYSTEM_PROMPT} You MUST return only valid JSON for a professional skill roadmap.` },
         { role: 'user', content: `Create a professional skill roadmap for: ${skill}.${learnerContext}\nReturn ONLY valid JSON with this exact structure:
@@ -1197,7 +1206,8 @@ export async function generateSkillRoadmap(skill, learningProfile = null) {
   "salaryInformation": "<salary summary>",
   "finalChecklist": ["<check item 1>", "<check item 2>"]
 }` }
-      ]
+      ],
+      models: getConfiguredTextModels()
     });
 
     const content = response.choices[0].message.content;
@@ -1239,8 +1249,8 @@ export async function generateSkillRoadmap(skill, learningProfile = null) {
 
 export async function generateQuizEngine(topic, difficulty = 'Medium', questionCount = 10) {
   try {
-    const response = await openai.chat.completions.create({
-      model: 'deepseek/deepseek-v3:free',
+    const { response } = await callModelWithFallback({
+      requestType: 'text',
       messages: [
         { role: 'system', content: `${DAKSHA_SYSTEM_PROMPT} You MUST return only valid JSON for a professional quiz generator.` },
         { role: 'user', content: `Create a professional quiz about: ${topic}. Use the difficulty level: ${difficulty}. Create exactly ${questionCount} questions. Return ONLY valid JSON with this exact structure:
@@ -1264,7 +1274,8 @@ Rules:
 - For fill-in-the-blank, short-answer, or match-the-following, options can be empty arrays.
 - Keep the answer and explanation clear and educational.
 - Do not include markdown or extra text.` }
-      ]
+      ],
+      models: getConfiguredTextModels()
     });
 
     const content = response.choices[0].message.content;
@@ -1298,8 +1309,8 @@ Rules:
 
 export async function generateFlashcards(topic, difficulty = 'Mixed') {
   try {
-    const response = await openai.chat.completions.create({
-      model: 'deepseek/deepseek-v3:free',
+    const { response } = await callModelWithFallback({
+      requestType: 'text',
       messages: [
         { role: 'system', content: `${DAKSHA_SYSTEM_PROMPT} You MUST return only valid JSON for a professional flashcard deck.` },
         { role: 'user', content: `Create a professional flashcard deck for: ${topic}. Difficulty: ${difficulty}. Return ONLY valid JSON with this exact structure:
@@ -1319,7 +1330,8 @@ Rules:
 - Create 8-12 flashcards.
 - Make the cards clear, educational, and useful for revision.
 - Do not include markdown or extra text.` }
-      ]
+      ],
+      models: getConfiguredTextModels()
     });
 
     const content = response.choices[0].message.content;
@@ -1352,12 +1364,13 @@ Rules:
 
 export async function getLearningPath(skill) {
   try {
-    const response = await openai.chat.completions.create({
-      model: 'deepseek/deepseek-v3:free',
+    const { response } = await callModelWithFallback({
+      requestType: 'text',
       messages: [
         { role: 'system', content: DAKSHA_SYSTEM_PROMPT },
         { role: 'user', content: `Create a structured learning roadmap for someone who wants to learn ${skill}. Break it down into 5 distinct modules from beginner to advanced. For each module, provide a clear title and a brief 1-2 sentence description of what will be learned. Format the output cleanly in Markdown.` }
-      ]
+      ],
+      models: getConfiguredTextModels()
     });
     return response.choices[0].message.content;
   } catch (error) {
@@ -1368,8 +1381,8 @@ export async function getLearningPath(skill) {
 
 export async function generateTeacherLesson(topic) {
   try {
-    const response = await openai.chat.completions.create({
-      model: 'deepseek/deepseek-v3:free',
+    const { response } = await callModelWithFallback({
+      requestType: 'text',
       messages: [
         { role: 'system', content: `${DAKSHA_SYSTEM_PROMPT} You MUST return only valid JSON for a teacher lesson.` },
         { role: 'user', content: `Create a polished teacher-style lesson for the topic: ${topic}. Return only valid JSON with this exact structure:
@@ -1384,7 +1397,8 @@ export async function generateTeacherLesson(topic) {
   "summary": "<short summary>",
   "difficulty": "Beginner|Intermediate|Advanced"
 }` }
-      ]
+      ],
+      models: getConfiguredTextModels()
     });
 
     const content = response.choices[0].message.content;
@@ -1412,12 +1426,13 @@ export async function generateTeacherLesson(topic) {
 
 export async function get3DPartExplanation(partName) {
   try {
-    const response = await openai.chat.completions.create({
-      model: 'deepseek/deepseek-v3:free',
+    const { response } = await callModelWithFallback({
+      requestType: 'text',
       messages: [
         { role: 'system', content: DAKSHA_SYSTEM_PROMPT },
         { role: 'user', content: `The user is viewing a 3D model of the Solar System and just clicked on: ${partName}. Give a brief, engaging, 2-3 sentence explanation of what ${partName} is.` }
-      ]
+      ],
+      models: getConfiguredTextModels()
     });
     return response.choices[0].message.content;
   } catch (error) {

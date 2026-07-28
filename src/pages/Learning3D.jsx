@@ -13,6 +13,8 @@ import {
 import { buildSceneBlueprint, buildSceneFromBlueprint } from '../utils/aiSceneEngine.js';
 import { buildAnimationPlan, buildAutoAnimationState } from '../utils/aiAnimationEngine.js';
 import { withRetry } from '../utils/productionOptimizations.js';
+import ThreeErrorBoundary from '../components/three/ThreeErrorBoundary';
+import { getNextVisualizationMode, resolveVisualizationMode } from '../utils/threeRuntimeSafety.js';
 
 const SceneLoader = lazy(() => import('../components/3d/SceneLoader'));
 const SceneViewer = lazy(() => import('../components/3d/SceneViewer'));
@@ -129,6 +131,7 @@ export default function Learning3D() {
   const [bookmarks, setBookmarks] = useState([]);
   const [sceneCameraPosition, setSceneCameraPosition] = useState([0, 0, 0]);
   const [animationPlan, setAnimationPlan] = useState([]);
+  const [visualizationMode, setVisualizationMode] = useState('interactive-3d');
 
   useEffect(() => {
     const params = new URLSearchParams(location.search || '');
@@ -272,6 +275,21 @@ export default function Learning3D() {
     setHighlightMode('glow');
     setSceneEffects([]);
     setPausedByLearner(false);
+    setVisualizationMode('interactive-3d');
+  };
+
+  const handle3DFallback = (requestedMode = '') => {
+    const nextMode = resolveVisualizationMode({
+      supports3D: false,
+      fallbackType: requestedMode === 'interactive-2d' ? 'diagram' : '',
+      hasWhiteboard: true,
+      hasConceptMap: true
+    });
+    setVisualizationMode(nextMode);
+  };
+
+  const moveToNextFallback = () => {
+    setVisualizationMode((mode) => getNextVisualizationMode(mode));
   };
 
   const loadAITeacherLesson = () => {
@@ -588,32 +606,53 @@ export default function Learning3D() {
                 AI animation plan: {animationPlan.slice(0, 3).map((item) => `${item.cameraMode}:${item.pointerMode}`).join(' • ')}
               </div>
                   <div className="h-[420px] overflow-hidden rounded-[2rem] border border-white/10 bg-slate-950/70 shadow-2xl shadow-slate-950/40">
-                    <Suspense fallback={<div className="grid h-full place-items-center text-sm text-slate-400">Loading 3D viewer...</div>}>
-                      <SceneViewer
-                        scene={sceneData}
-                        selectedPart={selectedPart}
-                        onSelectPart={setSelectedPart}
-                        onHotspot={onObjectSelected}
-                        autoRotate={!animationPaused && autoRotate}
-                        exploded={explodeView}
-                        crossSection={crossSection}
-                        xRay={xRay}
-                        showLabels={showLabels}
-                        hideInactive={hideInactive}
-                        measurementMode={measurementMode}
-                        motionSpeed={motionSpeed}
-                        cameraMode={cameraMode}
-                        highlightMode={highlightMode}
-                        environmentPreset={environmentPreset}
-                        sceneEffects={sceneEffects}
-                        transparency={transparency}
-                        activeTimelineStep={currentStep}
-                        showDynamicLabels={showLabels}
-                        lodLevel={lodLevel}
-                        performanceProfile={performanceProfile}
-                        onCameraStateChange={setSceneCameraPosition}
-                      />
-                    </Suspense>
+                    {visualizationMode === 'interactive-3d' ? (
+                      <Suspense fallback={<div className="grid h-full place-items-center text-sm text-slate-400">Loading 3D viewer...</div>}>
+                        <ThreeErrorBoundary onFallbackMode={handle3DFallback}>
+                          <SceneViewer
+                            scene={sceneData}
+                            selectedPart={selectedPart}
+                            onSelectPart={setSelectedPart}
+                            onHotspot={onObjectSelected}
+                            autoRotate={!animationPaused && autoRotate}
+                            exploded={explodeView}
+                            crossSection={crossSection}
+                            xRay={xRay}
+                            showLabels={showLabels}
+                            hideInactive={hideInactive}
+                            measurementMode={measurementMode}
+                            motionSpeed={motionSpeed}
+                            cameraMode={cameraMode}
+                            highlightMode={highlightMode}
+                            environmentPreset={environmentPreset}
+                            sceneEffects={sceneEffects}
+                            transparency={transparency}
+                            activeTimelineStep={currentStep}
+                            showDynamicLabels={showLabels}
+                            lodLevel={lodLevel}
+                            performanceProfile={performanceProfile}
+                            onCameraStateChange={setSceneCameraPosition}
+                          />
+                        </ThreeErrorBoundary>
+                      </Suspense>
+                    ) : (
+                      <div className="grid h-full place-items-center p-4">
+                        <div className="w-full max-w-3xl rounded-2xl border border-cyan-500/20 bg-cyan-500/10 p-4 text-cyan-100">
+                          <p className="text-sm font-semibold">Visualization fallback mode: {visualizationMode}</p>
+                          <p className="mt-2 text-xs text-cyan-50">
+                            {visualizationMode === 'interactive-2d' ? '2D diagram mode is active for this lesson.' : ''}
+                            {visualizationMode === 'animated-whiteboard' ? 'Whiteboard mode is active with simplified animation flow.' : ''}
+                            {visualizationMode === 'static-concept-map' ? 'Concept map mode is active with structural topic links.' : ''}
+                            {visualizationMode === 'text-lesson' ? 'Text lesson mode is active with complete verbal guidance.' : ''}
+                          </p>
+                          <p className="mt-3 text-sm text-slate-100">{sceneData?.summary || `Lesson content for ${topic} is available while 3D is unavailable.`}</p>
+                          <div className="mt-4 flex flex-wrap gap-2">
+                            <button onClick={() => setVisualizationMode('interactive-3d')} className="rounded-lg border border-cyan-400/40 bg-cyan-500/20 px-3 py-2 text-xs text-white">Retry 3D</button>
+                            <button onClick={moveToNextFallback} className="rounded-lg border border-slate-600 bg-slate-900/80 px-3 py-2 text-xs text-slate-200">Next fallback mode</button>
+                          </div>
+                        </div>
+                      </div>
+                    )}
                   </div>
 
                   <SceneTimeline

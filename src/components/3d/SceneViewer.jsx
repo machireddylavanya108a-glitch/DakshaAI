@@ -1,9 +1,18 @@
 import { Canvas, useFrame } from '@react-three/fiber';
-import { OrbitControls, Environment, Html } from '@react-three/drei';
-import { useMemo, useRef, useState } from 'react';
+import { OrbitControls, Html } from '@react-three/drei';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { buildAutoFocusState } from './AutoFocus';
 import { getHighlightPreset } from './ObjectHighlighter';
+import { resolveEnvironmentAsset } from '../../config/threeAssets.js';
+import SafeEnvironment from '../three/SafeEnvironment';
+import WebGLContextManager from '../three/WebGLContextManager';
+import {
+  createWebGLLifecycleState,
+  getSafeCanvasProps,
+  reduceWebGLLifecycle,
+  shouldPauseForVisibility
+} from '../../utils/threeRuntimeSafety.js';
 
 function PrimitiveShape({ label, color, position }) {
   const geometry = useMemo(() => new THREE.BoxGeometry(1, 1, 1), []);
@@ -90,6 +99,7 @@ export default function SceneViewer({
   onCameraStateChange
 }) {
   const [hovered, setHovered] = useState(null);
+  const [lifecycleState, setLifecycleState] = useState(createWebGLLifecycleState);
   const objects = useMemo(() => scene?.objects || [], [scene]);
   const activeObject = objects.find((item) => item.label === selectedPart);
   const focusState = useMemo(() => buildAutoFocusState({ scene, selectedPart, cameraMode }), [scene, selectedPart, cameraMode]);
@@ -140,15 +150,43 @@ export default function SceneViewer({
   const forceXRay = xRay || cameraMode === 'xRayView';
   const derivedExploded = exploded || cameraMode === 'explodedView';
   const shouldRotate = cameraMode !== 'freeCamera' && !animationPausedByProfile(performanceProfile);
+  const shouldPause = lifecycleState.paused || lifecycleState.restoring;
+  const localEnvironmentHdr = useMemo(() => resolveEnvironmentAsset('studio'), []);
+
+  const handleContextLost = useCallback(() => {
+    setLifecycleState((state) => reduceWebGLLifecycle(state, { type: 'context-lost' }));
+  }, []);
+
+  const handleContextRestored = useCallback(() => {
+    setLifecycleState((state) => reduceWebGLLifecycle(state, { type: 'context-restored' }));
+  }, []);
+
+  const handleVisibilityPause = useCallback(() => {
+    if (!shouldPauseForVisibility(document.hidden)) return;
+    setLifecycleState((state) => reduceWebGLLifecycle(state, { type: 'pause' }));
+  }, []);
+
+  const handleVisibilityResume = useCallback(() => {
+    if (shouldPauseForVisibility(document.hidden)) return;
+    setLifecycleState((state) => reduceWebGLLifecycle(state, { type: 'resume' }));
+  }, []);
+
+  const canvasProps = useMemo(() => getSafeCanvasProps({ animated: !shouldPause }), [shouldPause]);
 
   return (
-    <Canvas shadows camera={{ position: cameraPosition, fov: 45 }}>
+    <Canvas {...canvasProps} shadows camera={{ ...canvasProps.camera, position: cameraPosition }}>
+      <WebGLContextManager
+        onContextLost={handleContextLost}
+        onContextRestored={handleContextRestored}
+        pauseForVisibility={handleVisibilityPause}
+        resumeForVisibility={handleVisibilityResume}
+      />
       <CameraStateReporter onCameraStateChange={onCameraStateChange} />
       <fog attach="fog" args={['#020617', sceneLighting.fogNear, sceneLighting.fogFar]} />
       <ambientLight intensity={sceneLighting.ambient} />
       <directionalLight position={[5, 8, 5]} intensity={sceneLighting.directional} castShadow />
       <pointLight position={[-4, 2, -4]} intensity={sceneLighting.point} />
-      <Environment preset="city" />
+      <SafeEnvironment localHdr={localEnvironmentHdr} enabled={!shouldPause} />
       <group>
         {viewObjects.map((object, index) => {
           const position = derivedExploded ? [object.position[0], object.position[1] + (index % 2 === 0 ? 0.6 : -0.4), object.position[2]] : object.position;
@@ -196,6 +234,11 @@ export default function SceneViewer({
       {showHeat ? (
         <Html center position={[0, 2.1, 0]}>
           <div className="rounded-full border border-amber-500/40 bg-amber-500/15 px-3 py-1 text-[11px] text-amber-100">Heat zone active</div>
+        </Html>
+      ) : null}
+      {lifecycleState.restoring ? (
+        <Html center position={[0, 2.8, 0]}>
+          <div className="rounded-full border border-amber-400/30 bg-amber-500/10 px-3 py-1 text-[11px] text-amber-100">WebGL context restoring...</div>
         </Html>
       ) : null}
       <OrbitControls enablePan enableZoom enableRotate autoRotate={autoRotate && shouldRotate} autoRotateSpeed={motionSpeed} target={focusState.lookAt || activeObject?.position || [0, 0, 0]} />

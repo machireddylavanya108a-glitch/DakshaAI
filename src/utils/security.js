@@ -166,8 +166,23 @@ export function rateLimiter(key, limit = 10, windowMs = 60_000) {
 }
 
 export function getSecurityHeaders() {
+  const strictCsp = [
+    "default-src 'self'",
+    "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://apis.google.com https://accounts.google.com https://www.gstatic.com",
+    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://www.gstatic.com",
+    "font-src 'self' data: https://fonts.gstatic.com",
+    "connect-src 'self' https://apis.google.com https://accounts.google.com https://www.gstatic.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://firestore.googleapis.com https://firebaseinstallations.googleapis.com https://www.googleapis.com https://*.googleapis.com https://*.firebaseio.com wss://*.firebaseio.com https://*.firebaseapp.com https://*.web.app https://*.googleusercontent.com https://lh3.googleusercontent.com https://openrouter.ai https://generativelanguage.googleapis.com https://speech.googleapis.com https://prod.spline.design",
+    "img-src 'self' data: blob: https://*.googleusercontent.com https://lh3.googleusercontent.com https://www.gstatic.com",
+    "frame-src 'self' https://accounts.google.com https://*.firebaseapp.com https://*.web.app",
+    "worker-src 'self' blob:",
+    "manifest-src 'self'",
+    "base-uri 'self'",
+    "frame-ancestors 'none'",
+    "object-src 'none'"
+  ].join('; ');
+
   return {
-    'Content-Security-Policy': "default-src 'self'; img-src 'self' data: blob: https://*.googleusercontent.com https://lh3.googleusercontent.com https://lh4.googleusercontent.com https://lh5.googleusercontent.com https:; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; connect-src 'self' https://*.googleusercontent.com https://lh3.googleusercontent.com https://lh4.googleusercontent.com https://lh5.googleusercontent.com https:; font-src 'self' https:; object-src 'none'; base-uri 'self'; frame-ancestors 'none';",
+    'Content-Security-Policy': strictCsp,
     'Referrer-Policy': 'strict-origin-when-cross-origin',
     'X-Content-Type-Options': 'nosniff',
     'X-Frame-Options': 'DENY',

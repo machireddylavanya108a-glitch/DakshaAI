@@ -3,6 +3,8 @@ import { CheckCircle2, Circle, Loader, Pause, Play, RotateCcw, ZoomIn, Hand } fr
 import SceneLoader from '../3d/SceneLoader';
 import SceneTimeline from '../3d/SceneTimeline';
 import { buildTeacherSynchronizationPlan } from '../../utils/teacherSynchronizationEngine.js';
+import ThreeErrorBoundary from '../three/ThreeErrorBoundary';
+import { getNextVisualizationMode, resolveVisualizationMode } from '../../utils/threeRuntimeSafety.js';
 
 const SceneViewer = lazy(() => import('../3d/SceneViewer'));
 
@@ -46,6 +48,7 @@ export default function Interactive3DLessonRuntime({
   const [isPlaying, setIsPlaying] = useState(true);
   const [autoRotate, setAutoRotate] = useState(true);
   const [showLabels, setShowLabels] = useState(true);
+  const [visualizationMode, setVisualizationMode] = useState('interactive-3d');
 
   const sceneSteps = Array.isArray(scenePlan?.timeline) ? scenePlan.timeline : [];
   const activeStep = sceneSteps[activeStepIndex] || null;
@@ -70,7 +73,18 @@ export default function Interactive3DLessonRuntime({
   useEffect(() => {
     setActiveStepIndex(0);
     setSelectedPart('');
+    setVisualizationMode('interactive-3d');
   }, [topic, sourceContent, sourceType]);
+
+  const handle3DFallback = (requestedMode = '') => {
+    const nextMode = resolveVisualizationMode({
+      supports3D: false,
+      fallbackType: requestedMode === 'interactive-2d' ? 'diagram' : '',
+      hasWhiteboard: true,
+      hasConceptMap: true
+    });
+    setVisualizationMode(nextMode);
+  };
 
   useEffect(() => {
     if (!sceneSteps.length || !isPlaying) return undefined;
@@ -160,29 +174,44 @@ export default function Interactive3DLessonRuntime({
       </div>
 
       <div className="h-[360px] overflow-hidden rounded-2xl border border-white/10 bg-slate-950/70">
-        <Suspense fallback={<div className="grid h-full place-items-center text-sm text-slate-400">Loading 3D viewer...</div>}>
-          <SceneViewer
-            scene={sceneData}
-            selectedPart={selectedPart}
-            onSelectPart={setSelectedPart}
-            autoRotate={autoRotate && isPlaying}
-            exploded={false}
-            crossSection={false}
-            xRay={false}
-            showLabels={showLabels}
-            hideInactive={false}
-            measurementMode={false}
-            motionSpeed={1}
-            cameraMode="orbit"
-            highlightMode="glow"
-            environmentPreset="classroom"
-            sceneEffects={['particles']}
-            activeTimelineStep={activeStep}
-            showDynamicLabels={showLabels}
-            lodLevel="medium"
-            performanceProfile="balanced"
-          />
-        </Suspense>
+        {visualizationMode === 'interactive-3d' ? (
+          <Suspense fallback={<div className="grid h-full place-items-center text-sm text-slate-400">Loading 3D viewer...</div>}>
+            <ThreeErrorBoundary onFallbackMode={handle3DFallback}>
+              <SceneViewer
+                scene={sceneData}
+                selectedPart={selectedPart}
+                onSelectPart={setSelectedPart}
+                autoRotate={autoRotate && isPlaying}
+                exploded={false}
+                crossSection={false}
+                xRay={false}
+                showLabels={showLabels}
+                hideInactive={false}
+                measurementMode={false}
+                motionSpeed={1}
+                cameraMode="orbit"
+                highlightMode="glow"
+                environmentPreset="classroom"
+                sceneEffects={['particles']}
+                activeTimelineStep={activeStep}
+                showDynamicLabels={showLabels}
+                lodLevel="medium"
+                performanceProfile="balanced"
+              />
+            </ThreeErrorBoundary>
+          </Suspense>
+        ) : (
+          <div className="grid h-full place-items-center p-4">
+            <div className="w-full rounded-xl border border-cyan-500/20 bg-cyan-500/10 p-4 text-sm text-cyan-100">
+              <p className="font-semibold">Fallback mode active: {visualizationMode}</p>
+              <p className="mt-2 text-xs text-cyan-50">The lesson continues even if 3D is unavailable.</p>
+              <div className="mt-3 flex gap-2">
+                <button onClick={() => setVisualizationMode('interactive-3d')} className="rounded-lg border border-cyan-400/40 bg-cyan-500/20 px-3 py-2 text-xs text-white">Retry 3D</button>
+                <button onClick={() => setVisualizationMode((mode) => getNextVisualizationMode(mode))} className="rounded-lg border border-slate-600 bg-slate-900/80 px-3 py-2 text-xs text-slate-200">Next fallback mode</button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       <SceneTimeline

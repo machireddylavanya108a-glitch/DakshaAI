@@ -8,9 +8,7 @@ export const firebaseConfigKeys = [
 ];
 
 export const openRouterConfigKeys = [
-  'VITE_OPENROUTER_API_KEY',
-  'VITE_OPENROUTER_TEXT_MODEL',
-  'VITE_OPENROUTER_VISION_MODEL'
+  'VITE_OPENROUTER_API_KEY'
 ];
 
 export const DEFAULT_OPENROUTER_TEXT_MODEL = 'openai/gpt-4.1-mini';
@@ -63,8 +61,7 @@ export function validateRuntimeConfig(envInput = resolveRuntimeEnv(), logger = c
 
   if (openRouterMissing.length > 0) {
     warnOnce(logger, 'openrouter-missing', `[AI] Missing OpenRouter runtime config values: ${openRouterMissing.join(', ')}`);
-    warnOnce(logger, 'openrouter-incomplete', '[AI] OpenRouter model configuration is incomplete.');
-    warnOnce(logger, 'openrouter-availability', '[AI] AI generation may be unavailable until OpenRouter configuration is provided.');
+    warnOnce(logger, 'openrouter-availability', '[AI] AI generation is disabled until VITE_OPENROUTER_API_KEY is provided.');
   }
 
   return {

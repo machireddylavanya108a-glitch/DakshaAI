@@ -47,7 +47,7 @@ test('missing Firebase config warns Firebase auth risk only', () => {
   assert.ok(logger.errorMessages.some((message) => message.includes('[Firebase] Authentication may fail')));
 });
 
-test('missing OpenRouter model config warns AI config incomplete and keeps Firebase valid', () => {
+test('missing OpenRouter model config uses defaults without disabling AI when API key exists', () => {
   resetRuntimeConfigWarningState();
   const logger = createLogger();
 
@@ -58,13 +58,29 @@ test('missing OpenRouter model config warns AI config incomplete and keeps Fireb
   }, logger);
 
   assert.equal(report.firebase.valid, true);
-  assert.equal(report.openRouter.complete, false);
-  assert.ok(report.openRouter.missing.includes('VITE_OPENROUTER_TEXT_MODEL'));
-  assert.ok(report.openRouter.missing.includes('VITE_OPENROUTER_VISION_MODEL'));
-  assert.ok(logger.warnMessages.some((message) => message.includes('[AI] Missing OpenRouter runtime config values')));
-  assert.ok(logger.warnMessages.includes('[AI] OpenRouter model configuration is incomplete.'));
-  assert.ok(logger.warnMessages.includes('[AI] AI generation may be unavailable until OpenRouter configuration is provided.'));
+  assert.equal(report.openRouter.complete, true);
+  assert.equal(report.openRouter.missing.length, 0);
+  assert.equal(report.openRouter.aiGenerationEnabled, true);
+  assert.equal(report.openRouter.textModel, DEFAULT_OPENROUTER_TEXT_MODEL);
+  assert.equal(report.openRouter.visionModel, DEFAULT_OPENROUTER_VISION_MODEL);
+  assert.equal(logger.warnMessages.length, 0);
   assert.equal(logger.errorMessages.length, 0);
+});
+
+test('missing OpenRouter API key disables AI generation only', () => {
+  resetRuntimeConfigWarningState();
+  const logger = createLogger();
+
+  const report = validateRuntimeConfig({
+    ...baseEnv,
+    VITE_OPENROUTER_API_KEY: ''
+  }, logger);
+
+  assert.equal(report.firebase.valid, true);
+  assert.equal(report.openRouter.complete, false);
+  assert.ok(report.openRouter.missing.includes('VITE_OPENROUTER_API_KEY'));
+  assert.equal(report.openRouter.aiGenerationEnabled, false);
+  assert.ok(logger.warnMessages.some((message) => message.includes('VITE_OPENROUTER_API_KEY')));
 });
 
 test('valid full config passes without warnings', () => {
