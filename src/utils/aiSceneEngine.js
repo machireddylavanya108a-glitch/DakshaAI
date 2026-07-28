@@ -1,5 +1,6 @@
 import { createAssetManager } from './assetManager.js';
 import { buildAnimationPlan, buildAutoAnimationState } from './aiAnimationEngine.js';
+import { processSceneJsonPipeline } from '../scene-generator/SceneVersionManager.js';
 
 const STOP_WORDS = new Set([
   'a', 'an', 'the', 'and', 'or', 'to', 'of', 'for', 'on', 'in', 'with', 'from', 'by', 'at', 'as', 'into', 'about',
@@ -235,7 +236,70 @@ export function buildSceneFromBlueprint(blueprint) {
   const domainLabel = String(classification?.domain || blueprint?.domain || 'Custom').toLowerCase();
   const summary = `${blueprint?.summary || 'Dynamic scene'} It adapts to ${classification.subDomain || blueprint?.domain || 'the lesson'} and uses ${assetPlan.length} auto-selected assets with ${classification.interactionCategory || 'guided exploration'}.`;
 
+  const rawScene = {
+    title: blueprint?.sceneTitle || 'AI scene',
+    subject: blueprint?.subDomain || blueprint?.domain || 'General Learning',
+    classification,
+    objects: objects.map((item, index) => ({
+      id: `obj-${index + 1}`,
+      type: item.category || 'generic',
+      name: item.label || `Object ${index + 1}`,
+      position: item.position,
+      rotation: [0, 0, 0],
+      scale: item.size,
+      visible: true,
+      enabled: true,
+      interactive: true,
+      highlightable: true,
+      clickable: true,
+      animationIds: [],
+      labelIds: [],
+      metadata: {
+        category: item.category,
+        asset: item.asset
+      },
+      state: {},
+      properties: {
+        color: item.color,
+        facts: item.facts
+      },
+      extensions: {
+        assetMeta: item.assetMeta || null
+      }
+    })),
+    labels: objects.map((item, index) => ({
+      id: `label-${index + 1}`,
+      text: item.label,
+      targetObjectId: `obj-${index + 1}`
+    })),
+    interactions: objects.map((item, index) => ({
+      id: `interaction-${index + 1}`,
+      label: item.label,
+      details: item.facts,
+      targetObjectId: `obj-${index + 1}`
+    })),
+    timeline: [],
+    animations: [],
+    summary,
+    assetPlan,
+    reusableAssets: assetPlan.map((item) => item.assetId).filter(Boolean),
+    lessonFocus: blueprint?.concepts?.[0] || 'concept',
+    domain: blueprint?.domain || 'Custom',
+    subDomain: blueprint?.subDomain || classification.subDomain,
+    category: blueprint?.domain || 'Custom',
+    supports3D: true,
+    fallbackType: '3d',
+    hotspots: objects.map((item) => ({ label: item.label, category: item.category, details: item.facts }))
+  };
+
+  const processedScene = processSceneJsonPipeline(rawScene, {
+    sourceType: blueprint?.sourceType || 'typed-topic',
+    fallbackTitle: blueprint?.sceneTitle || 'Safe Scene',
+    fallbackSubject: blueprint?.domain || 'General Learning'
+  });
+
   return {
+    ...processedScene,
     title: blueprint?.sceneTitle || 'AI scene',
     category: blueprint?.domain || 'Custom',
     supports3D: true,
@@ -269,7 +333,31 @@ export function buildAuto3DSceneForLesson(content = '', sourceType = 'typed-topi
           ? 'diagram'
           : 'concept-map';
 
+    const rawScene = {
+      title: `${classification.subDomain} visualization`,
+      subject: classification.subDomain,
+      classification,
+      domain: classification.domain,
+      subDomain: classification.subDomain,
+      supports3D: false,
+      timeline: [],
+      objects: [],
+      animations: [],
+      labels: [],
+      interactions: [],
+      summary: `A ${visualizationType} visualization was prepared for ${classification.subDomain}.`,
+      assetPlan: [],
+      reusableAssets: []
+    };
+
+    const processedScene = processSceneJsonPipeline(rawScene, {
+      sourceType,
+      fallbackTitle: 'Safe Scene',
+      fallbackSubject: classification.domain || 'General Learning'
+    });
+
     return {
+      ...processedScene,
       shouldAutoGenerate: true,
       title: `${classification.subDomain} visualization`,
       domain: classification.domain,
@@ -350,7 +438,31 @@ export function buildAuto3DSceneForLesson(content = '', sourceType = 'typed-topi
     replay: step.replay
   }));
 
+  const rawScene = {
+    title: scene.title,
+    subject: scene.subDomain || scene.domain || 'General Learning',
+    classification: scene.classification,
+    domain: scene.domain,
+    subDomain: scene.subDomain,
+    supports3D: true,
+    objects: scene.objects,
+    labels,
+    interactions: hotspots,
+    timeline,
+    animations: animationPlan,
+    summary: scene.summary,
+    assetPlan: scene.assetPlan,
+    reusableAssets: scene.reusableAssets
+  };
+
+  const processedScene = processSceneJsonPipeline(rawScene, {
+    sourceType,
+    fallbackTitle: scene.title || 'Safe Scene',
+    fallbackSubject: scene.domain || 'General Learning'
+  });
+
   return {
+    ...processedScene,
     shouldAutoGenerate: true,
     title: scene.title,
     domain: scene.domain,
