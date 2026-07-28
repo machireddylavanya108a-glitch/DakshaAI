@@ -200,7 +200,8 @@ async function callModelWithFallback({
   models = [],
   task,
   maxTokens,
-  timeoutMs = 20000
+  timeoutMs = 20000,
+  signal
 }) {
   if (!openai) {
     throw new Error('OpenRouter is not configured.');
@@ -229,15 +230,29 @@ async function callModelWithFallback({
       const tokenBudget = tokenAttempts[attemptIndex];
 
       try {
+        const localController = typeof AbortController !== 'undefined' ? new AbortController() : null;
+        const mergedSignal = localController?.signal || signal;
+        let timeoutId = null;
+
+        if (localController && signal) {
+          const onAbort = () => localController.abort();
+          signal.addEventListener('abort', onAbort, { once: true });
+        }
+
         const timeoutPromise = new Promise((_, reject) => {
-          setTimeout(() => reject(new Error('AI request timed out.')), timeoutMs);
+          timeoutId = setTimeout(() => {
+            if (localController) localController.abort();
+            reject(new Error('AI request timed out.'));
+          }, timeoutMs);
         });
         const requestPromise = openai.chat.completions.create({
           model,
           messages: requestMessages,
-          max_tokens: tokenBudget
+          max_tokens: tokenBudget,
+          signal: mergedSignal
         });
         const response = await Promise.race([requestPromise, timeoutPromise]);
+        if (timeoutId) clearTimeout(timeoutId);
         return { response, model };
       } catch (error) {
         lastError = error;
@@ -261,6 +276,50 @@ async function callModelWithFallback({
     }
   }
   throw lastError || new Error('AI request failed');
+}
+
+export function hasConfiguredAiProvider() {
+  return hasAiCredentials();
+}
+
+export async function requestStructuredAiContent({
+  messages = [],
+  models,
+  maxTokens,
+  timeoutMs = 30000,
+  signal,
+  requestType = 'text'
+} = {}) {
+  if (!hasAiCredentials()) {
+    const error = new Error('OpenRouter provider is not configured.');
+    error.statusCode = 503;
+    throw error;
+  }
+
+  const modelCandidates = Array.isArray(models) && models.length ? models : getConfiguredTextModels();
+  const { response, model } = await callModelWithFallback({
+    requestType,
+    messages,
+    models: modelCandidates,
+    task: 'lesson',
+    maxTokens,
+    timeoutMs,
+    signal
+  });
+
+  const raw = response;
+  const text = toModelTextContent(response?.choices?.[0]?.message?.content);
+
+  return {
+    provider: 'openrouter',
+    model,
+    text,
+    raw,
+    metadata: {
+      id: raw?.id || null,
+      created: raw?.created || null
+    }
+  };
 }
 
 const DAKSHA_SYSTEM_PROMPT = `You are Daksha AI, the Universal Knowledge Operating System.
