@@ -5,6 +5,7 @@ import { repairScene } from './SceneRepair.js';
 import { migrateSceneVersion } from './SceneMigration.js';
 import { runSceneIntegrityChecks } from './SceneIntegrity.js';
 import { createSceneDiagnosticsSnapshot } from './SceneDiagnostics.js';
+import { ensureSceneVisualizationCapabilityMetadata } from '../visualization-capabilities/VisualizationCapability.js';
 
 function safeArray(value) {
   return Array.isArray(value) ? value : [];
@@ -64,6 +65,9 @@ export function processSceneJsonPipeline(rawScene, options = {}) {
     }
 
     finalScene.version = SCENE_SCHEMA_LATEST_VERSION;
+    finalScene = ensureSceneVisualizationCapabilityMetadata(finalScene, {
+      performanceProfile: finalScene?.settings?.quality || 'balanced'
+    });
 
     finalScene.diagnostics = {
       ...finalScene.diagnostics,

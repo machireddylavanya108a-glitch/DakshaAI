@@ -23,6 +23,7 @@ import {
   normalizeSceneGenerationConfig
 } from './SceneGenerationConfig.js';
 import { SceneGenerationError, toSceneGenerationError } from './SceneGenerationError.js';
+import { resolveVisualizationCapabilities } from '../visualization-capabilities/index.js';
 
 function stableHash(input = '') {
   const text = String(input || '');
@@ -324,6 +325,48 @@ function minimalWarnings(list = []) {
   return list.filter(Boolean).map((item) => String(item)).slice(0, 12);
 }
 
+function attachVisualizationCapabilityMetadata(scene, normalizedInput, config, options = {}) {
+  if (!scene || typeof scene !== 'object') return scene;
+
+  const resolved = resolveVisualizationCapabilities({
+    normalizedLesson: {
+      id: normalizedInput.id,
+      title: normalizedInput.title,
+      topic: normalizedInput.topic
+    },
+    classification: normalizedInput.classification,
+    concepts: normalizedInput.concepts?.length ? normalizedInput.concepts : scene.objects,
+    relationships: scene.relationships || [],
+    steps: normalizedInput.steps?.length ? normalizedInput.steps : scene.timeline,
+    goals: normalizedInput.goals,
+    examples: normalizedInput.examples,
+    learnerContext: normalizedInput.learnerContext,
+    accessibilityPreferences: {
+      textAlternativeRequired: true,
+      keyboardCompatible: true,
+      reducedMotionCompatible: true,
+      highContrastCompatible: true
+    },
+    performanceProfile: config.performanceProfile,
+    sceneMetadata: scene.metadata || {}
+  }, {
+    registry: options.visualizationCapabilityRegistry
+  });
+
+  return {
+    ...scene,
+    metadata: {
+      ...(scene.metadata && typeof scene.metadata === 'object' ? scene.metadata : {}),
+      visualizationCapabilities: {
+        visualizationRequirements: resolved.visualizationRequirements,
+        selectedCapabilities: resolved.selectedCapabilities,
+        capabilityComposition: resolved.capabilityComposition,
+        diagnostics: resolved.diagnostics
+      }
+    }
+  };
+}
+
 export async function generateUniversalScene(input = {}, options = {}) {
   const config = normalizeSceneGenerationConfig(options);
   const performanceLimits = getPerformanceLimits(config.performanceProfile);
@@ -373,7 +416,8 @@ export async function generateUniversalScene(input = {}, options = {}) {
         const cachedEntry = sceneGenerationCache.validateCachedScene(sceneGenerationCache.get(cacheKey));
         markSceneGenerationTiming(diagnostics, 'normalizationDuration', endTimedStage(stage));
         if (cachedEntry?.scene) {
-          const artifacts = await buildSceneArtifacts(cachedEntry.scene, performanceLimits, diagnostics);
+          const sceneWithCapabilities = attachVisualizationCapabilityMetadata(cachedEntry.scene, normalizedInput, config, options);
+          const artifacts = await buildSceneArtifacts(sceneWithCapabilities, performanceLimits, diagnostics);
           diagnostics.cacheHit = true;
           addSceneGenerationEvent(diagnostics, 'scene_cache_hit', { cacheKey });
           finalizeSceneGenerationDiagnostics(diagnostics, totalStart);
@@ -404,7 +448,8 @@ export async function generateUniversalScene(input = {}, options = {}) {
           level: 3,
           reason: 'ai-disabled'
         });
-        const artifacts = await buildSceneArtifacts(fallbackScene, performanceLimits, diagnostics);
+        const fallbackWithCapabilities = attachVisualizationCapabilityMetadata(fallbackScene, normalizedInput, config, options);
+        const artifacts = await buildSceneArtifacts(fallbackWithCapabilities, performanceLimits, diagnostics);
         diagnostics.fallbackLevel = 3;
         diagnostics.fallbackReason = 'ai-disabled';
         addSceneGenerationEvent(diagnostics, 'scene_fallback_completed', { level: 3 });
@@ -508,7 +553,8 @@ export async function generateUniversalScene(input = {}, options = {}) {
         diagnostics.fallbackReason = 'validation-fallback';
       }
 
-      const artifacts = await buildSceneArtifacts(scene, performanceLimits, diagnostics);
+      const sceneWithCapabilities = attachVisualizationCapabilityMetadata(scene, normalizedInput, config, options);
+      const artifacts = await buildSceneArtifacts(sceneWithCapabilities, performanceLimits, diagnostics);
 
       if (config.useCache && options.useCache !== false && !fallbackUsed) {
         const cachePayload = {
@@ -598,7 +644,8 @@ export async function generateUniversalScene(input = {}, options = {}) {
         level: fallbackLevel,
         reason: normalizedError.code
       });
-      const artifacts = await buildSceneArtifacts(fallbackScene, performanceLimits, diagnostics);
+      const fallbackWithCapabilities = attachVisualizationCapabilityMetadata(fallbackScene, normalizedInput, config, options);
+      const artifacts = await buildSceneArtifacts(fallbackWithCapabilities, performanceLimits, diagnostics);
       diagnostics.fallbackLevel = fallbackLevel;
       diagnostics.fallbackReason = normalizedError.code;
 
