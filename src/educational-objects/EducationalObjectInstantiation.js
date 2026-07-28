@@ -50,6 +50,22 @@ function resolveConceptBindings(object = {}, context = {}) {
   }));
 }
 
+function resolveRelationshipBindings(object = {}, context = {}) {
+  const relationships = Array.isArray(context.relationships) ? context.relationships : [];
+  const relationshipIds = new Set(relationships.map((item) => String(item?.id || item?.relationId || '')));
+  const references = Array.isArray(object.relationshipReferences) ? object.relationshipReferences : [];
+
+  return references.map((reference) => ({
+    relationId: reference.relationId,
+    sourceObjectId: reference.sourceObjectId,
+    targetObjectId: reference.targetObjectId,
+    relation: reference.relation,
+    required: reference.required === true,
+    resolved: relationshipIds.has(String(reference.relationId || '')),
+    metadata: reference.metadata || {}
+  }));
+}
+
 function enforcePerformance(performance = {}, profile = 'balanced') {
   const output = clone(performance || {});
   const scale = profile === 'low' ? 0.7 : profile === 'high' ? 1.2 : 1;
@@ -89,6 +105,7 @@ export function instantiateEducationalObject(object, context = {}, options = {})
 
   const resolvedVariables = resolveVariables(sourceObject, context);
   const conceptBindings = resolveConceptBindings(sourceObject, context);
+  const relationshipBindings = resolveRelationshipBindings(sourceObject, context);
   const accessibility = {
     ...createDefaultObjectAccessibility(),
     ...(sourceObject.accessibility || {})
@@ -125,7 +142,23 @@ export function instantiateEducationalObject(object, context = {}, options = {})
       semanticRole: sourceObject.semanticRole,
       learningPurpose: sourceObject.learningPurpose,
       ownership: sourceObject.ownership || {},
-      conceptBindings
+      conceptBindings,
+      relationshipBindings,
+      conceptReferences: clone(sourceObject.conceptReferences || []),
+      relationshipReferences: clone(sourceObject.relationshipReferences || []),
+      templateBindings: clone(sourceObject.templateBindings || []),
+      representation: clone(sourceObject.representation || {}),
+      geometryHints: clone(sourceObject.geometryHints || {}),
+      visualProperties: clone(sourceObject.visualProperties || {}),
+      accessibility: clone(accessibility),
+      performance: clone(performance),
+      qualitySummary: clone(context.qualitySummary || null),
+      fallbackLevel: Number(context.fallbackLevel || 0),
+      diagnosticsSummary: {
+        status: processed.status,
+        warningCount: Array.isArray(processed.warnings) ? processed.warnings.length : 0,
+        errorCount: Array.isArray(processed.errors) ? processed.errors.length : 0
+      }
     },
     diagnostics: {
       processingStatus: processed.status,

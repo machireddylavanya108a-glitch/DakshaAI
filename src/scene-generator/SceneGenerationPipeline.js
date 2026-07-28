@@ -28,6 +28,7 @@ import {
   generateVisualizationTemplate,
   selectVisualizationTemplate
 } from '../visualization-templates/index.js';
+import { generateEducationalObjects } from '../educational-objects/index.js';
 
 function stableHash(input = '') {
   const text = String(input || '');
@@ -426,6 +427,8 @@ function summarizeTemplateGeneration(generation = {}) {
 async function attachVisualizationCapabilityMetadata(scene, normalizedInput, config, options = {}) {
   if (!scene || typeof scene !== 'object') return scene;
 
+  const performanceLimits = getPerformanceLimits(config.performanceProfile);
+
   const resolved = resolveVisualizationCapabilities({
     normalizedLesson: {
       id: normalizedInput.id,
@@ -508,8 +511,60 @@ async function attachVisualizationCapabilityMetadata(scene, normalizedInput, con
   const selectedDiagnostics = generated?.diagnostics || selection.diagnostics;
   const selectedComposition = selection.templateComposition;
 
+  const objectGeneration = await generateEducationalObjects({
+    sceneId: scene.sceneId,
+    lessonId: normalizedInput.id,
+    lesson: {
+      id: normalizedInput.id,
+      title: normalizedInput.title,
+      topic: normalizedInput.topic,
+      content: normalizedInput.content
+    },
+    classification: normalizedInput.classification,
+    visualizationRequirements: resolved.visualizationRequirements,
+    selectedCapabilities: resolved.selectedCapabilities,
+    capabilityComposition: resolved.capabilityComposition,
+    template: selectedTemplate,
+    templateInstance: selectedTemplateInstance,
+    slotBindings: selectedBindings?.slots?.bindings || selectedBindings?.slots || [],
+    regionBindings: selectedBindings?.regions?.bindings || selectedBindings?.regions || [],
+    concepts: scene.objects || [],
+    relationships: scene.relationships || [],
+    orderedSteps: scene.timeline || [],
+    learningGoals: normalizedInput.goals || [],
+    examples: normalizedInput.examples || [],
+    timelineRequirements: scene.timeline || [],
+    interactionRequirements: scene.interactions || [],
+    accessibilityNeeds: resolved.visualizationRequirements?.accessibilityNeeds || {},
+    performanceProfile: config.performanceProfile,
+    runtimeCapabilities: {
+      supportsWebGL: true,
+      logicalCores: options.logicalCores || undefined,
+      deviceMemoryGb: options.deviceMemoryGb || undefined
+    },
+    sceneConstraints: {
+      complexityBudget: {
+        maxObjects: Number(performanceLimits.maxObjects || 50),
+        maxTemplateComplexity: Number(options.maxTemplateComplexity || 80)
+      }
+    },
+    metadata: scene.metadata || {}
+  }, {
+    signal: options.signal,
+    useCache: options.useObjectGenerationCache !== false,
+    forceGenerate: options.forceObjectGeneration === true,
+    deterministicSeed: normalizedInput.id || normalizedInput.topic || scene.sceneId,
+    qualityThreshold: options.minimumObjectQuality ?? 65,
+    refinementPasses: options.objectRefinementPasses ?? 2,
+    maximumObjects: Number(performanceLimits.maxObjects || 50),
+    performanceProfile: config.performanceProfile,
+    fallbackEnabled: options.objectFallbackEnabled !== false
+  });
+
   return {
     ...scene,
+    educationalObjects: objectGeneration.objects || scene.educationalObjects || [],
+    educationalObjectInstances: objectGeneration.objectInstances || scene.educationalObjectInstances || [],
     metadata: {
       ...(scene.metadata && typeof scene.metadata === 'object' ? scene.metadata : {}),
       visualizationCapabilities: {
@@ -529,7 +584,20 @@ async function attachVisualizationCapabilityMetadata(scene, normalizedInput, con
       templateBindings: selectedBindings,
       visualizationTemplate: selectedTemplate,
       visualizationTemplateInstance: selectedTemplateInstance,
-      templateDiagnostics: selectedDiagnostics
+      templateDiagnostics: selectedDiagnostics,
+      generatedEducationalObjects: objectGeneration.objects || [],
+      educationalObjectGeneration: {
+        status: objectGeneration.status,
+        source: objectGeneration.source,
+        fallbackLevel: Number(objectGeneration.fallbackLevel || 0),
+        fallbackUsed: objectGeneration.fallbackUsed === true,
+        cacheHit: objectGeneration.cacheHit === true,
+        deduplicated: objectGeneration.deduplicated === true,
+        quality: objectGeneration.quality || null,
+        diagnostics: objectGeneration.diagnostics || null,
+        warnings: minimalWarnings(objectGeneration.warnings || []),
+        errors: minimalWarnings(objectGeneration.errors || [])
+      }
     }
   };
 }

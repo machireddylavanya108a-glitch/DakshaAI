@@ -458,6 +458,22 @@ test('renderer payload remains graph-derived with educational object instances',
   }
 });
 
+test('scene pipeline stores educational object generation metadata and runtime graph preserves object runtime metadata', async () => {
+  const provider = createMockProvider(async () => ({ text: JSON.stringify(buildSceneCandidate()) }));
+  const result = await generateUniversalScene(testInput(), { provider, useCache: false });
+
+  assert.ok(result.scene.metadata.educationalObjectGeneration);
+  assert.equal(Array.isArray(result.scene.educationalObjectInstances), true);
+
+  const instanceNode = result.runtimeGraph.nodes.find((node) => node?.metadata?.sourceKey === 'educationalObjectInstances');
+  if (instanceNode) {
+    assert.ok(instanceNode.properties.runtimeMetadata);
+    assert.ok(instanceNode.properties.runtimeMetadata.representation);
+    assert.ok(instanceNode.properties.runtimeMetadata.performance);
+    assert.ok(instanceNode.properties.runtimeMetadata.accessibility);
+  }
+});
+
 test('new arbitrary topic works without code changes', async () => {
   const provider = createMockProvider(async () => ({ text: JSON.stringify(buildSceneCandidate({ subject: 'Quantum-historic civic bioinformatics' })) }));
   const result = await generateUniversalScene({

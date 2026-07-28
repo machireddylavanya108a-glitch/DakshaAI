@@ -286,9 +286,31 @@ export function ensureSceneEducationalObjectMetadata(scene = {}, options = {}) {
   const declaredObjects = toArray(safeScene.educationalObjects);
   const legacyObjects = toArray(safeScene.objects);
 
-  const sourceObjects = declaredObjects.length
-    ? declaredObjects
-    : legacyObjects.map((item, index) => fromLegacySceneObject(item, index, safeScene));
+  const templateBindingsMetadata = toObject(metadata.templateBindings);
+  const slotBindings = toArray(templateBindingsMetadata.slots?.bindings || templateBindingsMetadata.slots || [])
+    .map((item) => ({
+      slotId: item?.slotId || item?.id || '',
+      regionId: item?.regionId || null,
+      required: !(toArray(templateBindingsMetadata.slots?.unboundOptionalSlots || []).includes(item?.slotId || item?.id || '')),
+      priority: Number(item?.priority || 1)
+    }));
+  const regionBindings = toArray(templateBindingsMetadata.regions?.bindings || templateBindingsMetadata.regions || [])
+    .map((item) => ({
+      regionId: item?.regionId || item?.id || '',
+      capacity: Number(item?.capacity || item?.slotIds?.length || 1),
+      priority: Number(item?.accessibilityOrder || item?.priority || 1)
+    }));
+
+  let sourceObjects = declaredObjects;
+  const generatedSummary = toObject(metadata.educationalObjectGeneration);
+
+  if (!sourceObjects.length && Array.isArray(metadata.generatedEducationalObjects)) {
+    sourceObjects = metadata.generatedEducationalObjects;
+  }
+
+  if (!sourceObjects.length) {
+    sourceObjects = legacyObjects.map((item, index) => fromLegacySceneObject(item, index, safeScene));
+  }
 
   const processedObjects = sourceObjects.map((item) => processEducationalObject(item, {
     allowFallback: true,
@@ -317,6 +339,8 @@ export function ensureSceneEducationalObjectMetadata(scene = {}, options = {}) {
     performanceProfile: safeScene.settings?.quality || 'balanced',
     runtimeCapabilities: metadata.runtimeCapabilities || {},
     metadata: metadata,
+    qualitySummary: generatedSummary?.quality || null,
+    fallbackLevel: generatedSummary?.fallbackLevel || 0,
     objectIndex: index
   }, options));
 
@@ -339,7 +363,8 @@ export function ensureSceneEducationalObjectMetadata(scene = {}, options = {}) {
     },
     metadata: {
       ...metadata,
-      objectDiagnostics: summary
+      objectDiagnostics: summary,
+      educationalObjectGeneration: generatedSummary
     }
   };
 }
