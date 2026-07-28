@@ -188,6 +188,32 @@ function materializeTimeline(runtimeScene, fallbackTimeline = []) {
   });
 }
 
+function buildRendererPayloadFromRuntimeScene(runtimeScene, fallbacks = {}) {
+  const baseObjects = Array.isArray(fallbacks.objects) ? fallbacks.objects : [];
+  const baseTimeline = Array.isArray(fallbacks.timeline) ? fallbacks.timeline : [];
+  const objects = materializeRenderObjects(runtimeScene, baseObjects);
+  const labels = materializeLabels(runtimeScene, objects);
+  const hotspots = materializeHotspots(runtimeScene, objects);
+  const timeline = materializeTimeline(runtimeScene, baseTimeline);
+  const models = objects.map((object, index) => ({
+    id: `model-${index + 1}`,
+    label: object.label,
+    assetId: object.asset,
+    category: object.category,
+    position: object.position,
+    size: object.size,
+    color: object.color
+  }));
+
+  return {
+    objects,
+    labels,
+    hotspots,
+    timeline,
+    models
+  };
+}
+
 export function classifyUniversalSubject(content = '', sourceType = 'typed-topic') {
   const normalizedContent = String(content || '').trim();
   const manager = createAssetManager();
@@ -394,9 +420,10 @@ export function buildSceneFromBlueprint(blueprint) {
     fallbackSubject: blueprint?.domain || 'General Learning'
   });
   const runtimeScene = loadScene(processedScene);
-  const renderObjects = materializeRenderObjects(runtimeScene, objects);
-  const renderLabels = materializeLabels(runtimeScene, renderObjects);
-  const renderHotspots = materializeHotspots(runtimeScene, renderObjects);
+  const rendererPayload = buildRendererPayloadFromRuntimeScene(runtimeScene, {
+    objects,
+    timeline: []
+  });
 
   return {
     ...processedScene,
@@ -406,9 +433,10 @@ export function buildSceneFromBlueprint(blueprint) {
     category: blueprint?.domain || 'Custom',
     supports3D: true,
     fallbackType: '3d',
-    objects: renderObjects,
-    labels: renderLabels.map((item) => item.text),
-    hotspots: renderHotspots,
+    rendererPayload,
+    objects: rendererPayload.objects,
+    labels: rendererPayload.labels.map((item) => item.text),
+    hotspots: rendererPayload.hotspots,
     summary,
     assetPlan,
     reusableAssets: assetPlan.map((item) => item.assetId).filter(Boolean),
@@ -497,7 +525,7 @@ export function buildAuto3DSceneForLesson(content = '', sourceType = 'typed-topi
   const animationPlan = buildAnimationPlan(content, scene.objects);
   const autoAnimationState = buildAutoAnimationState(content);
 
-  const models = scene.objects.map((object, index) => ({
+  const models = scene.rendererPayload?.models || scene.objects.map((object, index) => ({
     id: `model-${index + 1}`,
     label: object.label,
     assetId: object.asset,
@@ -506,8 +534,13 @@ export function buildAuto3DSceneForLesson(content = '', sourceType = 'typed-topi
     size: object.size,
     color: object.color
   }));
-  const labels = models.map((model) => ({ id: model.id, text: model.label, position: model.position }));
-  const hotspots = scene.hotspots.map((hotspot, index) => ({
+  const labels = (scene.rendererPayload?.labels || models.map((model) => ({ id: model.id, text: model.label, position: model.position })))
+    .map((label, index) => ({
+      id: models[index]?.id || label.id,
+      text: label.text,
+      position: models[index]?.position || label.position || [0, 0, 0]
+    }));
+  const hotspots = (scene.rendererPayload?.hotspots || []).map((hotspot, index) => ({
     id: hotspot.id || `hotspot-${index + 1}`,
     label: hotspot.label,
     details: hotspot.details,
@@ -560,10 +593,10 @@ export function buildAuto3DSceneForLesson(content = '', sourceType = 'typed-topi
     fallbackSubject: scene.domain || 'General Learning'
   });
   const runtimeScene = loadScene(processedScene);
-  const runtimeObjects = materializeRenderObjects(runtimeScene, scene.objects);
-  const runtimeLabels = materializeLabels(runtimeScene, runtimeObjects);
-  const runtimeHotspots = materializeHotspots(runtimeScene, runtimeObjects);
-  const runtimeTimeline = materializeTimeline(runtimeScene, timeline);
+  const rendererPayload = buildRendererPayloadFromRuntimeScene(runtimeScene, {
+    objects: scene.objects,
+    timeline
+  });
 
   return {
     ...processedScene,
@@ -574,15 +607,16 @@ export function buildAuto3DSceneForLesson(content = '', sourceType = 'typed-topi
     domain: scene.domain,
     subDomain: scene.subDomain,
     classification: scene.classification,
-    models,
-    labels: runtimeLabels,
+    rendererPayload,
+    models: rendererPayload.models,
+    labels: rendererPayload.labels,
     animations: animationPlan,
-    hotspots: runtimeHotspots,
+    hotspots: rendererPayload.hotspots,
     measurements,
     crossSections,
     xRay,
     explodedView,
-    timeline: runtimeTimeline,
+    timeline: rendererPayload.timeline,
     replay: true,
     autoAnimationState,
     summary: scene.summary,
