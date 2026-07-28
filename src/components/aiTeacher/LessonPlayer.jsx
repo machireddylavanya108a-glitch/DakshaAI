@@ -1,86 +1,43 @@
-import { AlertTriangle, Beaker, Braces, Building2, Calculator, Dna, ScrollText, Wrench } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
 
-function identifyDomain(topic = '') {
-  const normalized = String(topic || '').toLowerCase();
-  if (/(code|programming|javascript|python|react|java|c\+\+)/.test(normalized)) return 'code';
-  if (/(math|algebra|calculus|equation|geometry|statistics)/.test(normalized)) return 'math';
-  if (/(science|physics|chemistry|biology|experiment)/.test(normalized)) return 'science';
-  if (/(history|civilization|war|empire|timeline)/.test(normalized)) return 'history';
-  if (/(business|finance|startup|market|strategy)/.test(normalized)) return 'business';
-  if (/(medical|anatomy|clinical|nursing|surgery)/.test(normalized)) return 'medical';
-  if (/(engineering|machine|mechanical|electrical|assembly)/.test(normalized)) return 'engineering';
-  return 'general';
+function DomainPanel({ classification, chapterTitle }) {
+  const safeClassification = classification && typeof classification === 'object'
+    ? classification
+    : {
+      domain: 'Custom',
+      subDomain: chapterTitle || 'Open Topic',
+      visualization: 'Adaptive',
+      objectCategory: 'Dynamic',
+      interactionCategory: 'Generic Exploration'
+    };
+
+  return (
+    <div className="rounded-2xl border border-slate-800 bg-slate-950/70 p-4 text-sm text-slate-200">
+      <p className="text-[10px] uppercase tracking-[0.2em] text-slate-400">Adaptive Scene Profile</p>
+      <div className="mt-2 grid gap-2 text-xs sm:grid-cols-2">
+        <div className="rounded-lg border border-slate-800 bg-slate-900/70 p-2">Domain: {safeClassification.domain || 'Custom'}</div>
+        <div className="rounded-lg border border-slate-800 bg-slate-900/70 p-2">SubDomain: {safeClassification.subDomain || chapterTitle || 'Open Topic'}</div>
+        <div className="rounded-lg border border-slate-800 bg-slate-900/70 p-2">Visualization: {safeClassification.visualization || 'Adaptive'}</div>
+        <div className="rounded-lg border border-slate-800 bg-slate-900/70 p-2">Object Category: {safeClassification.objectCategory || 'Dynamic'}</div>
+        <div className="rounded-lg border border-slate-800 bg-slate-900/70 p-2">Interaction: {safeClassification.interactionCategory || 'Generic Exploration'}</div>
+        <div className="rounded-lg border border-slate-800 bg-slate-900/70 p-2">Animation: {safeClassification.animationCategory || 'Guided Motion'}</div>
+      </div>
+    </div>
+  );
 }
 
-function DomainPanel({ domain, chapterTitle }) {
-  const [codeInput, setCodeInput] = useState('console.log("Hello Daksha AI");');
-  const [codeOutput, setCodeOutput] = useState('');
-  const [equationInput, setEquationInput] = useState('2x + 4 = 10');
-
-  if (domain === 'code') {
-    return (
-      <div className="rounded-2xl border border-slate-800 bg-slate-950/70 p-4">
-        <div className="mb-2 flex items-center gap-2 text-cyan-200"><Braces className="h-4 w-4" /> Live Code Editor</div>
-        <textarea value={codeInput} onChange={(event) => setCodeInput(event.target.value)} className="min-h-24 w-full rounded-xl border border-slate-700 bg-slate-900 p-3 text-xs text-slate-100" />
-        <div className="mt-2 flex gap-2">
-          <button type="button" onClick={() => {
-            try {
-              // eslint-disable-next-line no-new-func
-              const result = new Function(codeInput)();
-              setCodeOutput(typeof result === 'undefined' ? 'Code executed successfully.' : String(result));
-            } catch (error) {
-              setCodeOutput(`Debug: ${error.message}`);
-            }
-          }} className="rounded-lg bg-cyan-500 px-3 py-1 text-xs font-semibold text-slate-950">Run Code</button>
-          <button type="button" onClick={() => setCodeOutput('Try checking variable names, syntax, and semicolons.')} className="rounded-lg border border-slate-700 bg-slate-900 px-3 py-1 text-xs text-slate-200">Debug Help</button>
-        </div>
-        <p className="mt-2 text-xs text-slate-300 whitespace-pre-wrap">{codeOutput || 'Output will appear here.'}</p>
-      </div>
-    );
-  }
-
-  if (domain === 'math') {
-    return (
-      <div className="rounded-2xl border border-slate-800 bg-slate-950/70 p-4">
-        <div className="mb-2 flex items-center gap-2 text-cyan-200"><Calculator className="h-4 w-4" /> Math Assistant</div>
-        <input value={equationInput} onChange={(event) => setEquationInput(event.target.value)} className="w-full rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white" />
-        <p className="mt-2 text-xs text-slate-300">Step-by-step: isolate variable, simplify both sides, verify result. Interactive graph mode is enabled for chapter: {chapterTitle}.</p>
-      </div>
-    );
-  }
-
-  if (domain === 'science') {
-    return <div className="rounded-2xl border border-slate-800 bg-slate-950/70 p-4 text-sm text-slate-200"><div className="mb-2 flex items-center gap-2 text-cyan-200"><Beaker className="h-4 w-4" /> Science Lab</div>Animations, experiment cards, and simulation prompts are active for this lesson.</div>;
-  }
-
-  if (domain === 'history') {
-    return <div className="rounded-2xl border border-slate-800 bg-slate-950/70 p-4 text-sm text-slate-200"><div className="mb-2 flex items-center gap-2 text-cyan-200"><ScrollText className="h-4 w-4" /> History Explorer</div>Timeline, map context, and historical reconstruction cues are active.</div>;
-  }
-
-  if (domain === 'business') {
-    return <div className="rounded-2xl border border-slate-800 bg-slate-950/70 p-4 text-sm text-slate-200"><div className="mb-2 flex items-center gap-2 text-cyan-200"><Building2 className="h-4 w-4" /> Business Analyzer</div>Chart ideas, case studies, and market analysis prompts are active.</div>;
-  }
-
-  if (domain === 'medical') {
-    return (
-      <div className="rounded-2xl border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-amber-100">
-        <div className="mb-2 flex items-center gap-2"><Dna className="h-4 w-4" /> Medical Teaching</div>
-        <p className="mb-1">Anatomy and procedure simulation cues are active.</p>
-        <div className="inline-flex items-center gap-1 text-xs"><AlertTriangle className="h-3.5 w-3.5" /> Safety warning: Always verify against licensed medical resources.</div>
-      </div>
-    );
-  }
-
-  if (domain === 'engineering') {
-    return <div className="rounded-2xl border border-slate-800 bg-slate-950/70 p-4 text-sm text-slate-200"><div className="mb-2 flex items-center gap-2 text-cyan-200"><Wrench className="h-4 w-4" /> Engineering View</div>Machine components, assembly sequence, and exploded-view explanation enabled.</div>;
-  }
-
-  return null;
-}
-
-export default function LessonPlayer({ topic, chapter, step, displayedText, captionsEnabled, subtitleText, onWhiteboardAction }) {
-  const domain = useMemo(() => identifyDomain(topic), [topic]);
+export default function LessonPlayer({ topic, chapter, step, displayedText, captionsEnabled, subtitleText, onWhiteboardAction, sceneClassification = null }) {
+  const derivedClassification = useMemo(() => {
+    if (sceneClassification && typeof sceneClassification === 'object') return sceneClassification;
+    return {
+      domain: 'Custom',
+      subDomain: String(topic || chapter?.title || 'Open Topic'),
+      visualization: 'Adaptive',
+      objectCategory: 'Dynamic',
+      interactionCategory: 'Generic Exploration',
+      animationCategory: 'Guided Motion'
+    };
+  }, [sceneClassification, topic, chapter?.title]);
 
   return (
     <section className="rounded-[1.75rem] border border-white/10 bg-slate-900/80 p-5 shadow-xl shadow-slate-950/30" aria-live="polite" aria-label="Interactive lesson player">
@@ -113,7 +70,7 @@ export default function LessonPlayer({ topic, chapter, step, displayedText, capt
       </div>
 
       <div className="mt-4">
-        <DomainPanel domain={domain} chapterTitle={chapter?.title || 'Lesson'} />
+        <DomainPanel classification={derivedClassification} chapterTitle={chapter?.title || 'Lesson'} />
       </div>
     </section>
   );

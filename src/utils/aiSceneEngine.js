@@ -7,14 +7,6 @@ const STOP_WORDS = new Set([
   'show', 'explain', 'learn', 'teaching', 'lesson', 'chapter', 'topic', 'understand', 'overview', 'introduction'
 ]);
 
-const ACTION_SIGNALS = {
-  inspection: ['inspect', 'examine', 'analyze', 'observe', 'compare', 'diagnose'],
-  process: ['process', 'pipeline', 'flow', 'sequence', 'step', 'workflow'],
-  construction: ['build', 'construct', 'assemble', 'design', 'draft', 'model'],
-  simulation: ['simulate', 'predict', 'optimize', 'experiment', 'test', 'train'],
-  exploration: ['explore', 'discover', 'navigate', 'tour', 'walkthrough', 'investigate']
-};
-
 function toTitleCase(value = '') {
   return String(value || '')
     .replace(/[_-]+/g, ' ')
@@ -41,33 +33,15 @@ function pickTopTerms(content = '', limit = 8) {
     .map(([word]) => word);
 }
 
-function inferInteractionCategory(content = '', terms = []) {
-  const text = `${content} ${terms.join(' ')}`.toLowerCase();
-  const scored = Object.entries(ACTION_SIGNALS)
-    .map(([key, words]) => ({
-      key,
-      score: words.reduce((acc, word) => (text.includes(word) ? acc + 1 : acc), 0)
-    }))
-    .sort((a, b) => b.score - a.score);
-
-  if (scored[0]?.score <= 0) return 'Generic Exploration';
-  if (scored[0].key === 'inspection') return 'Interactive Inspection';
-  if (scored[0].key === 'process') return 'Process Walkthrough';
-  if (scored[0].key === 'construction') return 'Build And Breakdown';
-  if (scored[0].key === 'simulation') return 'Scenario Simulation';
-  return 'Guided Exploration';
+function deriveInteractionCategory(terms = [], subDomain = 'Open Topic') {
+  const actionSeed = terms.find((token) => /ing$|ed$|ize$|ify$/.test(token)) || terms[0] || 'explore';
+  return `${toTitleCase(actionSeed)} Interaction`;
 }
 
-function inferVisualizationStyle(content = '', terms = [], topAsset = null) {
-  const text = String(content || '').toLowerCase();
-  const signature = [topAsset?.name, topAsset?.category, ...terms.slice(0, 2)].filter(Boolean).join(' ');
-
-  if (/timeline|history|chronolog/.test(text)) return 'Timeline Visualization';
-  if (/chart|graph|metric|trend/.test(text)) return 'Analytical Chart Scene';
-  if (/diagram|workflow|pipeline|map|architecture/.test(text)) return 'System Diagram Scene';
-  if (/studio|lab|kitchen|classroom|court|factory/.test(text)) return 'Immersive Environment Scene';
-  if (signature) return `${toTitleCase(signature)} Visualization`;
-  return 'Adaptive Visualization';
+function deriveVisualizationStyle(terms = [], subDomain = 'Open Topic') {
+  const anchor = terms.slice(0, 2).map((token) => toTitleCase(token)).join(' ').trim();
+  if (anchor) return `${anchor} Knowledge Space`;
+  return `${toTitleCase(subDomain)} Adaptive Space`;
 }
 
 function inferComplexity(content = '', terms = [], rankedAssets = []) {
@@ -78,6 +52,13 @@ function inferComplexity(content = '', terms = [], rankedAssets = []) {
   if (score >= 9) return 'high';
   if (score >= 5) return 'medium';
   return 'low';
+}
+
+function deriveRenderMode(content = '', rankedAssets = []) {
+  const topScore = Number(rankedAssets?.[0]?.rankScore || 0);
+  const tokenCount = String(content || '').trim().split(/\s+/).filter(Boolean).length;
+  if (topScore >= 2 && tokenCount >= 5) return 'spatial';
+  return 'abstract';
 }
 
 function buildClassificationFallback() {
@@ -117,9 +98,10 @@ export function classifyUniversalSubject(content = '', sourceType = 'typed-topic
       ? toTitleCase(semanticAnchor)
       : `${toTitleCase(sourceType || 'topic')} Focus`;
 
-  const visualization = inferVisualizationStyle(normalizedContent, topTerms, topAsset);
-  const interactionCategory = inferInteractionCategory(normalizedContent, topTerms);
+  const visualization = deriveVisualizationStyle(topTerms, inferredSubDomain);
+  const interactionCategory = deriveInteractionCategory(topTerms, inferredSubDomain);
   const sceneComplexity = inferComplexity(normalizedContent, topTerms, rankedAssets);
+  const renderMode = deriveRenderMode(normalizedContent, rankedAssets);
   const objectCategory = inferredDomain === 'Custom' ? 'Dynamic' : inferredDomain;
 
   return {
@@ -127,6 +109,7 @@ export function classifyUniversalSubject(content = '', sourceType = 'typed-topic
     subDomain: inferredSubDomain,
     visualization,
     sceneComplexity,
+    renderMode,
     objectCategory,
     animationCategory: sceneComplexity === 'high' ? 'Layered Motion' : 'Guided Motion',
     interactionCategory,
@@ -233,7 +216,6 @@ export function buildSceneFromBlueprint(blueprint) {
   }));
 
   const classification = blueprint?.classification || buildClassificationFallback();
-  const domainLabel = String(classification?.domain || blueprint?.domain || 'Custom').toLowerCase();
   const summary = `${blueprint?.summary || 'Dynamic scene'} It adapts to ${classification.subDomain || blueprint?.domain || 'the lesson'} and uses ${assetPlan.length} auto-selected assets with ${classification.interactionCategory || 'guided exploration'}.`;
 
   const rawScene = {
@@ -320,18 +302,13 @@ export function buildSceneFromBlueprint(blueprint) {
 export function buildAuto3DSceneForLesson(content = '', sourceType = 'typed-topic') {
   const normalizedContent = String(content || '').toLowerCase();
   const classification = classifyUniversalSubject(content, sourceType);
-  const visualizationStyle = String(classification.visualization || '').toLowerCase();
-  const shouldUseNon3DVisual = /chart|timeline|diagram|map/.test(visualizationStyle)
-    || /timeline|chart|diagram|map/.test(normalizedContent);
+  const shouldUseNon3DVisual = classification.renderMode === 'abstract';
 
   if (shouldUseNon3DVisual) {
-    const visualizationType = /timeline/.test(visualizationStyle) || /timeline/.test(normalizedContent)
-      ? 'timeline'
-      : /chart|graph/.test(visualizationStyle) || /chart|graph/.test(normalizedContent)
-        ? 'chart'
-        : /diagram|map|workflow|pipeline/.test(visualizationStyle) || /workflow|pipeline|diagram|map/.test(normalizedContent)
-          ? 'diagram'
-          : 'concept-map';
+    const visualizationType = String(classification.visualization || 'adaptive')
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '') || 'adaptive';
 
     const rawScene = {
       title: `${classification.subDomain} visualization`,
@@ -345,7 +322,7 @@ export function buildAuto3DSceneForLesson(content = '', sourceType = 'typed-topi
       animations: [],
       labels: [],
       interactions: [],
-      summary: `A ${visualizationType} visualization was prepared for ${classification.subDomain}.`,
+      summary: `An adaptive visualization was prepared for ${classification.subDomain}.`,
       assetPlan: [],
       reusableAssets: []
     };
@@ -379,7 +356,7 @@ export function buildAuto3DSceneForLesson(content = '', sourceType = 'typed-topi
         steps: [],
         currentStep: 0
       },
-      summary: `A ${visualizationType} visualization was prepared for ${classification.subDomain}.`,
+      summary: `An adaptive visualization was prepared for ${classification.subDomain}.`,
       assetPlan: [],
       reusableAssets: [],
       assetIntelligence: {
@@ -421,13 +398,13 @@ export function buildAuto3DSceneForLesson(content = '', sourceType = 'typed-topi
     unit: 'u'
   }));
   const interactionHint = String(scene?.classification?.interactionCategory || '').toLowerCase();
-  const crossSections = /cross\s*section/.test(normalizedContent) || /inspection/.test(interactionHint)
+  const crossSections = /(cross\s*section|inside view|slice)/.test(normalizedContent) || /interaction/.test(interactionHint)
     ? [{ id: 'cross-section-1', label: 'Cross Section', target: models[0]?.id || 'model-1' }]
     : [];
-  const xRay = /x-ray|xray/.test(normalizedContent) || /inspection/.test(interactionHint)
+  const xRay = /(x-ray|xray|transparent view)/.test(normalizedContent)
     ? [{ id: 'xray-1', label: 'X-Ray View', target: models[0]?.id || 'model-1' }]
     : [];
-  const explodedView = /explode|assembly|breakdown|cross\s*section|x-ray|xray/.test(normalizedContent) || /build and breakdown|inspection/.test(interactionHint)
+  const explodedView = /(explode|breakdown|layers|assembly|cross\s*section|x-ray|xray)/.test(normalizedContent)
     ? [{ id: 'explode-1', label: 'Exploded View', target: models[0]?.id || 'model-1' }]
     : [];
   const timeline = animationPlan.map((step, index) => ({
@@ -486,8 +463,8 @@ export function buildAuto3DSceneForLesson(content = '', sourceType = 'typed-topi
       strategy: scene.assetPlan?.[0]?.compositePlan?.strategy || 'single-asset',
       requiresComposition: Boolean(scene.assetPlan?.[0]?.compositePlan?.secondary || scene.assetPlan?.[0]?.rankScore < 2),
       compositePlan: scene.assetPlan?.[0]?.compositePlan || null,
-      diagramFallback: Boolean(/diagram|flow|map|process|network|system|chart|timeline/.test(normalizedContent)),
-      animationFallback: Boolean(/animate|motion|flow|orbit|rotate|explode|walk|step/.test(normalizedContent))
+      diagramFallback: classification.renderMode === 'abstract',
+      animationFallback: /(animate|motion|rotate|walk|step)/.test(normalizedContent)
     }
   };
 }

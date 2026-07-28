@@ -34,11 +34,6 @@ export const assetCatalog = [
 
 const assetCache = new Map();
 
-const CATEGORY_ALIASES = {
-  'Human Anatomy': ['human anatomy', 'brain', 'eye', 'ear', 'muscles', 'skeleton', 'cells', 'dna'],
-  Robots: ['robots', 'machines', 'automation', 'electronics']
-};
-
 function createBaseAssetProfile(asset) {
   const lod = asset.id === 'heart-anatomy' ? 'high' : asset.id === 'solar-system' ? 'medium' : 'low';
   return {
@@ -74,8 +69,6 @@ function scoreAsset(asset, query = '', category = '') {
   if (searchable.includes(normalizedQuery)) score += 8;
   if (normalizedQuery.split(/\s+/).every((term) => searchable.includes(term))) score += 3;
   if (asset.tags.some((tag) => normalizedQuery.includes(String(tag).toLowerCase()))) score += 3;
-  if (asset.id === 'heart-anatomy' && normalizedQuery.includes('heart')) score += 2;
-  if (asset.id === 'robot-arm' && normalizedQuery.includes('robot')) score += 2;
   return score;
 }
 
@@ -109,11 +102,9 @@ export function createAssetManager() {
     getAssetsByCategory: (category) => {
       const exact = (categoryIndex.get(category) || []).slice();
       const normalizedCategory = String(category || '').toLowerCase();
-      const aliases = (CATEGORY_ALIASES[category] || []).map((alias) => String(alias).toLowerCase());
       const fallback = assets.filter((asset) => {
         const assetCategory = String(asset.category || '').toLowerCase();
-        return aliases.includes(assetCategory)
-          || normalizedCategory.includes(assetCategory)
+        return normalizedCategory.includes(assetCategory)
           || assetCategory.includes(normalizedCategory)
           || asset.tags.some((tag) => String(tag).toLowerCase().includes(normalizedCategory));
       });

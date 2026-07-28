@@ -346,15 +346,9 @@ export default function AITeacher() {
   useEffect(() => {
     if (!currentStep) return;
     const text = withMixedLanguage(currentStep.content, teachingMode);
-    const containsVisualContent = /diagram|image|visual|model|anatomy|heart|cross section|x-ray|explode|chart|map|scene/i.test(text);
-    if (containsVisualContent) {
-      const scene = buildAuto3DSceneForLesson(text, 'ai-teacher');
-      setAutoScene(scene);
-      setSyncPlan(buildTeacherSynchronizationPlan({ explanation: text, topic, scene }));
-    } else {
-      setAutoScene(null);
-      setSyncPlan(null);
-    }
+    const scene = buildAuto3DSceneForLesson(text, 'ai-teacher');
+    setAutoScene(scene);
+    setSyncPlan(buildTeacherSynchronizationPlan({ explanation: text, topic, scene }));
 
     if (!window.speechSynthesis || !isPlaying || interrupting) return;
 
@@ -742,6 +736,7 @@ export default function AITeacher() {
               displayedText={displayedText}
               captionsEnabled={voicePreferences.captions}
               subtitleText={subtitleText}
+              sceneClassification={autoScene?.classification || null}
               onWhiteboardAction={handleWhiteboardAction}
             />
 

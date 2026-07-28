@@ -1,4 +1,4 @@
-import { buildSceneBlueprint } from '../../utils/aiSceneEngine.js';
+import { buildSceneBlueprint, buildSceneFromBlueprint } from '../../utils/aiSceneEngine.js';
 
 function buildCameraCues(entities = []) {
   return entities.map((entity, index) => ({
@@ -23,10 +23,11 @@ function buildTimeline(entities = []) {
 export function planSceneFromLesson({ content = '', sourceType = 'typed-topic', lessonContext = '' } = {}) {
   const mergedContent = `${content || ''} ${lessonContext || ''}`.trim();
   const blueprint = buildSceneBlueprint(mergedContent, sourceType);
-  const entities = blueprint.entities.map((entity) => ({
-    name: entity.name,
-    category: entity.category,
-    tags: [entity.concept, entity.category.toLowerCase()]
+  const sceneJson = buildSceneFromBlueprint(blueprint);
+  const entities = (sceneJson.objects || []).map((entity, index) => ({
+    name: entity.name || entity.label || `Entity ${index + 1}`,
+    category: entity.type || entity.category || 'Dynamic',
+    tags: [entity.name || entity.label || 'concept', String(entity.type || entity.category || 'dynamic').toLowerCase()]
   }));
 
   const sceneTitle = mergedContent
@@ -41,6 +42,7 @@ export function planSceneFromLesson({ content = '', sourceType = 'typed-topic', 
     sourceType,
     subject: blueprint.domain,
     classification: blueprint.classification,
+    sceneJson,
     entities,
     timeline,
     cameraCues,
