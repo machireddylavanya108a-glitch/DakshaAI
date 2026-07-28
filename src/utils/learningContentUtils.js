@@ -28,6 +28,63 @@ export function deriveLearningTitle(sourceName = '', fallback = 'Adaptive lesson
   return keywords.slice(0, Math.min(3, keywords.length)).join(' ').replace(/^./, (char) => char.toUpperCase());
 }
 
+function normalizeUserTopic(rawValue = '') {
+  const normalized = String(rawValue || '').trim();
+  if (!normalized) return '';
+
+  const cleaned = normalized
+    .replace(/^(this|that|these|those)\s+(image|photo|picture|diagram|document|file|content|lesson|topic|video|audio)\s+(shows|is|contains|about|covers|teaches|describes)\s+/i, '')
+    .replace(/^i\s+(want|would|need|am|can)\s+(to\s+)?(learn|study|understand|explore|review|see|know)\s+about\s+/i, '')
+    .replace(/^about\s+/i, '')
+    .replace(/^(the|a|an)\s+/i, '')
+    .replace(/^(topic|lesson|course|module)\s+/i, '')
+    .replace(/\s+(topic|lesson|course|module)$/i, '')
+    .replace(/^[^a-z0-9]+/i, '')
+    .split(/[.!?]/)[0]
+    .trim();
+
+  if (!cleaned) return '';
+
+  return cleaned.charAt(0).toUpperCase() + cleaned.slice(1).trim();
+}
+
+export function resolveLearningTopic({
+  filename = '',
+  extractedText = '',
+  visionAnalysis = '',
+  interviewTopic = '',
+  userDescription = ''
+} = {}) {
+  const cleanedFilename = String(filename || '').replace(/\.(pdf|docx|pptx?|txt|md|html?|json|csv|png|jpe?g|webp|gif)$/i, '').replace(/[_-]+/g, ' ').trim();
+  const normalizedText = String(extractedText || visionAnalysis || '').trim();
+  const textTopic = normalizedText
+    .split(/\n|\. /)
+    .map((line) => line.trim())
+    .find((line) => line.length > 6 && !/^((the|a|an|this|that|these|those)\s)/i.test(line));
+  const userTopic = normalizeUserTopic(String(userDescription || interviewTopic || ''));
+
+  if (userTopic) {
+    return { topic: userTopic, confirmed: true, source: 'user-description' };
+  }
+
+  if (visionAnalysis && !/^i couldn't|unable to|unclear|image/i.test(String(visionAnalysis).toLowerCase())) {
+    const visionTopic = String(visionAnalysis).split(/\.|\n/).find((segment) => segment.trim().length > 6);
+    if (visionTopic) {
+      return { topic: visionTopic.trim(), confirmed: true, source: 'vision-analysis' };
+    }
+  }
+
+  if (textTopic) {
+    return { topic: textTopic.replace(/^([A-Z][a-z]+\s+){0,3}/, '').slice(0, 120), confirmed: true, source: 'extracted-text' };
+  }
+
+  if (cleanedFilename && !/^screenshot|image|file|document|upload/i.test(cleanedFilename.toLowerCase())) {
+    return { topic: cleanedFilename, confirmed: false, source: 'filename' };
+  }
+
+  return { topic: 'Learning material', confirmed: false, source: 'filename' };
+}
+
 export function buildFallbackLessonPackage({ title = 'Adaptive lesson', summary = 'The lesson content is being prepared from available material.' } = {}) {
   const lessonTitle = deriveLearningTitle(title, 'Adaptive lesson');
   const summaryText = String(summary || '').trim() || 'The lesson content is being prepared from available material.';
@@ -39,7 +96,7 @@ export function buildFallbackLessonPackage({ title = 'Adaptive lesson', summary 
     advancedExplanation: `Use ${lessonTitle} to explore deeper application, comparison, and refined practice.`,
     realWorldExamples: ['Apply the lesson to a practical scenario you can observe or recreate.'],
     interviewQuestions: ['What is the core idea of this lesson?', 'How would you explain it to a beginner?'],
-    practiceQuestions: ['Summarize the main takeaways in your own words.', 'List the most important concepts and explain one example.'],
+    practiceQuestions: ['Summarize the main takeaways in your own words.', 'List the most important concepts and explain them.'],
     quiz: [],
     flashcards: [],
     revisionNotes: summaryText,

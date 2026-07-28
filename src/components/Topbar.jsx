@@ -22,7 +22,21 @@ const Topbar = memo(function Topbar({ onMenuClick }) {
           <span className="absolute right-1 top-1 h-2 w-2 rounded-full bg-indigo-500"></span>
         </button>
         <Link to="/profile" aria-label="Open profile">
-          {user?.photoURL ? <img loading="lazy" decoding="async" src={user.photoURL} alt="User" className="h-9 w-9 rounded-full border border-slate-700" /> : <div className="h-9 w-9 rounded-full bg-slate-700" />}
+          {user?.photoURL ? (
+            <img
+              loading="lazy"
+              decoding="async"
+              src={user.photoURL}
+              alt="User"
+              referrerPolicy="no-referrer"
+              onError={(event) => {
+                event.currentTarget.style.display = 'none';
+                event.currentTarget.parentElement?.querySelector('[data-avatar-fallback]')?.classList.remove('hidden');
+              }}
+              className="h-9 w-9 rounded-full border border-slate-700"
+            />
+          ) : null}
+          <div data-avatar-fallback className={`hidden h-9 w-9 rounded-full bg-slate-700 ${user?.photoURL ? 'hidden' : ''}`} />
         </Link>
       </div>
     </header>

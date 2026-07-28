@@ -92,8 +92,17 @@ export function createPerformanceMonitor() {
       if (window.__DAKSHA_PERFORMANCE__) {
         window.__DAKSHA_PERFORMANCE__.push(entry);
       }
-      if (typeof navigator !== 'undefined' && navigator.sendBeacon) {
-        navigator.sendBeacon('/analytics', JSON.stringify(entry));
+      if (typeof window !== 'undefined' && typeof window.fetch === 'function') {
+        try {
+          window.fetch('/api/analytics', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(entry),
+            keepalive: true
+          }).catch(() => {});
+        } catch (error) {
+          // analytics is optional and must never block app flows
+        }
       }
     }
   };
@@ -145,7 +154,8 @@ export function registerCrashReporter() {
 
 export function preloadCriticalAssets() {
   if (typeof window === 'undefined') return;
-  const assets = ['/favicon.svg', '/manifest.webmanifest'];
+  // Keep preloading limited to the app shell to avoid noisy unused-preload warnings.
+  const assets = ['/favicon.svg'];
   assets.forEach((asset) => prefetchAsset(asset));
 }
 

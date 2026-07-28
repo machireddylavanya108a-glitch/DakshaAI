@@ -7,11 +7,15 @@ const authErrorMessages = {
   'auth/invalid-email': 'Please enter a valid email address.',
   'auth/user-not-found': 'No account found with this email.',
   'auth/wrong-password': 'Incorrect password. Please try again.',
-  'auth/email-already-in-use': 'This email is already registered.',
+  'auth/email-already-in-use': 'This email is already registered. Try signing in instead.',
   'auth/weak-password': 'Password should be at least 6 characters.',
   'auth/missing-email': 'Please enter your email address.',
   'auth/too-many-requests': 'Too many attempts. Please wait and try again later.',
   'auth/user-disabled': 'This account has been disabled. Contact support if this is a mistake.',
+  'auth/invalid-credential': 'The email or password is incorrect.',
+  'auth/operation-not-allowed': 'Email/password sign-in is currently disabled.',
+  'auth/unauthorized-domain': 'This domain is not authorized for Firebase Auth.',
+  'auth/network-request-failed': 'Network connection failed. Please check your connection and try again.',
   'auth/popup-closed-by-user': 'Google sign-in was canceled. Please try again.'
 };
 

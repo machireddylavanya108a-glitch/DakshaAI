@@ -76,8 +76,15 @@ export function AuthProvider({ children }) {
   }, []);
 
   const withSessionPersistence = async (callback) => {
-    await setPersistence(auth, browserSessionPersistence);
-    return callback();
+    try {
+      await setPersistence(auth, browserSessionPersistence);
+      return await callback();
+    } catch (error) {
+      if (error?.code === 'auth/network-request-failed') {
+        throw new Error('Network connection failed. Please check your connection and try again.');
+      }
+      throw error;
+    }
   };
 
   const loginWithGoogle = () => withSessionPersistence(() => signInWithPopup(auth, new GoogleAuthProvider()));
@@ -87,20 +94,62 @@ export function AuthProvider({ children }) {
   const loginAsGuest = () => withSessionPersistence(() => signInAnonymously(auth));
 
   const signupWithEmail = async (email, password, displayName = '') => {
+    if (!email || !password) throw new Error('Email and password are required.');
     if (!validatePasswordStrength(password)) {
       throw new Error('Password must be at least 8 characters and include a number and uppercase letter.');
     }
-    const result = await createUserWithEmailAndPassword(auth, email, password);
-    if (displayName) {
-      await updateProfile(result.user, { displayName });
+    try {
+      const result = await createUserWithEmailAndPassword(auth, email, password);
+      if (displayName) {
+        await updateProfile(result.user, { displayName });
+      }
+      await sendEmailVerification(result.user);
+      return result;
+    } catch (error) {
+      if (error?.code === 'auth/email-already-in-use') {
+        throw new Error('This email is already registered. Try signing in instead.');
+      }
+      if (error?.code === 'auth/invalid-email') {
+        throw new Error('Please enter a valid email address.');
+      }
+      if (error?.code === 'auth/weak-password') {
+        throw new Error('Password should be at least 6 characters.');
+      }
+      if (error?.code === 'auth/operation-not-allowed') {
+        throw new Error('Email/password sign-up is currently disabled in Firebase.');
+      }
+      if (error?.code === 'auth/network-request-failed') {
+        throw new Error('Network connection failed. Please check your connection and try again.');
+      }
+      throw error;
     }
-    await sendEmailVerification(result.user);
-    return result;
   };
 
   const loginWithEmail = async (email, password) => {
     if (!email || !password) throw new Error('Email and password are required.');
-    return withSessionPersistence(() => signInWithEmailAndPassword(auth, email, password));
+    try {
+      return await withSessionPersistence(() => signInWithEmailAndPassword(auth, email, password));
+    } catch (error) {
+      if (error?.code === 'auth/invalid-email') {
+        throw new Error('Please enter a valid email address.');
+      }
+      if (error?.code === 'auth/user-not-found') {
+        throw new Error('No account found with this email.');
+      }
+      if (error?.code === 'auth/wrong-password') {
+        throw new Error('Incorrect password. Please try again.');
+      }
+      if (error?.code === 'auth/invalid-credential') {
+        throw new Error('The email or password is incorrect.');
+      }
+      if (error?.code === 'auth/too-many-requests') {
+        throw new Error('Too many attempts. Please wait a moment and try again.');
+      }
+      if (error?.code === 'auth/network-request-failed') {
+        throw new Error('Network connection failed. Please check your connection and try again.');
+      }
+      throw error;
+    }
   };
   const resetPassword = (email) => sendPasswordResetEmail(auth, email);
   const verifyEmail = () => sendEmailVerification(auth.currentUser);

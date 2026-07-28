@@ -65,9 +65,23 @@ export default function Profile() {
       <div className="bg-slate-900 p-8 rounded-2xl border border-slate-800 mb-8">
         <div className="flex items-center gap-6 mb-6">
           {user?.photoURL ? (
-            <img src={user.photoURL} alt="User Avatar" className="w-20 h-20 rounded-full border-2 border-indigo-500" />
+            <>
+              <img
+                src={user.photoURL}
+                alt="User Avatar"
+                referrerPolicy="no-referrer"
+                onError={(event) => {
+                  event.currentTarget.style.display = 'none';
+                  event.currentTarget.parentElement?.querySelector('[data-avatar-fallback]')?.classList.remove('hidden');
+                }}
+                className="w-20 h-20 rounded-full border-2 border-indigo-500"
+              />
+              <div data-avatar-fallback className="hidden w-20 h-20 rounded-full bg-slate-700 flex items-center justify-center">
+                <User className="w-10 h-10" />
+              </div>
+            </>
           ) : (
-            <div className="w-20 h-20 rounded-full bg-slate-700 flex items-center justify-center">
+            <div data-avatar-fallback className="w-20 h-20 rounded-full bg-slate-700 flex items-center justify-center">
               <User className="w-10 h-10" />
             </div>
           )}

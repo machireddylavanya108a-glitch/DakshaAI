@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { buildFallbackLessonPackage, deriveLearningTitle } from './learningContentUtils.js';
+import { buildFallbackLessonPackage, deriveLearningTitle, resolveLearningTopic } from './learningContentUtils.js';
 import { buildKnowledgeGraph } from './knowledgeGraphEngine.js';
 import { buildSceneBlueprint } from './aiSceneEngine.js';
 
@@ -27,4 +27,23 @@ test('scene blueprint creates a non-empty fallback scene plan', () => {
   assert.ok(blueprint.entities.length > 0);
   assert.ok(blueprint.assetPlan.length > 0);
   assert.ok(blueprint.sceneTitle.length > 0);
+});
+
+test('resolveLearningTopic prioritizes confirmed user input over filenames', () => {
+  const resolved = resolveLearningTopic({
+    filename: 'Screenshot (35).png',
+    extractedText: 'A lesson about photosynthesis and chloroplasts.',
+    interviewTopic: 'Photosynthesis',
+    userDescription: 'This image shows a plant cell diagram.'
+  });
+
+  assert.equal(resolved.topic, 'Plant cell diagram');
+  assert.equal(resolved.confirmed, true);
+  assert.equal(resolved.source, 'user-description');
+});
+
+test('resolveLearningTopic leaves filename-only topics unconfirmed', () => {
+  const resolved = resolveLearningTopic({ filename: 'Screenshot (35).png' });
+  assert.equal(resolved.confirmed, false);
+  assert.equal(resolved.source, 'filename');
 });

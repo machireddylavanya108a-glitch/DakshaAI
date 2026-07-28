@@ -1,4 +1,4 @@
-const CACHE_NAME = 'daksha-ai-v3';
+const CACHE_NAME = 'daksha-ai-v-next';
 const APP_SHELL = ['/', '/index.html', '/favicon.svg', '/manifest.webmanifest'];
 const CDN_ASSETS = ['https://www.gstatic.com/firebasejs/ui/2.0.0/firebase-ui.css'];
 
@@ -53,9 +53,18 @@ function isVercelBypassUrl(url) {
 
 function isPreviewManifestRequest(url, request) {
   if (!url || !request) return false;
-  const isManifest = request.destination === 'manifest' || url.pathname.endsWith('/manifest.webmanifest') || url.pathname === '/manifest.webmanifest';
-  const isVercelPreviewHost = url.hostname.endsWith('.vercel.app');
-  return isManifest && isVercelPreviewHost;
+  const pathname = url.pathname || '';
+  return request.destination === 'manifest' || pathname.endsWith('/manifest.webmanifest') || pathname === '/manifest.webmanifest';
+}
+
+function shouldBypassRequest(url, request) {
+  if (!url || !request) return false;
+  const pathname = url.pathname || '';
+  const hostname = url.hostname || '';
+  const isManifest = isPreviewManifestRequest(url, request);
+  const isAnalytics = pathname === '/api/analytics' || pathname.startsWith('/api/analytics');
+  const isAuthOrigin = hostname === 'accounts.google.com' || hostname === 'apis.google.com' || hostname === 'identitytoolkit.googleapis.com' || hostname === 'securetoken.googleapis.com' || hostname.endsWith('.firebaseapp.com') || hostname.endsWith('.web.app');
+  return isManifest || isAnalytics || isAuthOrigin || isVercelBypassUrl(url);
 }
 
 self.addEventListener('install', (event) => {
@@ -86,14 +95,8 @@ self.addEventListener('activate', (event) => {
 self.addEventListener('fetch', (event) => {
   const { request } = event;
   const url = new URL(request.url);
-  if (request.method !== 'GET') return;
 
-  if (isVercelBypassUrl(url)) {
-    event.respondWith(fetch(request));
-    return;
-  }
-
-  if (isPreviewManifestRequest(url, request)) {
+  if (request.method !== 'GET' || shouldBypassRequest(url, request)) {
     event.respondWith(fetch(request));
     return;
   }

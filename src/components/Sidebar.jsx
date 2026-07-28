@@ -66,12 +66,20 @@ const Sidebar = memo(function Sidebar({ closeSidebar }) {
       <div className="p-4 border-t border-slate-800">
         <Link to="/profile" onClick={closeSidebar} className="flex items-center gap-3 p-2 rounded-xl hover:bg-slate-900 transition-colors mb-3">
           {user?.photoURL ? (
-            <img src={user.photoURL} alt="User" className="w-10 h-10 rounded-full" />
-          ) : (
-            <div className="w-10 h-10 rounded-full bg-slate-700 flex items-center justify-center">
-              <User className="w-5 h-5" />
-            </div>
-          )}
+            <img
+              src={user.photoURL}
+              alt="User"
+              referrerPolicy="no-referrer"
+              onError={(event) => {
+                event.currentTarget.style.display = 'none';
+                event.currentTarget.parentElement?.querySelector('[data-avatar-fallback]')?.classList.remove('hidden');
+              }}
+              className="w-10 h-10 rounded-full"
+            />
+          ) : null}
+          <div data-avatar-fallback className={`w-10 h-10 rounded-full bg-slate-700 flex items-center justify-center ${user?.photoURL ? 'hidden' : ''}`}>
+            <User className="w-5 h-5" />
+          </div>
           <div className="min-w-0">
             <p className="text-sm font-medium text-white truncate">{user?.displayName || 'Learner'}</p>
             <p className="text-xs text-slate-500 truncate">{user?.email}</p>

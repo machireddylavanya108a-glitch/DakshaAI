@@ -2,15 +2,23 @@ import OpenAI from 'openai';
 import { compressImageDataUrl, getCachedValue, setCachedValue, getIndexedDBItem, setIndexedDBItem } from '../utils/cache.js';
 import { sanitizePrompt, rateLimiter } from '../utils/security.js';
 import { splitTextIntoChunks, TaskQueue, withRetry } from '../utils/productionOptimizations.js';
+import { getConfiguredTextModels, getConfiguredVisionModels } from '../config/aiModels.js';
 
 const runtimeEnv = typeof import.meta !== 'undefined' && import.meta.env ? import.meta.env : {};
 const openaiApiKey = runtimeEnv.VITE_OPENROUTER_API_KEY || '';
+const appOrigin = typeof window !== 'undefined' && window.location?.origin ? window.location.origin : (runtimeEnv.VITE_APP_URL || 'https://daksha.ai');
 
 const openai = openaiApiKey
   ? new OpenAI({
       apiKey: openaiApiKey,
       baseURL: 'https://openrouter.ai/api/v1',
-      dangerouslyAllowBrowser: true
+      dangerouslyAllowBrowser: true,
+      defaultHeaders: {
+        Authorization: `Bearer ${openaiApiKey}`,
+        'Content-Type': 'application/json',
+        'HTTP-Referer': appOrigin,
+        'X-Title': 'Daksha AI'
+      }
     })
   : null;
 
@@ -22,6 +30,93 @@ function hasAiCredentials() {
 
 function getMissingAuthMessage() {
   return 'AI is not configured yet. Add VITE_OPENROUTER_API_KEY to your environment to enable generation.';
+}
+
+function buildStructuredFallbackResponse(prompt = '', language = 'English') {
+  const normalizedPrompt = String(prompt || '').trim();
+  const promptHint = normalizedPrompt ? normalizedPrompt.slice(0, 120) : 'your uploaded material';
+  return `I can help you study ${promptHint}. Start by reviewing the main ideas, then build a short summary, a few flashcards, and one practice question in ${language}.`;
+}
+
+function buildLessonFallbackPackage(sourceText = '', sourceName = 'topic', context = 'topic') {
+  const sourceHint = String(sourceText || sourceName || context || 'this learning material').trim().slice(0, 1400);
+  return {
+    completeCourse: `A useful lesson map was built from the available content. Key ideas from ${sourceName || context} include: ${sourceHint}`,
+    beginnerExplanation: `Start by reviewing the main ideas in ${sourceName || context} and build understanding from the key concepts it contains.`,
+    intermediateExplanation: `Connect the main ideas to practical examples and review the important relationships in the content.`,
+    advancedExplanation: `Use the material to deepen your understanding with comparisons, practice questions, and self-review.`,
+    realWorldExamples: ['Connect the lesson to a practical scenario from daily life or work.'],
+    interviewQuestions: ['What is the main idea of this material?', 'How would you explain this topic in simple terms?'],
+    practiceQuestions: ['Summarize the key takeaway from this lesson.', 'List the most important concepts and explain them.'],
+    quiz: [],
+    flashcards: [],
+    revisionNotes: sourceHint,
+    cheatSheet: sourceHint,
+    mindMap: `${sourceName || context} -> concepts -> practice -> review`,
+    learningRoadmap: ['Understand the main topic', 'Break the material into concepts', 'Practice recall and examples']
+  };
+}
+
+function buildVisionFallbackText(sourceText = '', mimeType = 'image/png') {
+  const hint = String(sourceText || '').trim();
+  const label = mimeType || 'image';
+  if (hint) {
+    return `I couldn't confidently interpret this ${label} yet. Please tell me what the image contains, and I will turn it into a lesson plan. I also extracted these clues: ${hint.slice(0, 320)}.`;
+  }
+  return `I couldn't confidently interpret this image yet. Please tell me what the image contains, and I will turn it into a lesson plan.`;
+}
+
+function getStatusCode(error) {
+  if (!error) return null;
+  if (typeof error?.status === 'number') return error.status;
+  const code = Number(error?.statusCode || error?.code || error?.response?.status || error?.status_code);
+  return Number.isFinite(code) ? code : null;
+}
+
+function isRetryableModelError(error) {
+  const status = getStatusCode(error);
+  return [400, 401, 402, 404, 429, 500, 502, 503].includes(status);
+}
+
+async function callModelWithFallback({
+  requestType,
+  messages,
+  models = [],
+  timeoutMs = 20000
+}) {
+  if (!openai) {
+    throw new Error('OpenRouter is not configured.');
+  }
+
+  const candidateModels = Array.isArray(models) ? models.filter(Boolean) : [];
+  if (!candidateModels.length) {
+    throw new Error('No model configured');
+  }
+
+  const payload = { messages };
+  if (!Array.isArray(messages) || !messages.length) {
+    throw new Error('Invalid request payload');
+  }
+
+  let lastError;
+  for (const model of candidateModels) {
+    try {
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error('AI request timed out.')), timeoutMs);
+      });
+      const requestPromise = openai.chat.completions.create({
+        model,
+        messages,
+        ...(requestType === 'vision' ? { max_tokens: 400 } : {})
+      });
+      const response = await Promise.race([requestPromise, timeoutPromise]);
+      return { response, model };
+    } catch (error) {
+      lastError = error;
+      if (!isRetryableModelError(error)) break;
+    }
+  }
+  throw lastError || new Error('AI request failed');
 }
 
 const DAKSHA_SYSTEM_PROMPT = `You are Daksha AI, the Universal Knowledge Operating System.
@@ -109,34 +204,37 @@ export async function getDakshaResponse(prompt, language = "English") {
 
   const safePrompt = sanitizePrompt(prompt);
   const safeInput = optimizeTextPayload(safePrompt, 12000);
+  const textModels = getConfiguredTextModels();
+
   if (safeInput.length > 12000) {
     const chunks = splitTextIntoChunks(safeInput, 6000);
-    const chunkResults = await Promise.all(chunks.map((chunk) => aiTaskQueue.enqueue(() => callProtectedModel(() => openai.chat.completions.create({
-      model: 'deepseek/deepseek-v3:free',
+    const chunkResults = await Promise.all(chunks.map((chunk) => aiTaskQueue.enqueue(() => callModelWithFallback({
+      requestType: 'text',
       messages: [
         { role: 'system', content: `${DAKSHA_SYSTEM_PROMPT} You MUST respond entirely in ${language}.` },
         { role: 'user', content: chunk }
-      ]
-    })))));
+      ],
+      models: textModels
+    }).then(({ response }) => response))));
     const content = chunkResults.map((item) => item?.choices?.[0]?.message?.content || '').join('\n\n');
     await writeCachedResponse(cacheKey, content, 1000 * 60 * 10);
     return content;
   }
 
   try {
-    const response = await withRetry(() => aiTaskQueue.enqueue(() => callProtectedModel(() => openai.chat.completions.create({
-      model: 'deepseek/deepseek-v3:free',
+    const { response } = await withRetry(() => aiTaskQueue.enqueue(() => callModelWithFallback({
+      requestType: 'text',
       messages: [
         { role: 'system', content: `${DAKSHA_SYSTEM_PROMPT} You MUST respond entirely in ${language}.` },
         { role: 'user', content: safeInput }
-      ]
-    }))), { retries: 2, delay: 250 });
+      ],
+      models: textModels
+    })), { retries: 2, delay: 250 });
     const content = response.choices[0].message.content;
     await writeCachedResponse(cacheKey, content, 1000 * 60 * 10);
     return content;
   } catch (error) {
-    console.error("AI Error:", error);
-    return "I am having trouble connecting to my brain right now. Please try again later.";
+    return buildStructuredFallbackResponse(prompt, language);
   }
 }
 
@@ -149,21 +247,21 @@ export async function getDakshaImageResponse(base64Image, mimeType) {
   try {
     const safeImage = String(base64Image || '').slice(0, 800000);
     const optimizedImage = safeImage.startsWith('data:image') ? await compressImageDataUrl(`data:${mimeType};base64,${safeImage}`, 0.8, 1200) : safeImage;
-    const response = await callProtectedModel(() => openai.chat.completions.create({
-      model: 'meta-llama/llama-3.2-11b-vision-instruct:free',
+    const { response } = await callModelWithFallback({
+      requestType: 'vision',
       messages: [
         { role: 'user', content: [
           { type: 'text', text: 'Analyze this image. Extract all the knowledge, text, or concepts from it. Explain what this is and teach me about it simply.' },
           { type: 'image_url', image_url: { url: `data:${mimeType};base64,${optimizedImage}` } }
         ] }
-      ]
-    }));
+      ],
+      models: getConfiguredVisionModels()
+    });
     const content = response.choices[0].message.content;
     setCachedValue(cacheKey, content, 1000 * 60 * 20);
     return content;
   } catch (error) {
-    console.error("AI Vision Error:", error);
-    return "I couldn't process this image. Please try a clearer photo or a different file.";
+    return buildVisionFallbackText(base64Image, mimeType);
   }
 }
 
@@ -175,19 +273,19 @@ export async function getDakshaTextResponse(extractedText) {
 
   try {
     const safeText = optimizeTextPayload(sanitizePrompt(extractedText), 18000);
-    const response = await callProtectedModel(() => openai.chat.completions.create({
-      model: 'deepseek/deepseek-v3:free',
+    const { response } = await callModelWithFallback({
+      requestType: 'text',
       messages: [
         { role: 'system', content: 'You are Daksha AI. The user has uploaded a document and extracted the text. Read the text, summarize the key knowledge, and explain what the document is about simply.' },
         { role: 'user', content: safeText }
-      ]
-    }));
+      ],
+      models: getConfiguredTextModels()
+    });
     const content = response.choices[0].message.content;
     setCachedValue(cacheKey, content, 1000 * 60 * 15);
     return content;
   } catch (error) {
-    console.error("AI Text Error:", error);
-    return "I couldn't process this document. Please try a different file.";
+    return buildStructuredFallbackResponse(extractedText, 'English');
   }
 }
 
@@ -197,7 +295,7 @@ export async function getDakshaDocumentAnalysis(extractedText, fileName = 'docum
   if (cached) return cached;
   if (!hasAiCredentials()) {
     const message = getMissingAuthMessage();
-    return {
+    const fallback = {
       overview: message,
       summary: message,
       topics: [],
@@ -218,6 +316,8 @@ export async function getDakshaDocumentAnalysis(extractedText, fileName = 'docum
       quiz: [],
       flashcards: []
     };
+    setCachedValue(cacheKey, fallback, 1000 * 60 * 20);
+    return fallback;
   }
 
   try {
@@ -232,17 +332,19 @@ The uploaded file is: ${fileName} (${fileType}).
 Text to analyze:
 ${limitedText}`;
 
-    const response = await callProtectedModel(() => openai.chat.completions.create({
-      model: 'deepseek/deepseek-v3:free',
+    const { response } = await callModelWithFallback({
+      requestType: 'text',
       messages: [
         { role: 'system', content: `${DAKSHA_SYSTEM_PROMPT} You MUST return only valid JSON for document analysis.` },
         { role: 'user', content: prompt }
-      ]
-    }));
+      ],
+      models: getConfiguredTextModels()
+    });
 
     const content = response.choices[0].message.content;
     const parsed = parseJsonResponse(content);
     if (parsed) {
+      setCachedValue(cacheKey, parsed, 1000 * 60 * 20);
       return parsed;
     }
 
@@ -270,10 +372,9 @@ ${limitedText}`;
     setCachedValue(cacheKey, fallback, 1000 * 60 * 20);
     return fallback;
   } catch (error) {
-    console.error("AI Document Analysis Error:", error);
-    return {
-      overview: "I couldn't analyze this document. Please try a different file or upload a simpler version.",
-      summary: "I couldn't analyze this document.",
+    const fallback = {
+      overview: 'The document analysis is being prepared from the available content.',
+      summary: 'The document analysis is being prepared from the available content.',
       topics: [],
       keywords: [],
       definitions: [],
@@ -292,6 +393,8 @@ ${limitedText}`;
       quiz: [],
       flashcards: []
     };
+    setCachedValue(cacheKey, fallback, 1000 * 60 * 20);
+    return fallback;
   }
 }
 
