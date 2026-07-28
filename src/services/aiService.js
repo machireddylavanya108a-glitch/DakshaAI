@@ -9,9 +9,7 @@ const runtimeEnv = typeof import.meta !== 'undefined' && import.meta.env ? impor
 const openaiApiKey = AI_CONFIG.apiKey;
 const appOrigin = typeof window !== 'undefined' && window.location?.origin ? window.location.origin : (runtimeEnv.VITE_APP_URL || 'https://daksha.ai');
 
-if (!openaiApiKey) {
-  reportAiConfigWarnings(console);
-}
+reportAiConfigWarnings(console);
 
 const openai = openaiApiKey
   ? new OpenAI({
@@ -28,6 +26,97 @@ const openai = openaiApiKey
   : null;
 
 const aiTaskQueue = new TaskQueue({ concurrency: 2, retries: 2, retryDelay: 250 });
+
+const MAX_TOKEN_HARD_CAP = 4096;
+const TOKEN_BUDGETS = {
+  summary: 800,
+  lesson: 2500,
+  quiz: 1000,
+  flashcards: 800,
+  mindmap: 800,
+  roadmap: 1200,
+  vision: 800,
+  default: 1800
+};
+
+function clampMaxTokens(value, fallback = TOKEN_BUDGETS.default) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric) || numeric <= 0) return fallback;
+  return Math.max(400, Math.min(MAX_TOKEN_HARD_CAP, Math.round(numeric)));
+}
+
+function inferTaskFromMessages(messages = [], requestType = 'text') {
+  if (requestType === 'vision') return 'vision';
+  const flattened = (messages || [])
+    .map((item) => {
+      if (typeof item?.content === 'string') return item.content;
+      if (Array.isArray(item?.content)) {
+        return item.content.map((part) => part?.text || '').join(' ');
+      }
+      return '';
+    })
+    .join(' ')
+    .toLowerCase();
+
+  if (flattened.includes('flashcard')) return 'flashcards';
+  if (flattened.includes('quiz')) return 'quiz';
+  if (flattened.includes('roadmap')) return 'roadmap';
+  if (flattened.includes('mind map') || flattened.includes('mindmap')) return 'mindmap';
+  if (flattened.includes('summary') || flattened.includes('summarize')) return 'summary';
+  return 'lesson';
+}
+
+function resolveTaskTokenBudget(task = 'default', requestType = 'text') {
+  if (requestType === 'vision') return TOKEN_BUDGETS.vision;
+  return TOKEN_BUDGETS[task] || TOKEN_BUDGETS.default;
+}
+
+function buildTokenAttemptPlan(maxTokens) {
+  const base = clampMaxTokens(maxTokens);
+  return Array.from(new Set([
+    base,
+    Math.min(base, 3000),
+    Math.min(base, 2500),
+    Math.min(base, 1500),
+    1000,
+    800
+  ].map((value) => clampMaxTokens(value)).filter(Boolean)));
+}
+
+function compactMessages(messages = [], maxChars = 9000) {
+  let remaining = Math.max(1000, Math.round(maxChars));
+  return (messages || []).map((message) => {
+    if (remaining <= 0) return { ...message, content: '' };
+
+    if (typeof message?.content === 'string') {
+      const next = message.content.slice(0, remaining);
+      remaining -= next.length;
+      return { ...message, content: next };
+    }
+
+    if (Array.isArray(message?.content)) {
+      const nextContent = message.content.map((part) => {
+        if (!part?.text || remaining <= 0) return part;
+        const text = String(part.text).slice(0, remaining);
+        remaining -= text.length;
+        return { ...part, text };
+      });
+      return { ...message, content: nextContent };
+    }
+
+    return message;
+  });
+}
+
+function isCreditOrTokenLimitError(error) {
+  const status = getStatusCode(error);
+  const message = String(error?.message || error?.error?.message || '').toLowerCase();
+  return status === 402
+    || message.includes('requires more credits')
+    || message.includes('insufficient credits')
+    || message.includes('fewer max_tokens')
+    || message.includes('max tokens');
+}
 
 function hasAiCredentials() {
   return Boolean(openaiApiKey);
@@ -109,6 +198,8 @@ async function callModelWithFallback({
   requestType,
   messages,
   models = [],
+  task,
+  maxTokens,
   timeoutMs = 20000
 }) {
   if (!openai) {
@@ -126,21 +217,47 @@ async function callModelWithFallback({
   }
 
   let lastError;
+  const inferredTask = task || inferTaskFromMessages(messages, requestType);
+  const initialTokenBudget = clampMaxTokens(maxTokens || resolveTaskTokenBudget(inferredTask, requestType));
+
   for (const model of candidateModels) {
-    try {
-      const timeoutPromise = new Promise((_, reject) => {
-        setTimeout(() => reject(new Error('AI request timed out.')), timeoutMs);
-      });
-      const requestPromise = openai.chat.completions.create({
-        model,
-        messages,
-        ...(requestType === 'vision' ? { max_tokens: 400 } : {})
-      });
-      const response = await Promise.race([requestPromise, timeoutPromise]);
-      return { response, model };
-    } catch (error) {
-      lastError = error;
-      if (!isRetryableModelError(error)) break;
+    let promptCompacted = false;
+    let requestMessages = messages;
+    let tokenAttempts = buildTokenAttemptPlan(initialTokenBudget);
+
+    for (let attemptIndex = 0; attemptIndex < tokenAttempts.length; attemptIndex += 1) {
+      const tokenBudget = tokenAttempts[attemptIndex];
+
+      try {
+        const timeoutPromise = new Promise((_, reject) => {
+          setTimeout(() => reject(new Error('AI request timed out.')), timeoutMs);
+        });
+        const requestPromise = openai.chat.completions.create({
+          model,
+          messages: requestMessages,
+          max_tokens: tokenBudget
+        });
+        const response = await Promise.race([requestPromise, timeoutPromise]);
+        return { response, model };
+      } catch (error) {
+        lastError = error;
+
+        if (isCreditOrTokenLimitError(error)) {
+          const lastAttempt = attemptIndex === tokenAttempts.length - 1;
+          if (lastAttempt && !promptCompacted) {
+            requestMessages = compactMessages(messages, 7000);
+            tokenAttempts = buildTokenAttemptPlan(1200);
+            promptCompacted = true;
+            attemptIndex = -1;
+            continue;
+          }
+          continue;
+        }
+
+        if (!isRetryableModelError(error)) {
+          break;
+        }
+      }
     }
   }
   throw lastError || new Error('AI request failed');

@@ -64,6 +64,14 @@ export function validateRuntimeConfig(envInput = resolveRuntimeEnv(), logger = c
     warnOnce(logger, 'openrouter-availability', '[AI] AI generation is disabled until VITE_OPENROUTER_API_KEY is provided.');
   }
 
+  if (!normalizeValue(env.VITE_OPENROUTER_TEXT_MODEL)) {
+    warnOnce(logger, 'openrouter-text-model-default', `[AI] VITE_OPENROUTER_TEXT_MODEL is not set. Using default model: ${textModel}.`);
+  }
+
+  if (!normalizeValue(env.VITE_OPENROUTER_VISION_MODEL)) {
+    warnOnce(logger, 'openrouter-vision-model-default', `[AI] VITE_OPENROUTER_VISION_MODEL is not set. Using default model: ${visionModel}.`);
+  }
+
   return {
     firebase: {
       valid: firebaseMissing.length === 0,

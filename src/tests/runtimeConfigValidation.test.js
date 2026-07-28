@@ -63,7 +63,8 @@ test('missing OpenRouter model config uses defaults without disabling AI when AP
   assert.equal(report.openRouter.aiGenerationEnabled, true);
   assert.equal(report.openRouter.textModel, DEFAULT_OPENROUTER_TEXT_MODEL);
   assert.equal(report.openRouter.visionModel, DEFAULT_OPENROUTER_VISION_MODEL);
-  assert.equal(logger.warnMessages.length, 0);
+  assert.ok(logger.warnMessages.some((message) => message.includes('VITE_OPENROUTER_TEXT_MODEL is not set')));
+  assert.ok(logger.warnMessages.some((message) => message.includes('VITE_OPENROUTER_VISION_MODEL is not set')));
   assert.equal(logger.errorMessages.length, 0);
 });
 

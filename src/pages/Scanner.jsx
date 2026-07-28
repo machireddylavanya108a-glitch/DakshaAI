@@ -11,12 +11,21 @@ import PersonalizedLearningDashboard from '../components/common/PersonalizedLear
 import { buildPersonalizedLearningPlan } from '../utils/personalizedLearningEngine';
 import { persistLearningSession } from '../services/learningSessionOrchestrator';
 import { deriveLearningTitle, buildFallbackLessonPackage } from '../utils/learningContentUtils';
+import KnowledgeGraphViewer from '../components/common/KnowledgeGraphViewer';
 
 const tabs = ['Overview', 'Summary', 'Topics', 'Keywords', 'Quiz', 'Flashcards'];
 
 function normalizeUniqueList(value) {
   if (!Array.isArray(value)) return [];
   return Array.from(new Set(value.map((entry) => String(entry || '').trim()).filter(Boolean)));
+}
+
+function isStructuredMindMap(value) {
+  return Boolean(value)
+    && typeof value === 'object'
+    && !Array.isArray(value)
+    && Array.isArray(value.nodes)
+    && Array.isArray(value.edges);
 }
 
 const detectSourceHintFromFile = (file = null) => {
@@ -760,7 +769,11 @@ export default function Scanner() {
               </div>
               <div className="rounded-3xl border border-slate-800 bg-slate-950 p-5">
                 <h3 className="text-xl font-semibold mb-3">Mind Map</h3>
-                <p className="text-slate-300 leading-relaxed whitespace-pre-wrap">{lessonPackage.mindMap || 'A concept map will be generated from the extracted ideas once the main concepts are identified.'}</p>
+                {isStructuredMindMap(lessonPackage.mindMap) ? (
+                  <KnowledgeGraphViewer data={lessonPackage.mindMap} />
+                ) : (
+                  <p className="text-slate-300 leading-relaxed whitespace-pre-wrap">{lessonPackage.mindMap || 'A concept map will be generated from the extracted ideas once the main concepts are identified.'}</p>
+                )}
               </div>
               <div className="rounded-3xl border border-slate-800 bg-slate-950 p-5">
                 <h3 className="text-xl font-semibold mb-3">Beginner</h3>

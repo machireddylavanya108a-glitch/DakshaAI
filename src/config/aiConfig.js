@@ -43,6 +43,14 @@ export function reportAiConfigWarnings(logger = console) {
   if (!AI_CONFIG.apiKey) {
     warnOnce('openrouter-api-key-missing', '[AI] Missing OpenRouter API key. AI generation is disabled until VITE_OPENROUTER_API_KEY is set.', logger);
   }
+
+  if (!normalize(runtimeEnv.VITE_OPENROUTER_TEXT_MODEL)) {
+    warnOnce('openrouter-text-model-default', `[AI] VITE_OPENROUTER_TEXT_MODEL is not set. Using default model: ${AI_CONFIG.textModel}.`, logger);
+  }
+
+  if (!normalize(runtimeEnv.VITE_OPENROUTER_VISION_MODEL)) {
+    warnOnce('openrouter-vision-model-default', `[AI] VITE_OPENROUTER_VISION_MODEL is not set. Using default model: ${AI_CONFIG.visionModel}.`, logger);
+  }
 }
 
 export function resetAiConfigWarningState() {
