@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { buildAuto3DSceneForLesson } from '../utils/aiSceneEngine.js';
 
-test('buildAuto3DSceneForLesson creates a synchronized 3D scene plan for visual lessons', () => {
+test('buildAuto3DSceneForLesson creates a synchronized scene plan for visual lessons', () => {
   const scene = buildAuto3DSceneForLesson('The human heart has chambers, valves, and blood flow pathways. Show a cross section and x-ray view.', 'ai-teacher');
 
   assert.equal(scene.shouldAutoGenerate, true);

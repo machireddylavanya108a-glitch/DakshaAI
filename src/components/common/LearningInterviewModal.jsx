@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Bot, Mic, Pencil, RotateCcw, SkipForward, User, X } from 'lucide-react';
 import {
-  buildLearningInterviewQuestions,
+  buildAdaptiveInterviewQuestions,
   toLearningInterviewPayload
 } from '../../utils/learningInterviewUtils';
 import {
@@ -63,9 +63,14 @@ export default function LearningInterviewModal({
   const [isListening, setIsListening] = useState(false);
   const recognitionRef = useRef(null);
 
-  const questions = useMemo(() => buildLearningInterviewQuestions(answers.learnTopic || initialTopic), [answers.learnTopic, initialTopic]);
+  const currentTopic = answers.learnTopic || initialTopic;
+  const questions = useMemo(() => buildAdaptiveInterviewQuestions(currentTopic, { ...answers, learnTopic: currentTopic }, {
+    mode: 'skill',
+    sourceContext,
+    sourceLabel
+  }), [currentTopic, answers, sourceContext, sourceLabel]);
   const currentQuestion = questions[currentStep];
-  const progress = Math.min(100, Math.round(((currentStep + 1) / questions.length) * 100));
+  const progress = questions.length ? Math.min(100, Math.round(((currentStep + 1) / questions.length) * 100)) : 100;
 
   const pushAssistantQuestion = (step) => {
     const question = questions[step];
@@ -149,10 +154,14 @@ export default function LearningInterviewModal({
 
   useEffect(() => {
     if (!isOpen || resumeDraft) return;
+    if (questions.length === 0) {
+      onComplete?.({});
+      return;
+    }
     if (messages.length === 1) {
       pushAssistantQuestion(0);
     }
-  }, [isOpen, messages.length, resumeDraft]);
+  }, [isOpen, messages.length, resumeDraft, questions.length, onComplete]);
 
   if (!isOpen) {
     return null;

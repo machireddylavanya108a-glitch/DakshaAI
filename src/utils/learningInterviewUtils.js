@@ -84,7 +84,7 @@ export function getSkillFollowUpQuestion(topic = '') {
   return matched?.question || 'What prior knowledge or practical experience do you already have in this topic?';
 }
 
-export function buildLearningInterviewQuestions(topic = '') {
+function buildBaseLearningInterviewQuestions(topic = '') {
   return [
     {
       id: 'learnTopic',
@@ -171,6 +171,83 @@ export function buildLearningInterviewQuestions(topic = '') {
       required: false
     }
   ];
+}
+
+export function buildAdaptiveInterviewQuestions(topic = '', knownProfile = {}, context = {}) {
+  const profile = knownProfile || {};
+  const hasBasicProfile = Boolean(
+    profile.age ||
+    profile.education ||
+    profile.dailyStudyTime ||
+    profile.learningStyle ||
+    profile.learningSpeed ||
+    profile.endGoal ||
+    profile.preferredLanguage ||
+    profile.currentLevel
+  );
+
+  if (context?.mode === 'skill' || context?.mode === 'ambiguous') {
+    if (hasBasicProfile) {
+      return [{
+        id: 'reason',
+        prompt: 'Why do you want to learn it?',
+        type: 'chips',
+        options: LEARNING_REASON_OPTIONS,
+        required: true
+      }];
+    }
+
+    const baseQuestions = buildBaseLearningInterviewQuestions(topic);
+    const filtered = baseQuestions.filter((question) => {
+      if (question.id === 'learnTopic' && topic) return false;
+      if (question.id === 'preferredLanguage' && profile.preferredLanguage) return false;
+      if (question.id === 'age' && profile.age) return false;
+      if (question.id === 'education' && profile.education) return false;
+      if (question.id === 'dailyStudyTime' && profile.dailyStudyTime) return false;
+      if (question.id === 'learningStyle' && profile.learningStyle) return false;
+      if (question.id === 'learningSpeed' && profile.learningSpeed) return false;
+      if (question.id === 'endGoal' && profile.endGoal) return false;
+      return true;
+    });
+
+    return filtered.slice(0, 3);
+  }
+
+  if (hasBasicProfile) {
+    return [{
+      id: 'reason',
+      prompt: 'Why do you want to learn it?',
+      type: 'chips',
+      options: LEARNING_REASON_OPTIONS,
+      required: true
+    }];
+  }
+
+  return [];
+}
+
+export function determineInterviewRequirement({ sourceType = '', topicConfidence = 0, profile = {}, learningGoal = '', existingSession = null } = {}) {
+  const normalizedSource = String(sourceType || '').toLowerCase();
+  const hasContentInput = ['pdf', 'docx', 'ppt', 'pptx', 'image', 'handwritten', 'text', 'website', 'youtube', 'camera', 'voice', 'document', 'audio', 'video'].some((token) => normalizedSource.includes(token));
+  const hasSkillGoal = Boolean(learningGoal && /skill|python|trading|ai|react|marketing|cyber|business|design|coding|programming/i.test(String(learningGoal)));
+
+  if (existingSession) {
+    return 'NO_INTERVIEW';
+  }
+
+  if (hasContentInput) {
+    return topicConfidence >= 0.8 ? 'NO_INTERVIEW' : 'ONE_CONFIRMATION';
+  }
+
+  if (hasSkillGoal) {
+    return 'ADAPTIVE_INTERVIEW';
+  }
+
+  return 'NO_INTERVIEW';
+}
+
+export function buildLearningInterviewQuestions(topic = '') {
+  return buildBaseLearningInterviewQuestions(topic);
 }
 
 export function toLearningInterviewPayload(answers = {}, context = {}) {

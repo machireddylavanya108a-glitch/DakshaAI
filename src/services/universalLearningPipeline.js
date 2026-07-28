@@ -1,6 +1,7 @@
 import { getDakshaLessonPackage } from './aiService.js';
 import { buildContentIntelligenceProfile } from '../utils/contentIntelligenceEngine.js';
 import { buildKnowledgeGraph } from '../utils/knowledgeGraphEngine.js';
+import { normalizeInput } from '../utils/inputNormalization.js';
 
 const SOURCE_TYPE_MAP = {
   pdf: 'pdf',
@@ -159,23 +160,33 @@ async function extractTextFromZip(file) {
 async function extractTextFromFile(file, sourceType) {
   if (!file) return { extractedText: '', slides: [] };
 
+  const normalized = await normalizeInput(file);
+  if (!normalized.ok) return { extractedText: '', slides: [] };
+
+  if (normalized.kind === 'text' || normalized.kind === 'url' || normalized.kind === 'json') {
+    return { extractedText: String(normalized.value || '') };
+  }
+
+  const buffer = normalized.arrayBuffer ? await normalized.arrayBuffer() : null;
+  if (!buffer) return { extractedText: '', slides: [] };
+
   if (sourceType === 'docx') {
     const mammoth = await loadMammoth();
-    const result = await mammoth.extractRawText({ arrayBuffer: await file.arrayBuffer() });
+    const result = await mammoth.extractRawText({ arrayBuffer: buffer });
     return { extractedText: result?.value || '' };
   }
 
   if (sourceType === 'ppt' || sourceType === 'pptx' || sourceType === 'zip' || sourceType === 'epub') {
-    return extractTextFromZip(file);
+    return extractTextFromZip({ arrayBuffer: async () => buffer });
   }
 
   if (sourceType === 'html') {
-    const raw = new TextDecoder().decode(await file.arrayBuffer());
+    const raw = new TextDecoder().decode(buffer);
     return { extractedText: decodeHtml(raw) };
   }
 
   if (sourceType === 'markdown' || sourceType === 'txt' || sourceType === 'pdf' || sourceType === 'text') {
-    const raw = new TextDecoder().decode(await file.arrayBuffer());
+    const raw = new TextDecoder().decode(buffer);
     return { extractedText: raw };
   }
 
@@ -187,7 +198,7 @@ async function extractTextFromFile(file, sourceType) {
     return { extractedText: '' };
   }
 
-  const fallback = new TextDecoder().decode(await file.arrayBuffer());
+  const fallback = new TextDecoder().decode(buffer);
   return { extractedText: fallback };
 }
 
@@ -469,12 +480,23 @@ export async function runUniversalLearningPipeline({
   const sourceType = detectSourceType({ file, url, sourceHint });
   const normalizedName = sourceName || file?.name || url || `${sourceType}-source`;
 
+  const normalizedInputPayload = file ? await normalizeInput(file) : null;
+  const normalizedText = normalizedInputPayload?.kind === 'text' || normalizedInputPayload?.kind === 'json'
+    ? String(normalizedInputPayload.value || '')
+    : safeString(text);
+  const normalizedFile = normalizedInputPayload?.ok && ['file', 'blob', 'arraybuffer', 'uint8array'].includes(normalizedInputPayload.kind)
+    ? normalizedInputPayload.value
+    : file;
+
   let extracted = {
-    extractedText: safeString(text)
+    extractedText: normalizedText
   };
 
-  if (file) {
-    extracted = await extractTextFromFile(file, sourceType);
+  if (normalizedFile) {
+    extracted = await extractTextFromFile(normalizedFile, sourceType);
+    if (!extracted.extractedText && normalizedText) {
+      extracted.extractedText = normalizedText;
+    }
   }
 
   if (!extracted.extractedText && ocrText) {

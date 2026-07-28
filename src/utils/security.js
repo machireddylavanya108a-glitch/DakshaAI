@@ -167,7 +167,7 @@ export function rateLimiter(key, limit = 10, windowMs = 60_000) {
 
 export function getSecurityHeaders() {
   return {
-    'Content-Security-Policy': "default-src 'self'; img-src 'self' data: https:; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; connect-src 'self' https:; font-src 'self' https:; object-src 'none'; base-uri 'self'; frame-ancestors 'none';",
+    'Content-Security-Policy': "default-src 'self'; img-src 'self' data: blob: https://*.googleusercontent.com https://lh3.googleusercontent.com https://lh4.googleusercontent.com https://lh5.googleusercontent.com https:; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; connect-src 'self' https://*.googleusercontent.com https://lh3.googleusercontent.com https://lh4.googleusercontent.com https://lh5.googleusercontent.com https:; font-src 'self' https:; object-src 'none'; base-uri 'self'; frame-ancestors 'none';",
     'Referrer-Policy': 'strict-origin-when-cross-origin',
     'X-Content-Type-Options': 'nosniff',
     'X-Frame-Options': 'DENY',

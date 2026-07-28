@@ -1,11 +1,12 @@
-import { useRef, useState } from 'react';
+import { useState } from 'react';
 import { validateUploadFile } from '../utils/security';
+import { determineInterviewRequirement } from '../utils/learningInterviewUtils';
 import { UploadCloud, FileText, Mic, Loader, Link as LinkIcon, Youtube, Type } from 'lucide-react';
 import { getDakshaImageResponse } from '../services/aiService';
+import { normalizeInput } from '../utils/inputNormalization';
 import { runUniversalLearningPipeline, buildUniversalLearningArtifacts } from '../services/universalLearningPipeline';
 import { saveDocumentAnalysis, saveLessonPackage, savePersonalizedLearningPlan, saveMemoryBrain, saveProgressSnapshot } from '../services/firestoreService';
 import { useAuth } from '../context/AuthContext';
-import LearningInterviewModal from '../components/common/LearningInterviewModal';
 import PersonalizedLearningDashboard from '../components/common/PersonalizedLearningDashboard';
 import { buildPersonalizedLearningPlan } from '../utils/personalizedLearningEngine';
 import { persistLearningSession } from '../services/learningSessionOrchestrator';
@@ -45,18 +46,8 @@ export default function Scanner() {
   const [saveStatus, setSaveStatus] = useState('');
   const [lessonStatus, setLessonStatus] = useState('');
   const [learningPlan, setLearningPlan] = useState(null);
-  const [interviewOpen, setInterviewOpen] = useState(false);
-  const [interviewSeedTopic, setInterviewSeedTopic] = useState('');
-  const [interviewSourceLabel, setInterviewSourceLabel] = useState('');
-  const pendingActionRef = useRef(null);
+  const [interviewDecision, setInterviewDecision] = useState('NO_INTERVIEW');
   const { user } = useAuth();
-
-  const startInterviewBeforeAnalysis = (seedTopic, sourceLabel, action) => {
-    pendingActionRef.current = action;
-    setInterviewSeedTopic(seedTopic);
-    setInterviewSourceLabel(sourceLabel || seedTopic);
-    setInterviewOpen(true);
-  };
 
   const saveAnalysisResult = async (result, file) => {
     if (!user) {
@@ -103,20 +94,41 @@ export default function Scanner() {
       file = null,
       text = '',
       url = '',
-      sourceName = file?.name || url || 'universal-source',
+      sourceName: providedName = null,
       sourceHint = sourceContext,
-      sourceType = file?.type || 'text/plain'
+      sourceType: providedType = null
     } = descriptor;
 
+    const normalizedInputPayload = await normalizeInput(file ?? text ?? url ?? '');
+    const normalizedText = normalizedInputPayload?.ok && (normalizedInputPayload.kind === 'text' || normalizedInputPayload.kind === 'json')
+      ? String(normalizedInputPayload.value ?? '')
+      : String(text || '');
+    const normalizedUrl = normalizedInputPayload?.ok && normalizedInputPayload.kind === 'url'
+      ? normalizedInputPayload.value
+      : String(url || '');
+    const normalizedFile = normalizedInputPayload?.ok && ['file', 'blob', 'arraybuffer', 'uint8array'].includes(normalizedInputPayload.kind)
+      ? normalizedInputPayload.value
+      : null;
+    const sourceName = providedName || normalizedFile?.name || normalizedUrl || 'universal-source';
+    const sourceType = providedType || normalizedFile?.type || (normalizedInputPayload?.ok && normalizedInputPayload.kind === 'text' ? 'text/plain' : 'text/plain');
+
     const result = await runUniversalLearningPipeline({
-      file,
-      url,
-      text,
+      file: normalizedFile,
+      url: normalizedUrl,
+      text: normalizedText,
       sourceHint,
       sourceName
     });
     const suite = buildUniversalLearningArtifacts(result);
     const intelligenceProfile = result.intelligenceProfile || result.sourceMeta?.intelligenceProfile || null;
+    const interviewDecisionResult = determineInterviewRequirement({
+      sourceType: sourceHint,
+      topicConfidence: 0.9,
+      profile: intelligenceProfile || {},
+      learningGoal: sourceName,
+      existingSession: null
+    });
+    setInterviewDecision(interviewDecisionResult);
 
     const derivedTitle = deriveLearningTitle(sourceName, sourceContext === 'document' ? 'Adaptive lesson' : sourceName);
     const fallbackSuite = buildFallbackLessonPackage({ title: derivedTitle, summary: suite.learningSession?.summary || result.sourceModel?.overview || '' });
@@ -254,33 +266,27 @@ export default function Scanner() {
   const handleWebsiteSubmit = async () => {
     const url = websiteUrl.trim();
     if (!url) return;
-    startInterviewBeforeAnalysis(`I uploaded a website: ${url}`, url, async (interviewAnswers) => {
-      await handleDocumentAnalysis({
-        url,
-        sourceName: url,
-        sourceHint: 'website',
-        sourceType: 'text/url'
-      }, interviewAnswers, 'website');
-    });
+    await handleDocumentAnalysis({
+      url,
+      sourceName: url,
+      sourceHint: 'website',
+      sourceType: 'text/url'
+    }, {}, 'website');
   };
 
   const handleYoutubeSubmit = async () => {
     const url = youtubeUrl.trim();
     if (!url) return;
-    startInterviewBeforeAnalysis(`I uploaded a YouTube lesson: ${url}`, url, async (interviewAnswers) => {
-      await handleDocumentAnalysis({
-        url,
-        sourceName: url,
-        sourceHint: 'youtube',
-        sourceType: 'text/youtube'
-      }, interviewAnswers, 'youtube');
-    });
+    await handleDocumentAnalysis({
+      url,
+      sourceName: url,
+      sourceHint: 'youtube',
+      sourceType: 'text/youtube'
+    }, {}, 'youtube');
   };
 
   const handleTextSubmit = async () => {
-    startInterviewBeforeAnalysis('Teach me this pasted material', 'pasted-text.txt', async (interviewAnswers) => {
-      await processTextSource(sourceText, 'pasted-text.txt', 'text/plain', interviewAnswers, 'text');
-    });
+    await processTextSource(sourceText, 'pasted-text.txt', 'text/plain', {}, 'text');
   };
 
   const handleVoiceInput = async () => {
@@ -299,9 +305,7 @@ export default function Scanner() {
     recognition.onresult = async (event) => {
       const transcript = event.results?.[0]?.[0]?.transcript || '';
       setSourceText(transcript);
-      startInterviewBeforeAnalysis('Teach me from my voice input', 'voice-input.txt', async (interviewAnswers) => {
-        await processTextSource(transcript, 'voice-input.txt', 'text/voice', interviewAnswers, 'voice');
-      });
+      await processTextSource(transcript, 'voice-input.txt', 'text/voice', {}, 'voice');
       setVoiceListening(false);
     };
 
@@ -385,9 +389,7 @@ export default function Scanner() {
       setSaveStatus('');
       setLessonStatus('');
 
-      startInterviewBeforeAnalysis(`I uploaded ${file.name}`, file.name, async (interviewAnswers) => {
-        await processFile(file, interviewAnswers);
-      });
+      await processFile(file, {});
     }
   };
 
@@ -421,7 +423,7 @@ export default function Scanner() {
           <div className="rounded-3xl border border-slate-800 bg-slate-900 p-4">
             <div className="mb-3 flex items-center gap-2 text-slate-200"><Type className="h-4 w-4 text-indigo-400" /> Paste Text</div>
             <textarea value={sourceText} onChange={(event) => setSourceText(event.target.value)} placeholder="Paste notes, book text, or lesson content..." className="min-h-28 w-full rounded-2xl border border-slate-800 bg-slate-950 p-3 text-sm text-slate-200 outline-none" />
-            <button onClick={handleTextSubmit} disabled={loading || !sourceText.trim()} className="mt-3 rounded-xl bg-indigo-500 px-4 py-2 text-sm font-semibold text-white disabled:opacity-60">Start AI Interview</button>
+            <button onClick={handleTextSubmit} disabled={loading || !sourceText.trim()} className="mt-3 rounded-xl bg-indigo-500 px-4 py-2 text-sm font-semibold text-white disabled:opacity-60">Generate lesson</button>
           </div>
 
           <div className="rounded-3xl border border-slate-800 bg-slate-900 p-4">
@@ -430,9 +432,9 @@ export default function Scanner() {
             <div className="mt-4 mb-2 flex items-center gap-2 text-slate-200"><Youtube className="h-4 w-4 text-rose-400" /> YouTube URL</div>
             <input value={youtubeUrl} onChange={(event) => setYoutubeUrl(event.target.value)} placeholder="https://youtube.com/watch?v=..." className="w-full rounded-2xl border border-slate-800 bg-slate-950 px-3 py-2 text-sm text-slate-200 outline-none" />
             <div className="mt-3 flex flex-wrap gap-2">
-              <button onClick={handleWebsiteSubmit} disabled={loading || !websiteUrl.trim()} className="rounded-xl bg-cyan-500 px-4 py-2 text-sm font-semibold text-white disabled:opacity-60">Interview + Website</button>
-              <button onClick={handleYoutubeSubmit} disabled={loading || !youtubeUrl.trim()} className="rounded-xl bg-rose-500 px-4 py-2 text-sm font-semibold text-white disabled:opacity-60">Interview + YouTube</button>
-              <button onClick={handleVoiceInput} disabled={loading || voiceListening} className="inline-flex items-center gap-2 rounded-xl border border-slate-700 bg-slate-950 px-4 py-2 text-sm text-slate-200 disabled:opacity-60"><Mic className="h-4 w-4" /> {voiceListening ? 'Listening...' : 'Voice Interview'}</button>
+              <button onClick={handleWebsiteSubmit} disabled={loading || !websiteUrl.trim()} className="rounded-xl bg-cyan-500 px-4 py-2 text-sm font-semibold text-white disabled:opacity-60">Generate lesson</button>
+              <button onClick={handleYoutubeSubmit} disabled={loading || !youtubeUrl.trim()} className="rounded-xl bg-rose-500 px-4 py-2 text-sm font-semibold text-white disabled:opacity-60">Generate lesson</button>
+              <button onClick={handleVoiceInput} disabled={loading || voiceListening} className="inline-flex items-center gap-2 rounded-xl border border-slate-700 bg-slate-950 px-4 py-2 text-sm text-slate-200 disabled:opacity-60"><Mic className="h-4 w-4" /> {voiceListening ? 'Listening...' : 'Voice input'}</button>
             </div>
           </div>
         </div>
@@ -719,22 +721,6 @@ export default function Scanner() {
         )}
       </div>
 
-      <LearningInterviewModal
-        isOpen={interviewOpen}
-        userId={user?.uid}
-        sourceContext="material"
-        sourceLabel={interviewSourceLabel}
-        initialTopic={interviewSeedTopic}
-        onClose={() => setInterviewOpen(false)}
-        onComplete={async (interviewAnswers) => {
-          setInterviewOpen(false);
-          if (pendingActionRef.current) {
-            const action = pendingActionRef.current;
-            pendingActionRef.current = null;
-            await action(interviewAnswers);
-          }
-        }}
-      />
     </div>
   );
 }

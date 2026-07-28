@@ -253,6 +253,53 @@ export function buildSceneFromBlueprint(blueprint) {
 }
 
 export function buildAuto3DSceneForLesson(content = '', sourceType = 'typed-topic') {
+  const normalizedContent = String(content || '').toLowerCase();
+  const has3DSignals = /(anatom|biology|medical|heart|brain|organ|cell|molecule|atom|chemistry|reaction|engineering|mechanical|machinery|robot|prototype|circuit|electronics|vehicle|building|architecture|astronomy|physics|math|equation|geometry|algebra|calculus|planet|star|galaxy|orbit|plant|leaf|root|ecosystem|animal|species|habitat|surgery)/.test(normalizedContent);
+  const hasNon3DSignals = /(programming|python|javascript|java|code|api|debug|business|marketing|trading|finance|economics|strategy|workflow|pipeline|dashboard|roadmap|sales|startup|chart|graph|timeline|diagram|map)/.test(normalizedContent);
+  const shouldUseNon3DVisual = hasNon3DSignals && !has3DSignals;
+
+  if (shouldUseNon3DVisual) {
+    const visualizationType = /timeline/.test(normalizedContent)
+      ? 'timeline'
+      : /chart|graph/.test(normalizedContent)
+        ? 'chart'
+        : /workflow|pipeline|diagram|map/.test(normalizedContent)
+          ? 'diagram'
+          : 'concept-map';
+
+    return {
+      shouldAutoGenerate: true,
+      title: 'Concept visualization',
+      domain: 'Concepts',
+      supports3D: false,
+      visualizationType,
+      models: [],
+      labels: [],
+      animations: [],
+      hotspots: [],
+      measurements: [],
+      crossSections: [],
+      xRay: [],
+      explodedView: [],
+      timeline: [],
+      replay: false,
+      autoAnimationState: {
+        steps: [],
+        currentStep: 0
+      },
+      summary: `A ${visualizationType} style visualization was prepared for this lesson instead of a full 3D model.`,
+      assetPlan: [],
+      reusableAssets: [],
+      assetIntelligence: {
+        strategy: visualizationType,
+        requiresComposition: false,
+        compositePlan: null,
+        diagramFallback: true,
+        animationFallback: false
+      }
+    };
+  }
+
   const blueprint = buildSceneBlueprint(content, sourceType);
   const scene = buildSceneFromBlueprint(blueprint);
   const animationPlan = buildAnimationPlan(content, scene.objects);

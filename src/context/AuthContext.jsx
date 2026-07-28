@@ -2,6 +2,7 @@ import React, { createContext, useContext, useEffect, useState } from 'react';
 import { auth, db } from '../firebase/firebaseConfig';
 import {
   signInWithPopup,
+  signInWithRedirect,
   GoogleAuthProvider,
   GithubAuthProvider,
   OAuthProvider,
@@ -21,6 +22,12 @@ import { doc, setDoc, serverTimestamp, updateDoc } from 'firebase/firestore';
 import { secureSession, secureStorage } from '../utils/security';
 
 const AuthContext = createContext();
+
+function getAuthErrorDetails(error) {
+  const code = error?.code || 'unknown';
+  const message = error?.message || 'Authentication failed.';
+  return { code, message };
+}
 
 function getUserRole(email) {
   const normalized = String(email || '').toLowerCase();
@@ -47,6 +54,7 @@ function validatePasswordStrength(password) {
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
+  const loginInFlightRef = React.useRef(false);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
@@ -80,14 +88,51 @@ export function AuthProvider({ children }) {
       await setPersistence(auth, browserSessionPersistence);
       return await callback();
     } catch (error) {
-      if (error?.code === 'auth/network-request-failed') {
+      const details = getAuthErrorDetails(error);
+      console.error('[Auth]', details);
+      if (details.code === 'auth/network-request-failed') {
         throw new Error('Network connection failed. Please check your connection and try again.');
       }
       throw error;
     }
   };
 
-  const loginWithGoogle = () => withSessionPersistence(() => signInWithPopup(auth, new GoogleAuthProvider()));
+  const loginWithGoogle = async () => {
+    if (loginInFlightRef.current) {
+      return null;
+    }
+
+    loginInFlightRef.current = true;
+
+    try {
+      return await withSessionPersistence(async () => {
+        const provider = new GoogleAuthProvider();
+        provider.setCustomParameters({ prompt: 'select_account' });
+
+        try {
+          return await signInWithPopup(auth, provider);
+        } catch (error) {
+          if (
+            error?.code === 'auth/popup-blocked' ||
+            error?.code === 'auth/popup-closed-by-user' ||
+            error?.code === 'auth/cancelled-popup-request'
+          ) {
+            throw error;
+          }
+
+          if (error?.code === 'auth/operation-not-supported-in-this-environment') {
+            await signInWithRedirect(auth, provider);
+            return null;
+          }
+
+          throw error;
+        }
+      });
+    } finally {
+      loginInFlightRef.current = false;
+    }
+  };
+
   const loginWithGitHub = () => withSessionPersistence(() => signInWithPopup(auth, new GithubAuthProvider()));
   const loginWithMicrosoft = () => withSessionPersistence(() => signInWithPopup(auth, new OAuthProvider('microsoft.com')));
   const loginWithApple = () => withSessionPersistence(() => signInWithPopup(auth, new OAuthProvider('apple.com')));
@@ -106,20 +151,25 @@ export function AuthProvider({ children }) {
       await sendEmailVerification(result.user);
       return result;
     } catch (error) {
-      if (error?.code === 'auth/email-already-in-use') {
+      const details = getAuthErrorDetails(error);
+      console.error('[Auth][signup]', details);
+      if (details.code === 'auth/email-already-in-use') {
         throw new Error('This email is already registered. Try signing in instead.');
       }
-      if (error?.code === 'auth/invalid-email') {
+      if (details.code === 'auth/invalid-email') {
         throw new Error('Please enter a valid email address.');
       }
-      if (error?.code === 'auth/weak-password') {
+      if (details.code === 'auth/weak-password') {
         throw new Error('Password should be at least 6 characters.');
       }
-      if (error?.code === 'auth/operation-not-allowed') {
+      if (details.code === 'auth/operation-not-allowed') {
         throw new Error('Email/password sign-up is currently disabled in Firebase.');
       }
-      if (error?.code === 'auth/network-request-failed') {
+      if (details.code === 'auth/network-request-failed') {
         throw new Error('Network connection failed. Please check your connection and try again.');
+      }
+      if (details.code === 'auth/unauthorized-domain') {
+        throw new Error('This domain is not authorized for Firebase Auth.');
       }
       throw error;
     }
@@ -130,23 +180,28 @@ export function AuthProvider({ children }) {
     try {
       return await withSessionPersistence(() => signInWithEmailAndPassword(auth, email, password));
     } catch (error) {
-      if (error?.code === 'auth/invalid-email') {
+      const details = getAuthErrorDetails(error);
+      console.error('[Auth][login]', details);
+      if (details.code === 'auth/invalid-email') {
         throw new Error('Please enter a valid email address.');
       }
-      if (error?.code === 'auth/user-not-found') {
+      if (details.code === 'auth/user-not-found') {
         throw new Error('No account found with this email.');
       }
-      if (error?.code === 'auth/wrong-password') {
+      if (details.code === 'auth/wrong-password') {
         throw new Error('Incorrect password. Please try again.');
       }
-      if (error?.code === 'auth/invalid-credential') {
+      if (details.code === 'auth/invalid-credential') {
         throw new Error('The email or password is incorrect.');
       }
-      if (error?.code === 'auth/too-many-requests') {
+      if (details.code === 'auth/too-many-requests') {
         throw new Error('Too many attempts. Please wait a moment and try again.');
       }
-      if (error?.code === 'auth/network-request-failed') {
+      if (details.code === 'auth/network-request-failed') {
         throw new Error('Network connection failed. Please check your connection and try again.');
+      }
+      if (details.code === 'auth/unauthorized-domain') {
+        throw new Error('This domain is not authorized for Firebase Auth.');
       }
       throw error;
     }

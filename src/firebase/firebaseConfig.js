@@ -18,9 +18,14 @@ export function validateRuntimeConfig() {
   ];
 
   const missing = requiredKeys.filter((key) => !runtimeEnv[key]);
+  if (missing.length > 0) {
+    console.warn(`[Firebase] Missing runtime config values: ${missing.join(', ')}`);
+  }
+
   return { valid: missing.length === 0, missing };
 }
 
+const configCheck = validateRuntimeConfig();
 const firebaseConfig = {
   apiKey: runtimeEnv.VITE_FIREBASE_API_KEY || 'demo-api-key',
   authDomain: runtimeEnv.VITE_FIREBASE_AUTH_DOMAIN || 'daksha-ai-dd17d.firebaseapp.com',
@@ -30,6 +35,10 @@ const firebaseConfig = {
   messagingSenderId: runtimeEnv.VITE_FIREBASE_MESSAGING_SENDER_ID || '000000000000',
   appId: runtimeEnv.VITE_FIREBASE_APP_ID || '1:000000000000:web:demo'
 };
+
+if (!configCheck.valid) {
+  console.error('[Firebase] Authentication may fail until the required configuration values are provided.');
+}
 
 const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);

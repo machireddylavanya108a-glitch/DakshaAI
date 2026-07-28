@@ -22,7 +22,11 @@ const authErrorMessages = {
 const getFriendlyAuthMessage = (error) => {
   if (!error) return 'Something went wrong. Please try again.';
   const code = error.code || '';
-  return authErrorMessages[code] || error.message || 'Something went wrong. Please try again.';
+  const baseMessage = authErrorMessages[code] || error.message || 'Something went wrong. Please try again.';
+  if (code && !authErrorMessages[code]) {
+    return `${baseMessage} (${code})`;
+  }
+  return baseMessage;
 };
 
 export default function Login() {
