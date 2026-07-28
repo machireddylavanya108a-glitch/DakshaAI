@@ -1,0 +1,45 @@
+export { createAdaptiveFallbackTemplate } from './VisualizationTemplateSchema.js';
+export { normalizeVisualizationTemplate } from './VisualizationTemplateNormalizer.js';
+export {
+  validateVisualizationTemplate,
+  validateTemplateSlots,
+  validateTemplateRegions,
+  validateTemplateRelationships,
+  validateTemplateLayout,
+  validateTemplateVariables,
+  validateTemplateConditions,
+  validateTemplateAccessibility,
+  validateTemplatePerformance,
+  validateTemplateComposition
+} from './VisualizationTemplateValidator.js';
+export { repairVisualizationTemplate } from './VisualizationTemplateRepair.js';
+export {
+  migrateVisualizationTemplate,
+  getLatestTemplateVersion,
+  isTemplateMigrationRequired,
+  registerTemplateMigration,
+  listTemplateMigrations
+} from './VisualizationTemplateMigration.js';
+export { runVisualizationTemplateIntegrityChecks } from './VisualizationTemplateIntegrity.js';
+export { processVisualizationTemplate } from './VisualizationTemplateVersionManager.js';
+export { createVisualizationTemplateInstance } from './VisualizationTemplateInstance.js';
+export { instantiateVisualizationTemplate } from './VisualizationTemplateInstantiation.js';
+export {
+  serializeVisualizationTemplate,
+  exportVisualizationTemplate,
+  deepCloneVisualizationTemplate,
+  serializeTemplateInstance
+} from './VisualizationTemplateSerializer.js';
+export {
+  deserializeVisualizationTemplate,
+  importVisualizationTemplate,
+  deserializeTemplateInstance
+} from './VisualizationTemplateDeserializer.js';
+export { createTemplateFromCapabilityContext, ensureSceneVisualizationTemplateMetadata } from './VisualizationTemplate.js';
+export { createVisualizationTemplateDiagnostics, finalizeVisualizationTemplateDiagnostics } from './VisualizationTemplateDiagnostics.js';
+export { VisualizationTemplateError, toVisualizationTemplateError } from './VisualizationTemplateError.js';
+export {
+  VISUALIZATION_TEMPLATE_LATEST_VERSION,
+  VISUALIZATION_TEMPLATE_DEFAULT_LIMITS,
+  normalizeVisualizationTemplateConfig
+} from './VisualizationTemplateConfig.js';

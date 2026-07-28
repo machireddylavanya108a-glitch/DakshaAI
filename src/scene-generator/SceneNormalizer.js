@@ -155,6 +155,7 @@ function normalizeTimelineStep(raw, index = 0) {
 
 export function normalizeScene(rawScene, options = {}) {
   const source = isObject(rawScene) ? { ...rawScene } : {};
+  const templateAlias = pick(source, ['visualizationTemplate', 'sceneTemplate', 'template', 'layoutTemplate', 'templateConfig', 'sceneLayout'], null);
   const subjectValue = pick(source, ['subject', 'topic', 'lessonTopic'], 'General Learning');
   const classificationValue = pick(source, ['classification', 'scene_type', 'sceneType'], {});
   const aliasCamera = {
@@ -201,6 +202,7 @@ export function normalizeScene(rawScene, options = {}) {
     metadata: {
       ...createDefaultMetadata(),
       ...(isObject(pick(source, ['metadata'], null)) ? pick(source, ['metadata'], {}) : {}),
+      ...(isObject(templateAlias) ? { visualizationTemplate: templateAlias } : {}),
       sourceType: options.sourceType || pick(source, ['sourceType'], 'unknown')
     },
     statistics: {

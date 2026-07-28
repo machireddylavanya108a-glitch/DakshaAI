@@ -24,6 +24,10 @@ import {
 } from './SceneGenerationConfig.js';
 import { SceneGenerationError, toSceneGenerationError } from './SceneGenerationError.js';
 import { resolveVisualizationCapabilities } from '../visualization-capabilities/index.js';
+import {
+  createTemplateFromCapabilityContext,
+  instantiateVisualizationTemplate
+} from '../visualization-templates/index.js';
 
 function stableHash(input = '') {
   const text = String(input || '');
@@ -353,6 +357,27 @@ function attachVisualizationCapabilityMetadata(scene, normalizedInput, config, o
     registry: options.visualizationCapabilityRegistry
   });
 
+  const templateContext = {
+    sceneId: scene.sceneId,
+    lessonId: normalizedInput.id,
+    classification: normalizedInput.classification,
+    visualizationRequirements: resolved.visualizationRequirements,
+    selectedCapabilities: resolved.selectedCapabilities,
+    capabilityComposition: resolved.capabilityComposition,
+    concepts: scene.objects || [],
+    relationships: scene.relationships || [],
+    timelineRequirements: scene.timeline || [],
+    interactionRequirements: scene.interactions || [],
+    accessibilityNeeds: resolved.visualizationRequirements?.accessibilityNeeds || {},
+    performanceProfile: config.performanceProfile,
+    metadata: scene.metadata || {}
+  };
+
+  const templateDefinition = createTemplateFromCapabilityContext(templateContext);
+  const templateInstantiation = instantiateVisualizationTemplate(templateDefinition, templateContext, {
+    forceFallbackOnInvalid: true
+  });
+
   return {
     ...scene,
     metadata: {
@@ -362,7 +387,10 @@ function attachVisualizationCapabilityMetadata(scene, normalizedInput, config, o
         selectedCapabilities: resolved.selectedCapabilities,
         capabilityComposition: resolved.capabilityComposition,
         diagnostics: resolved.diagnostics
-      }
+      },
+      visualizationTemplate: templateInstantiation.sourceTemplate,
+      visualizationTemplateInstance: templateInstantiation.instance,
+      templateDiagnostics: templateInstantiation.diagnostics
     }
   };
 }
