@@ -9,6 +9,7 @@ import LoadingAcademy from '../components/academy/LoadingAcademy';
 import LearningInterviewModal from '../components/common/LearningInterviewModal';
 import PersonalizedLearningDashboard from '../components/common/PersonalizedLearningDashboard';
 import { buildPersonalizedLearningPlan } from '../utils/personalizedLearningEngine';
+import { buildSkillAcademyMentorPlan } from '../utils/skillAcademyMentorEngine';
 
 const skillCards = [
   { icon: Code, title: 'Python', description: 'Build automation, web apps, AI tools, and data workflows.' },
@@ -63,7 +64,7 @@ export default function Academy() {
     setLearningPlan(null);
 
     try {
-      const plan = buildPersonalizedLearningPlan({
+      const personalized = buildPersonalizedLearningPlan({
         interviewAnswers: {
           ...(interviewAnswers || {}),
           learnTopic: interviewAnswers?.learnTopic || topic
@@ -72,6 +73,25 @@ export default function Academy() {
         sourceLabel: topic,
         skillHint: topic
       });
+      const mentorPlan = buildSkillAcademyMentorPlan({
+        skill: topic,
+        interviewAnswers: {
+          ...(interviewAnswers || {}),
+          learnTopic: interviewAnswers?.learnTopic || topic
+        }
+      });
+      const plan = {
+        ...personalized,
+        mentor: mentorPlan.mentor,
+        mentorProfile: {
+          topic: mentorPlan.topic,
+          level: mentorPlan.level,
+          goal: mentorPlan.goal,
+          language: mentorPlan.language,
+          speed: mentorPlan.speed,
+          interviewSummary: mentorPlan.mentor.interviewSummary
+        }
+      };
       setLearningPlan(plan);
       if (user) {
         const saved = await savePersonalizedLearningPlan(user.uid, plan, 'academy');
@@ -185,6 +205,50 @@ export default function Academy() {
                 setSavedStatus('Resume mode activated. Continue with the next upcoming lesson.');
               }}
             />
+
+            <div className="grid gap-6 xl:grid-cols-2">
+              <div className="rounded-[2rem] border border-white/10 bg-slate-900/80 p-6 shadow-2xl shadow-slate-950/40">
+                <p className="text-xs uppercase tracking-[0.3em] text-cyan-300">AI Mentor Profile</p>
+                <h3 className="mt-2 text-xl font-semibold text-white">Personalized learning mentor</h3>
+                <div className="mt-4 space-y-3 text-sm text-slate-300">
+                  <p><span className="text-cyan-200">Level:</span> {learningPlan?.mentorProfile?.level}</p>
+                  <p><span className="text-cyan-200">Goal:</span> {learningPlan?.mentorProfile?.goal}</p>
+                  <p><span className="text-cyan-200">Language:</span> {learningPlan?.mentorProfile?.language}</p>
+                  <p><span className="text-cyan-200">Pace:</span> {learningPlan?.mentorProfile?.speed}</p>
+                  <p className="rounded-2xl border border-slate-800 bg-slate-950/70 p-3 text-slate-400">{learningPlan?.mentorProfile?.interviewSummary}</p>
+                </div>
+              </div>
+
+              <div className="rounded-[2rem] border border-white/10 bg-slate-900/80 p-6 shadow-2xl shadow-slate-950/40">
+                <p className="text-xs uppercase tracking-[0.3em] text-cyan-300">Mentor Modules</p>
+                <div className="mt-4 space-y-2 text-sm text-slate-300">
+                  {[
+                    ['Roadmap', learningPlan?.mentor?.roadmap?.[0]],
+                    ['Daily Schedule', learningPlan?.mentor?.dailySchedule?.[0]?.focus],
+                    ['Projects', learningPlan?.mentor?.projects?.[0]],
+                    ['Assessments', learningPlan?.mentor?.assessments?.[0]],
+                    ['Portfolio', learningPlan?.mentor?.portfolio?.[0]],
+                    ['Career Roadmap', learningPlan?.mentor?.careerRoadmap?.[0]]
+                  ].map(([label, value]) => (
+                    <div key={label} className="rounded-2xl border border-slate-800 bg-slate-950/70 p-3">
+                      <p className="text-cyan-200">{label}</p>
+                      <p className="mt-1 text-slate-400">{value}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <div className="grid gap-6 xl:grid-cols-2">
+              <div className="rounded-[2rem] border border-white/10 bg-slate-900/80 p-6 shadow-2xl shadow-slate-950/40">
+                <p className="text-xs uppercase tracking-[0.3em] text-cyan-300">AI Teacher Plan</p>
+                <p className="mt-3 text-sm text-slate-300">{learningPlan?.mentor?.aiTeacherPlan}</p>
+              </div>
+              <div className="rounded-[2rem] border border-white/10 bg-slate-900/80 p-6 shadow-2xl shadow-slate-950/40">
+                <p className="text-xs uppercase tracking-[0.3em] text-cyan-300">3D Demo Plan</p>
+                <p className="mt-3 text-sm text-slate-300">{learningPlan?.mentor?.threeDPlan}</p>
+              </div>
+            </div>
           </div>
         )}
 
