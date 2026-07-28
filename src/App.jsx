@@ -4,6 +4,7 @@ import { AuthProvider } from './context/AuthContext';
 import RequireAuth from './components/RequireAuth';
 import AdminRoute from './components/AdminRoute';
 import OSLayout from './layouts/OSLayout';
+import { removeLegacyInterviewKeys } from './utils/interviewPersistence';
 
 const Home = lazy(() => import('./pages/Home'));
 const Login = lazy(() => import('./pages/Login'));
@@ -33,6 +34,10 @@ const Integrations = lazy(() => import('./pages/integrations/Integrations'));
 const SettingsPage = lazy(() => import('./pages/Settings'));
 
 export default function App() {
+  if (typeof window !== 'undefined') {
+    removeLegacyInterviewKeys(window.localStorage);
+  }
+
   return (
     <AuthProvider>
       <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>

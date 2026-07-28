@@ -61,7 +61,9 @@ test('missing OpenRouter model config warns AI config incomplete and keeps Fireb
   assert.equal(report.openRouter.complete, false);
   assert.ok(report.openRouter.missing.includes('VITE_OPENROUTER_TEXT_MODEL'));
   assert.ok(report.openRouter.missing.includes('VITE_OPENROUTER_VISION_MODEL'));
+  assert.ok(logger.warnMessages.some((message) => message.includes('[AI] Missing OpenRouter runtime config values')));
   assert.ok(logger.warnMessages.includes('[AI] OpenRouter model configuration is incomplete.'));
+  assert.ok(logger.warnMessages.includes('[AI] AI generation may be unavailable until OpenRouter configuration is provided.'));
   assert.equal(logger.errorMessages.length, 0);
 });
 

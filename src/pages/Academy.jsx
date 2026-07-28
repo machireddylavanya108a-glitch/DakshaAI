@@ -11,6 +11,8 @@ import PersonalizedLearningDashboard from '../components/common/PersonalizedLear
 import { buildPersonalizedLearningPlan } from '../utils/personalizedLearningEngine';
 import { buildSkillAcademyMentorPlan } from '../utils/skillAcademyMentorEngine';
 import { buildKnowledgeGraph } from '../utils/knowledgeGraphEngine';
+import { buildAdaptiveInterviewQuestions } from '../utils/learningInterviewUtils';
+import { shouldRenderInterviewModal, toTopicId } from '../utils/interviewPersistence';
 
 const skillCards = [
   { icon: Code, title: 'Python', description: 'Build automation, web apps, AI tools, and data workflows.' },
@@ -34,6 +36,19 @@ export default function Academy() {
   const [savedStatus, setSavedStatus] = useState('');
   const [interviewOpen, setInterviewOpen] = useState(false);
   const [pendingSkill, setPendingSkill] = useState('');
+  const flowType = 'skill-first';
+  const interviewDecision = 'ADAPTIVE_INTERVIEW';
+  const pendingTopicId = toTopicId(pendingSkill || searchQuery || activeSkill);
+  const interviewQuestions = useMemo(() => buildAdaptiveInterviewQuestions(pendingSkill || searchQuery || activeSkill, {}, {
+    mode: 'skill',
+    sourceContext: 'roadmap',
+    sourceLabel: pendingSkill || searchQuery || activeSkill
+  }), [pendingSkill, searchQuery, activeSkill]);
+  const shouldShowInterviewModal = interviewOpen && shouldRenderInterviewModal({
+    flowType,
+    interviewDecision,
+    questions: interviewQuestions
+  });
 
   const loadSavedRoadmaps = async () => {
     if (!user) {
@@ -314,19 +329,25 @@ export default function Academy() {
         </SkillSection>
       </div>
 
-      <LearningInterviewModal
-        isOpen={interviewOpen}
-        userId={user?.uid}
-        sourceContext="roadmap"
-        sourceLabel={pendingSkill}
-        initialTopic={pendingSkill}
-        onClose={() => setInterviewOpen(false)}
-        onComplete={async (interviewAnswers) => {
-          setInterviewOpen(false);
-          const topic = (interviewAnswers?.learnTopic || pendingSkill || searchQuery).trim();
-          await generateRoadmapForSkill(topic, interviewAnswers);
-        }}
-      />
+      {shouldShowInterviewModal ? (
+        <LearningInterviewModal
+          isOpen={true}
+          flowType={flowType}
+          interviewDecision={interviewDecision}
+          topicId={pendingTopicId}
+          questions={interviewQuestions}
+          userId={user?.uid}
+          sourceContext="roadmap"
+          sourceLabel={pendingSkill}
+          initialTopic={pendingSkill}
+          onClose={() => setInterviewOpen(false)}
+          onComplete={async (interviewAnswers) => {
+            setInterviewOpen(false);
+            const topic = (interviewAnswers?.learnTopic || pendingSkill || searchQuery).trim();
+            await generateRoadmapForSkill(topic, interviewAnswers);
+          }}
+        />
+      ) : null}
     </div>
   );
 }

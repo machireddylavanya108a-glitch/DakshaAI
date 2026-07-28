@@ -412,6 +412,8 @@ export async function completeLearningInterview(userId, interviewPayload) {
         ...interviewPayload?.session,
         userId,
         sessionId,
+        flowType: interviewPayload?.session?.flowType || 'skill-first',
+        topicId: interviewPayload?.session?.topicId || '',
         status: 'completed',
         updatedAtMs: Date.now(),
         createdAt: serverTimestamp(),

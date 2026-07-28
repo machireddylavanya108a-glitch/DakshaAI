@@ -52,7 +52,15 @@ export default function Scanner() {
   const [lessonStatus, setLessonStatus] = useState('');
   const [learningPlan, setLearningPlan] = useState(null);
   const [interviewDecision, setInterviewDecision] = useState('NO_INTERVIEW');
+  const [showInterview, setShowInterview] = useState(false);
+  const [savedInterviewPrompt, setSavedInterviewPrompt] = useState(false);
   const { user } = useAuth();
+
+  const resetInterviewStateForContentFirst = () => {
+    setShowInterview(false);
+    setInterviewDecision('NO_INTERVIEW');
+    setSavedInterviewPrompt(false);
+  };
 
   const saveAnalysisResult = async (result, file) => {
     if (!user) {
@@ -273,30 +281,59 @@ export default function Scanner() {
     }
   };
 
+  const startContentFirstLearning = async (source = {}) => {
+    const { type = 'text', file = null, text = '', url = '' } = source;
+    resetInterviewStateForContentFirst();
+
+    if (type === 'text') {
+      await processTextSource(text, 'pasted-text.txt', 'text/plain', {}, 'text');
+      return;
+    }
+
+    if (type === 'website') {
+      await handleDocumentAnalysis({
+        url,
+        sourceName: url,
+        sourceHint: 'website',
+        sourceType: 'text/url'
+      }, {}, 'website');
+      return;
+    }
+
+    if (type === 'youtube') {
+      await handleDocumentAnalysis({
+        url,
+        sourceName: url,
+        sourceHint: 'youtube',
+        sourceType: 'text/youtube'
+      }, {}, 'youtube');
+      return;
+    }
+
+    if (type === 'voice') {
+      await processTextSource(text, 'voice-input.txt', 'text/voice', {}, 'voice');
+      return;
+    }
+
+    if (type === 'file' && file) {
+      await processFile(file, {});
+    }
+  };
+
   const handleWebsiteSubmit = async () => {
     const url = websiteUrl.trim();
     if (!url) return;
-    await handleDocumentAnalysis({
-      url,
-      sourceName: url,
-      sourceHint: 'website',
-      sourceType: 'text/url'
-    }, {}, 'website');
+    await startContentFirstLearning({ type: 'website', url });
   };
 
   const handleYoutubeSubmit = async () => {
     const url = youtubeUrl.trim();
     if (!url) return;
-    await handleDocumentAnalysis({
-      url,
-      sourceName: url,
-      sourceHint: 'youtube',
-      sourceType: 'text/youtube'
-    }, {}, 'youtube');
+    await startContentFirstLearning({ type: 'youtube', url });
   };
 
   const handleTextSubmit = async () => {
-    await processTextSource(sourceText, 'pasted-text.txt', 'text/plain', {}, 'text');
+    await startContentFirstLearning({ type: 'text', text: sourceText });
   };
 
   const handleVoiceInput = async () => {
@@ -315,7 +352,7 @@ export default function Scanner() {
     recognition.onresult = async (event) => {
       const transcript = event.results?.[0]?.[0]?.transcript || '';
       setSourceText(transcript);
-      await processTextSource(transcript, 'voice-input.txt', 'text/voice', {}, 'voice');
+      await startContentFirstLearning({ type: 'voice', text: transcript });
       setVoiceListening(false);
     };
 
@@ -399,7 +436,7 @@ export default function Scanner() {
       setSaveStatus('');
       setLessonStatus('');
 
-      await processFile(file, {});
+      await startContentFirstLearning({ type: 'file', file });
     }
   };
 

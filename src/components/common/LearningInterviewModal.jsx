@@ -9,6 +9,15 @@ import {
   getLatestLearningSession,
   saveLearningSessionProgress
 } from '../../services/firestoreService';
+import {
+  buildInterviewStorageKey,
+  readInterviewDraft,
+  removeInterviewDraft,
+  shouldOfferResumePrompt,
+  shouldRenderInterviewModal,
+  toTopicId,
+  writeInterviewDraft
+} from '../../utils/interviewPersistence';
 
 function TypewriterText({ text }) {
   const [visible, setVisible] = useState('');
@@ -45,6 +54,10 @@ function makeSessionId() {
 
 export default function LearningInterviewModal({
   isOpen,
+  flowType = 'skill-first',
+  interviewDecision = 'ADAPTIVE_INTERVIEW',
+  topicId = '',
+  questions: providedQuestions = null,
   userId,
   sourceContext = 'general',
   sourceLabel = '',
@@ -64,13 +77,17 @@ export default function LearningInterviewModal({
   const recognitionRef = useRef(null);
 
   const currentTopic = answers.learnTopic || initialTopic;
-  const questions = useMemo(() => buildAdaptiveInterviewQuestions(currentTopic, { ...answers, learnTopic: currentTopic }, {
+  const computedQuestions = useMemo(() => buildAdaptiveInterviewQuestions(currentTopic, { ...answers, learnTopic: currentTopic }, {
     mode: 'skill',
     sourceContext,
     sourceLabel
   }), [currentTopic, answers, sourceContext, sourceLabel]);
+  const questions = Array.isArray(providedQuestions) ? providedQuestions : computedQuestions;
   const currentQuestion = questions[currentStep];
   const progress = questions.length ? Math.min(100, Math.round(((currentStep + 1) / questions.length) * 100)) : 100;
+  const effectiveTopicId = useMemo(() => toTopicId(topicId || currentTopic || initialTopic || sourceLabel), [topicId, currentTopic, initialTopic, sourceLabel]);
+  const flowTypeSafe = flowType === 'skill-first' ? 'skill-first' : 'content-first';
+  const storageKey = useMemo(() => buildInterviewStorageKey({ userId: userId || 'guest', flowType: flowTypeSafe, topicId: effectiveTopicId }), [userId, flowTypeSafe, effectiveTopicId]);
 
   const pushAssistantQuestion = (step) => {
     const question = questions[step];
@@ -89,6 +106,7 @@ export default function LearningInterviewModal({
 
   useEffect(() => {
     if (!isOpen) return;
+    if (flowTypeSafe !== 'skill-first') return;
 
     const newSessionId = makeSessionId();
     setSessionId(newSessionId);
@@ -103,29 +121,34 @@ export default function LearningInterviewModal({
       }
     ]);
 
-    const localDraftRaw = window.localStorage.getItem(`daksha:interview:${sourceContext}`);
-    if (localDraftRaw) {
-      try {
-        const localDraft = JSON.parse(localDraftRaw);
-        if (localDraft?.answers) {
-          setResumeDraft(localDraft);
-        }
-      } catch (error) {
-        console.error('Unable to parse local interview draft:', error);
-      }
+    const localDraft = readInterviewDraft(window.localStorage, storageKey);
+    const canResumeLocal = shouldOfferResumePrompt({
+      flowType: flowTypeSafe,
+      savedInterview: localDraft,
+      currentTopicId: effectiveTopicId,
+      questions
+    });
+    if (canResumeLocal && localDraft?.answers) {
+      setResumeDraft(localDraft);
     }
 
     if (userId) {
       setCheckingResume(true);
       getLatestLearningSession(userId, sourceContext)
         .then((draft) => {
-          if (draft?.status && draft.status !== 'completed') {
+          const canResumeRemote = shouldOfferResumePrompt({
+            flowType: flowTypeSafe,
+            savedInterview: draft,
+            currentTopicId: effectiveTopicId,
+            questions
+          });
+          if (canResumeRemote) {
             setResumeDraft(draft);
           }
         })
         .finally(() => setCheckingResume(false));
     }
-  }, [isOpen, sourceContext, userId]);
+  }, [isOpen, sourceContext, userId, storageKey, flowTypeSafe, effectiveTopicId, questions]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -163,7 +186,7 @@ export default function LearningInterviewModal({
     }
   }, [isOpen, messages.length, resumeDraft, questions.length, onComplete]);
 
-  if (!isOpen) {
+  if (!isOpen || !shouldRenderInterviewModal({ flowType: flowTypeSafe, interviewDecision, questions })) {
     return null;
   }
 
@@ -173,11 +196,14 @@ export default function LearningInterviewModal({
       sessionId,
       sourceContext,
       sourceLabel,
+      topicId: effectiveTopicId,
+      flowType: flowTypeSafe,
+      questions,
       status: 'in_progress',
       currentStep: step
     });
 
-    window.localStorage.setItem(`daksha:interview:${sourceContext}`, JSON.stringify(payload.session));
+    writeInterviewDraft(window.localStorage, storageKey, payload.session);
 
     if (userId) {
       await saveLearningSessionProgress(userId, payload.session);
@@ -209,6 +235,7 @@ export default function LearningInterviewModal({
   };
 
   const handleStartFresh = () => {
+    removeInterviewDraft(window.localStorage, storageKey);
     const newSessionId = makeSessionId();
     setSessionId(newSessionId);
     setAnswers({});
@@ -260,6 +287,9 @@ export default function LearningInterviewModal({
         sessionId,
         sourceContext,
         sourceLabel,
+        topicId: effectiveTopicId,
+        flowType: flowTypeSafe,
+        questions,
         status: 'completed',
         currentStep: nextStep
       });
@@ -268,7 +298,7 @@ export default function LearningInterviewModal({
         await completeLearningInterview(userId, finalPayload);
       }
 
-      window.localStorage.removeItem(`daksha:interview:${sourceContext}`);
+      removeInterviewDraft(window.localStorage, storageKey);
       setSaving(false);
       onComplete?.(finalPayload.session.answers);
       return;

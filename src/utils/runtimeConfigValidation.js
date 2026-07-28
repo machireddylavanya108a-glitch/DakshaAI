@@ -62,7 +62,9 @@ export function validateRuntimeConfig(envInput = resolveRuntimeEnv(), logger = c
   }
 
   if (openRouterMissing.length > 0) {
+    warnOnce(logger, 'openrouter-missing', `[AI] Missing OpenRouter runtime config values: ${openRouterMissing.join(', ')}`);
     warnOnce(logger, 'openrouter-incomplete', '[AI] OpenRouter model configuration is incomplete.');
+    warnOnce(logger, 'openrouter-availability', '[AI] AI generation may be unavailable until OpenRouter configuration is provided.');
   }
 
   return {
