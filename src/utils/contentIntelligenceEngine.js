@@ -123,7 +123,7 @@ export function buildContentIntelligenceProfile({ sourceText = '', sourceName = 
 
   const title = !isWeakContent
     ? inferTitle(cleanedText || safeName, detectSubject(cleanedText || visionSummary || safeName))
-    : `Untitled ${detectSubject(cleanedText || visionSummary || safeName)} Lesson`;
+    : 'Topic not detected yet';
 
   const subject = detectSubject(cleanedText || visionSummary || safeName);
   const difficulty = detectDifficulty(cleanedText || visionSummary || safeName);

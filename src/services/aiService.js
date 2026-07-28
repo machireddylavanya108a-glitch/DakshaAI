@@ -1,6 +1,6 @@
 import OpenAI from 'openai';
 import { compressImageDataUrl, getCachedValue, setCachedValue, getIndexedDBItem, setIndexedDBItem } from '../utils/cache.js';
-import { sanitizePrompt, rateLimiter } from '../utils/security.js';
+import { sanitizePrompt } from '../utils/security.js';
 import { splitTextIntoChunks, TaskQueue, withRetry } from '../utils/productionOptimizations.js';
 import { getConfiguredTextModels, getConfiguredVisionModels } from '../config/aiModels.js';
 
@@ -64,6 +64,28 @@ function buildVisionFallbackText(sourceText = '', mimeType = 'image/png') {
     return `I couldn't confidently interpret this ${label} yet. Please tell me what the image contains, and I will turn it into a lesson plan. I also extracted these clues: ${hint.slice(0, 320)}.`;
   }
   return `I couldn't confidently interpret this image yet. Please tell me what the image contains, and I will turn it into a lesson plan.`;
+}
+
+function normalizeImageDataUrl(imageInput = '', mimeType = 'image/png') {
+  const raw = String(imageInput || '').trim();
+  if (!raw) return '';
+  if (raw.startsWith('data:image')) return raw;
+  return `data:${mimeType};base64,${raw}`;
+}
+
+function toModelTextContent(content) {
+  if (typeof content === 'string') return content;
+  if (Array.isArray(content)) {
+    return content
+      .map((entry) => {
+        if (typeof entry === 'string') return entry;
+        if (entry?.text) return entry.text;
+        return '';
+      })
+      .filter(Boolean)
+      .join('\n');
+  }
+  return String(content || '');
 }
 
 function getStatusCode(error) {
@@ -174,28 +196,6 @@ async function writeCachedResponse(cacheKey, value, ttl = 1000 * 60 * 10) {
   await setIndexedDBItem('ai-responses', cacheKey, value);
 }
 
-async function callProtectedModel(request, { retries = 2, timeoutMs = 20000 } = {}) {
-  const rate = rateLimiter('ai-request', 20, 60_000);
-  if (!rate.allowed) {
-    throw new Error('Rate limit exceeded. Please wait a moment and try again.');
-  }
-
-  let lastError;
-  for (let attempt = 0; attempt <= retries; attempt += 1) {
-    const timeoutPromise = new Promise((_, reject) => {
-      setTimeout(() => reject(new Error('AI request timed out.')), timeoutMs);
-    });
-
-    try {
-      return await Promise.race([request(), timeoutPromise]);
-    } catch (error) {
-      lastError = error;
-      if (attempt === retries) break;
-    }
-  }
-  throw lastError;
-}
-
 export async function getDakshaResponse(prompt, language = "English") {
   const cacheKey = getCacheKey(`ai-response:${language}`, prompt);
   const cached = await readCachedResponse(cacheKey, 1000 * 60 * 10);
@@ -245,19 +245,29 @@ export async function getDakshaImageResponse(base64Image, mimeType) {
   if (!hasAiCredentials()) return getMissingAuthMessage();
 
   try {
-    const safeImage = String(base64Image || '').slice(0, 800000);
-    const optimizedImage = safeImage.startsWith('data:image') ? await compressImageDataUrl(`data:${mimeType};base64,${safeImage}`, 0.8, 1200) : safeImage;
+    const normalizedDataUrl = normalizeImageDataUrl(String(base64Image || '').slice(0, 900000), mimeType || 'image/png');
+    if (!normalizedDataUrl) {
+      return buildVisionFallbackText('', mimeType);
+    }
+
+    const optimizedImage = await compressImageDataUrl(normalizedDataUrl, 0.82, 1400);
     const { response } = await callModelWithFallback({
       requestType: 'vision',
       messages: [
-        { role: 'user', content: [
-          { type: 'text', text: 'Analyze this image. Extract all the knowledge, text, or concepts from it. Explain what this is and teach me about it simply.' },
-          { type: 'image_url', image_url: { url: `data:${mimeType};base64,${optimizedImage}` } }
-        ] }
+        {
+          role: 'user',
+          content: [
+            {
+              type: 'text',
+              text: 'Analyze this image for learning. Return a clear explanation, key concepts, definitions, and practical takeaways from any visible text/diagram.'
+            },
+            { type: 'image_url', image_url: { url: optimizedImage } }
+          ]
+        }
       ],
       models: getConfiguredVisionModels()
     });
-    const content = response.choices[0].message.content;
+    const content = toModelTextContent(response?.choices?.[0]?.message?.content);
     setCachedValue(cacheKey, content, 1000 * 60 * 20);
     return content;
   } catch (error) {
@@ -445,17 +455,19 @@ Return only valid JSON with these exact keys. Keep each section clear and learne
 Source content:
 ${limitedSource}`;
 
-    const response = await callProtectedModel(() => openai.chat.completions.create({
-      model: 'deepseek/deepseek-v3:free',
+    const { response } = await callModelWithFallback({
+      requestType: 'text',
       messages: [
         { role: 'system', content: `${DAKSHA_SYSTEM_PROMPT} You MUST return only valid JSON for the lesson package.` },
         { role: 'user', content: prompt }
-      ]
-    }));
+      ],
+      models: getConfiguredTextModels()
+    });
 
-    const content = response.choices[0].message.content;
+    const content = toModelTextContent(response?.choices?.[0]?.message?.content);
     const parsed = parseJsonResponse(content);
     if (parsed) {
+      setCachedValue(cacheKey, parsed, 1000 * 60 * 20);
       return parsed;
     }
 
@@ -498,9 +510,11 @@ ${limitedSource}`;
 }
 
 export async function generateLessonSuite(topic) {
+  if (!hasAiCredentials()) return null;
+
   try {
-    const response = await openai.chat.completions.create({
-      model: 'deepseek/deepseek-v3:free',
+    const { response } = await callModelWithFallback({
+      requestType: 'text',
       messages: [
         { role: 'system', content: 'You are an expert educational AI. Generate a complete lesson suite for the given topic. Return ONLY a valid JSON object. Do not include markdown formatting or extra text.' },
         { role: 'user', content: `Generate a lesson suite for: "${topic}". 
@@ -510,13 +524,14 @@ export async function generateLessonSuite(topic) {
         "examples" (array of strings), "interview_questions" (array of strings), 
         "practice_questions" (array of strings), 
         "quiz" (array of exactly 10 objects with "question" (string), "options" (array of 4 strings), "answer" (string)), 
-        "flashcards" (array of objects with "front" (string), "back" (string)), 
+        "flashcards" (array of objects with "front" (string), "back" (string)),
         "revision_notes" (string), "cheat_sheet" (string), "mind_map" (string), 
         "roadmap" (array of strings).` }
-      ]
+      ],
+      models: getConfiguredTextModels()
     });
 
-    let content = response.choices[0].message.content;
+    let content = toModelTextContent(response?.choices?.[0]?.message?.content);
     content = content.replace(/```json/g, '').replace(/```/g, '').trim();
 
     const parsed = JSON.parse(content);
@@ -532,6 +547,26 @@ export async function generateLessonSuite(topic) {
 }
 
 export async function generatePptLearningPackage(fileName, pptModel, userId = 'guest') {
+  if (!hasAiCredentials()) {
+    return {
+      title: fileName,
+      summary: 'AI is not configured yet. Add OpenRouter settings to generate PPT learning packages.',
+      beginnerLesson: 'Start by reviewing your slide titles and notes.',
+      intermediateLesson: 'Group slides by concept and map dependencies.',
+      advancedLesson: 'Turn slide concepts into practice tasks and case studies.',
+      keyConcepts: [],
+      importantDefinitions: [],
+      examples: [],
+      realWorldApplications: [],
+      revisionNotes: [],
+      cheatSheet: [],
+      flashcards: [],
+      quiz: [],
+      mindMap: 'Core message -> key concepts -> practice',
+      learningRoadmap: []
+    };
+  }
+
   try {
     const prompt = `You are Daksha AI, a premium presentation-to-course generator.
 Create a structured learning package from this PPT content.
@@ -565,15 +600,16 @@ Tables: ${JSON.stringify(pptModel?.tables || [])}
 Diagrams: ${JSON.stringify(pptModel?.diagrams || [])}
 Notes: ${JSON.stringify(pptModel?.notes || [])}`;
 
-    const response = await openai.chat.completions.create({
-      model: 'deepseek/deepseek-v3:free',
+    const { response } = await callModelWithFallback({
+      requestType: 'text',
       messages: [
         { role: 'system', content: `${DAKSHA_SYSTEM_PROMPT} You MUST return only valid JSON for presentation learning generation.` },
         { role: 'user', content: prompt }
-      ]
+      ],
+      models: getConfiguredTextModels()
     });
 
-    const content = response.choices[0].message.content;
+    const content = toModelTextContent(response?.choices?.[0]?.message?.content);
     const parsed = parseJsonResponse(content);
     if (parsed) {
       return parsed;

@@ -44,6 +44,7 @@ test('resolveLearningTopic prioritizes confirmed user input over filenames', () 
 
 test('resolveLearningTopic leaves filename-only topics unconfirmed', () => {
   const resolved = resolveLearningTopic({ filename: 'Screenshot (35).png' });
+  assert.equal(resolved.topic, 'Topic not detected yet');
   assert.equal(resolved.confirmed, false);
-  assert.equal(resolved.source, 'filename');
+  assert.equal(resolved.source, 'unknown');
 });

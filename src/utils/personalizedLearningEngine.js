@@ -28,6 +28,19 @@ function sanitizeText(value, fallback = '') {
   return output || fallback;
 }
 
+function isUnknownSkillTopic(value = '') {
+  const normalized = String(value || '').trim().toLowerCase();
+  if (!normalized) return true;
+  if (/^(screenshot|image|photo|file|document|upload|camera|scan)(\s|\(|-|_)?/.test(normalized)) return true;
+  if (normalized === 'learning material' || normalized === 'general learning') return true;
+  return false;
+}
+
+function normalizeSkillTopic(value, fallback = 'Topic not detected yet') {
+  const skill = sanitizeText(value, '');
+  return isUnknownSkillTopic(skill) ? fallback : skill;
+}
+
 function estimateDailyMinutes(studyTime = '1 hour') {
   const normalized = String(studyTime || '').toLowerCase();
   if (normalized.includes('15')) return 15;
@@ -184,13 +197,15 @@ function buildCareerLayer(skill, profile) {
   const role = sanitizeText(profile?.endGoal, 'career growth');
   const careerGoal = sanitizeText(profile?.careerGoal, role);
   const location = sanitizeText(profile?.location, 'your region');
+  const safeSkill = normalizeSkillTopic(skill);
+  const genericPaths = ['Foundational learning path', 'Applied practice path', 'Project and portfolio path', 'Assessment readiness path'];
   return {
-    certifications: [`Target one credential that strengthens ${skill} for ${careerGoal}`, `Map a second credential to a visible hiring signal`],
-    internshipPreparation: [`Resume aligned to ${skill} and ${careerGoal}`, 'Prepare a concise case study for internship interviews', 'Send tailored outreach messages with evidence from your work'],
+    certifications: [`Target one credential that strengthens ${safeSkill} for ${careerGoal}`, `Map a second credential to a visible hiring signal`],
+    internshipPreparation: [`Resume aligned to ${safeSkill} and ${careerGoal}`, 'Prepare a concise case study for internship interviews', 'Send tailored outreach messages with evidence from your work'],
     jobPreparation: ['Polish a compact portfolio narrative', 'Practice interview answers with real examples', 'Create a review loop for weak points'],
     freelancingRoadmap: ['Define a service niche around your strongest skills', 'Prepare one sample offer and one paid pilot', 'Collect testimonials and public proof'],
-    startupBusinessOpportunities: [`Prototype a niche offer that uses ${skill}`, 'Sketch a monetization path and first customer segment', 'Run a lightweight validation sprint'],
-    careerPaths: [`${skill} Specialist`, `${skill} Analyst`, `${skill} Consultant`, `${skill} Builder`],
+    startupBusinessOpportunities: [`Prototype a niche offer that uses ${safeSkill}`, 'Sketch a monetization path and first customer segment', 'Run a lightweight validation sprint'],
+    careerPaths: safeSkill === 'Topic not detected yet' ? genericPaths : [`${safeSkill} Practitioner`, `${safeSkill} Analyst`, `${safeSkill} Engineer`, `${safeSkill} Lead`],
     salaryInformation: `Pay ranges vary by ${location}, market demand, and experience. Treat salary estimates as informational only and not financial advice. Target role: ${role}.`
   };
 }
@@ -227,7 +242,7 @@ export function buildPersonalizedLearningPlan({
   sourceSummary = '',
   skillHint = ''
 } = {}) {
-  const skill = sanitizeText(interviewAnswers.learnTopic, sanitizeText(skillHint, 'General Learning'));
+  const skill = normalizeSkillTopic(interviewAnswers.learnTopic || skillHint, 'Topic not detected yet');
   const mode = inferLearningMode(interviewAnswers);
   const prereqChain = getPrerequisiteChain(skill, interviewAnswers, sourceSummary);
   const levelFactor = estimateLevelFactor(interviewAnswers.currentLevel);

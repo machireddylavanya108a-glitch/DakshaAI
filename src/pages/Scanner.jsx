@@ -14,6 +14,11 @@ import { deriveLearningTitle, buildFallbackLessonPackage } from '../utils/learni
 
 const tabs = ['Overview', 'Summary', 'Topics', 'Keywords', 'Quiz', 'Flashcards'];
 
+function normalizeUniqueList(value) {
+  if (!Array.isArray(value)) return [];
+  return Array.from(new Set(value.map((entry) => String(entry || '').trim()).filter(Boolean)));
+}
+
 const detectSourceHintFromFile = (file = null) => {
   const name = (file?.name || '').toLowerCase();
   if (file?.type?.startsWith('image/')) return 'image';
@@ -121,16 +126,21 @@ export default function Scanner() {
     });
     const suite = buildUniversalLearningArtifacts(result);
     const intelligenceProfile = result.intelligenceProfile || result.sourceMeta?.intelligenceProfile || null;
+    const detectedTopic = intelligenceProfile?.title && intelligenceProfile.title !== 'Topic not detected yet'
+      ? intelligenceProfile.title
+      : sourceName;
+    const keyConcepts = normalizeUniqueList(suite.learningSession?.keyConcepts || []);
+    const importantDefinitions = normalizeUniqueList(suite.learningSession?.importantDefinitions || []);
     const interviewDecisionResult = determineInterviewRequirement({
       sourceType: sourceHint,
       topicConfidence: 0.9,
       profile: intelligenceProfile || {},
-      learningGoal: sourceName,
+      learningGoal: detectedTopic,
       existingSession: null
     });
     setInterviewDecision(interviewDecisionResult);
 
-    const derivedTitle = deriveLearningTitle(sourceName, sourceContext === 'document' ? 'Adaptive lesson' : sourceName);
+    const derivedTitle = deriveLearningTitle(detectedTopic, sourceContext === 'document' ? 'Adaptive lesson' : detectedTopic);
     const fallbackSuite = buildFallbackLessonPackage({ title: derivedTitle, summary: suite.learningSession?.summary || result.sourceModel?.overview || '' });
     const safeSuite = {
       ...suite,
@@ -152,10 +162,10 @@ export default function Scanner() {
     const analysis = {
       overview: safeSuite.learningSession?.summary || result.sourceModel?.overview || '',
       summary: safeSuite.learningSession?.summary || '',
-      topics: suite.learningSession?.keyConcepts || [],
-      keywords: suite.learningSession?.keyConcepts || [],
-      definitions: suite.learningSession?.importantDefinitions || [],
-      importantPoints: suite.learningSession?.keyConcepts || [],
+      topics: keyConcepts,
+      keywords: keyConcepts,
+      definitions: importantDefinitions,
+      importantPoints: keyConcepts,
       difficulty: result.sourceMeta?.difficulty || 'Medium',
       detectedElements: {
         headings: result.sourceModel?.headings || [],
@@ -165,7 +175,7 @@ export default function Scanner() {
         diagrams: result.sourceModel?.diagrams?.length || 0,
         formulas: result.sourceModel?.formulas || [],
         codeBlocks: result.sourceModel?.codeBlocks || [],
-        lists: suite.learningSession?.keyConcepts || []
+        lists: keyConcepts
       },
       quiz: suite.quiz,
       flashcards: suite.flashcards
@@ -185,22 +195,22 @@ export default function Scanner() {
     const plan = buildPersonalizedLearningPlan({
       interviewAnswers: {
         ...(interviewAnswers || {}),
-        learnTopic: interviewAnswers?.learnTopic || sourceName
+        learnTopic: interviewAnswers?.learnTopic || detectedTopic
       },
       sourceContext,
-      sourceLabel: sourceName,
+      sourceLabel: detectedTopic,
       sourceSummary: String(text || '').slice(0, 600),
-      skillHint: sourceName
+      skillHint: detectedTopic
     });
     setLearningPlan(plan);
     if (user) {
       await persistLearningSession({
         user,
-        sourceLabel: sourceName,
+        sourceLabel: detectedTopic,
         sourceContext,
         sessionData: {
-          title: sourceName,
-          topic: sourceName,
+          title: detectedTopic,
+          topic: detectedTopic,
           summary: suite.learningSession?.summary || '',
           difficulty: result.sourceMeta?.difficulty || 'Medium',
           sourceMeta: result.sourceMeta,
@@ -212,12 +222,12 @@ export default function Scanner() {
           assessment: { questionCount: 6 },
           interview: interviewAnswers || {},
           teacher: suite.aiTeacher,
-          roadmap: { topic: sourceName, plan },
+          roadmap: { topic: detectedTopic, plan },
           graph: suite.knowledgeGraph
         },
         assessmentContext: { questionCount: 6 },
         planContext: {
-          topic: sourceName,
+          topic: detectedTopic,
           interviewAnswers: interviewAnswers || {},
           focus: sourceContext,
           strengths: ['foundational concepts'],

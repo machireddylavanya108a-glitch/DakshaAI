@@ -520,10 +520,18 @@ export async function getUserPersonalizedLearningPlans(userId) {
       const querySnapshot = await getDocs(q);
       const plans = [];
       querySnapshot.forEach((docSnapshot) => {
-        plans.push({ id: docSnapshot.id, ...docSnapshot.data() });
+        const payload = docSnapshot.data() || {};
+        plans.push({
+          id: docSnapshot.id || payload.planId || '',
+          planId: payload.planId || docSnapshot.id || '',
+          topic: payload.topic || payload.analytics?.skill || 'Topic not detected yet',
+          ...payload
+        });
       });
 
-      return plans.sort((a, b) => {
+      return plans
+        .filter((plan) => Boolean(plan.id || plan.planId))
+        .sort((a, b) => {
         const aTime = a.updatedAt?.toMillis ? a.updatedAt.toMillis() : 0;
         const bTime = b.updatedAt?.toMillis ? b.updatedAt.toMillis() : 0;
         return bTime - aTime;
@@ -536,6 +544,10 @@ export async function getUserPersonalizedLearningPlans(userId) {
 }
 
 export async function deletePersonalizedLearningPlan(userId, planId) {
+  if (!planId || typeof planId !== 'string') {
+    return false;
+  }
+
   try {
     await Promise.all([
       deleteDoc(doc(db, 'learningPlans', planId)),

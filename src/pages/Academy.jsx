@@ -151,6 +151,10 @@ export default function Academy() {
 
   const handleDelete = async (roadmapId) => {
     if (!user) return;
+    if (!roadmapId) {
+      setSavedStatus('This plan cannot be deleted because its id is missing.');
+      return;
+    }
     const deleted = await deletePersonalizedLearningPlan(user.uid, roadmapId);
     if (deleted) {
       setSavedStatus('Personalized plan deleted.');
@@ -164,8 +168,14 @@ export default function Academy() {
   };
 
   const handleLoad = (item) => {
-    setLearningPlan({ id: item.id, ...item });
-    setActiveSkill(item.topic || item.analytics?.skill || 'Skill');
+    if (!item) {
+      setErrorMessage('Unable to load this plan.');
+      return;
+    }
+
+    const safeTopic = item.topic || item.analytics?.skill || 'Topic not detected yet';
+    setLearningPlan({ id: item.id || item.planId || '', ...item, topic: safeTopic });
+    setActiveSkill(safeTopic);
     setSavedStatus('Loaded from Firebase.');
     setErrorMessage('');
   };
@@ -280,8 +290,10 @@ export default function Academy() {
         <SkillSection title="Saved Personalized Plans" description="Your interview-first plans stored in Firebase.">
           {savedRoadmaps.length > 0 ? (
             <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-              {savedRoadmaps.map((item) => (
-                <div key={item.id} className="rounded-[1.6rem] border border-slate-800 bg-slate-950/70 p-5">
+              {savedRoadmaps.map((item, index) => {
+                const recordId = item.id || item.planId || '';
+                return (
+                <div key={recordId || `${item.topic || 'plan'}-${index}`} className="rounded-[1.6rem] border border-slate-800 bg-slate-950/70 p-5">
                   <div className="mb-3 flex items-center justify-between gap-3">
                     <div>
                       <h4 className="font-semibold text-white">{item.topic || item.analytics?.skill || 'Learning Plan'}</h4>
@@ -291,10 +303,10 @@ export default function Academy() {
                   </div>
                   <div className="mt-4 flex flex-wrap gap-2">
                     <button onClick={() => handleLoad(item)} className="rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-200 hover:border-indigo-500">Load</button>
-                    <button onClick={() => handleDelete(item.id)} className="rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-200 hover:border-red-500">Delete</button>
+                    <button onClick={() => handleDelete(recordId)} disabled={!recordId} className="rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-200 hover:border-red-500 disabled:cursor-not-allowed disabled:opacity-50">Delete</button>
                   </div>
                 </div>
-              ))}
+              )})}
             </div>
           ) : (
             <p className="text-sm text-slate-400">No saved personalized plans yet. Start an AI interview to generate your first adaptive journey.</p>

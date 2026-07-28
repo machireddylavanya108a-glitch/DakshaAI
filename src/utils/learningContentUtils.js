@@ -82,7 +82,7 @@ export function resolveLearningTopic({
     return { topic: cleanedFilename, confirmed: false, source: 'filename' };
   }
 
-  return { topic: 'Learning material', confirmed: false, source: 'filename' };
+  return { topic: 'Topic not detected yet', confirmed: false, source: 'unknown' };
 }
 
 export function buildFallbackLessonPackage({ title = 'Adaptive lesson', summary = 'The lesson content is being prepared from available material.' } = {}) {

@@ -36,3 +36,16 @@ test('buildPersonalizedLearningPlan produces a contextual roadmap without generi
   assert.ok(!plan.plan.dailySchedule.some((item) => /Foundations|Core Concepts/i.test(item.topic)));
   assert.ok(plan.plan.dailySchedule[0].tasks.some((task) => task.includes('react-performance.pdf') || task.includes('rendering')));
 });
+
+test('buildPersonalizedLearningPlan avoids fake specialist roles for unknown screenshot topics', () => {
+  const plan = buildPersonalizedLearningPlan({
+    interviewAnswers: {
+      learnTopic: 'Screenshot (12).png',
+      endGoal: 'Get a job'
+    },
+    skillHint: 'Screenshot (12).png'
+  });
+
+  assert.equal(plan.topic, 'Topic not detected yet');
+  assert.ok(plan.plan.careerPaths.every((path) => !/Specialist|Consultant|Builder/i.test(path)));
+});
