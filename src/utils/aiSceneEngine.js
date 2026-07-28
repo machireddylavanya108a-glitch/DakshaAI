@@ -1,141 +1,136 @@
 import { createAssetManager } from './assetManager.js';
 import { buildAnimationPlan, buildAutoAnimationState } from './aiAnimationEngine.js';
 
-const DOMAIN_KEYWORDS = {
-  'Human Anatomy': ['heart', 'anatomy', 'organ', 'bone', 'muscle', 'surgery', 'medical', 'cell', 'brain', 'kidney', 'lung'],
-  Biology: ['biology', 'cell', 'dna', 'gene', 'organism', 'ecosystem', 'virus', 'microbe'],
-  Physics: ['physics', 'force', 'motion', 'energy', 'wave', 'gravity', 'momentum', 'thermodynamics'],
-  Chemistry: ['chemistry', 'molecule', 'atom', 'reaction', 'compound', 'bond', 'electron', 'acid'],
-  Astronomy: ['astronomy', 'planet', 'star', 'galaxy', 'orbit', 'solar', 'moon', 'cosmos'],
-  Mathematics: ['math', 'equation', 'geometry', 'algebra', 'calculus', 'proof', 'vector', 'function'],
-  Engineering: ['engineering', 'system', 'design', 'prototype', 'mechanism', 'circuit', 'control'],
-  Mechanical: ['mechanical', 'gear', 'engine', 'motor', 'piston', 'turbine', 'shaft', 'machine'],
-  Architecture: ['architecture', 'building', 'bridge', 'structure', 'façade', 'beam', 'floor', 'design'],
-  Animals: ['animal', 'species', 'habitat', 'predator', 'mammal', 'bird', 'fish'],
-  Plants: ['plant', 'leaf', 'root', 'flower', 'stem', 'photosynthesis', 'bloom'],
-  Electronics: ['electronic', 'circuit', 'transistor', 'microchip', 'sensor', 'voltage', 'board'],
-  Vehicles: ['vehicle', 'car', 'train', 'plane', 'ship', 'engine', 'wheel', 'chassis'],
-  Buildings: ['building', 'house', 'office', 'hospital', 'factory', 'room', 'floorplan'],
-  Medical: ['medical', 'diagnosis', 'clinic', 'treatment', 'patient', 'hospital', 'surgery'],
-  'Business Diagrams': ['business', 'workflow', 'process', 'market', 'revenue', 'strategy', 'pipeline'],
-  'Computer Science': ['computer', 'software', 'algorithm', 'programming', 'code', 'network', 'data', 'python', 'java', 'socket', 'router'],
-  Networking: ['network', 'router', 'switch', 'packet', 'protocol', 'tcp', 'dns', 'server'],
-  Programming: ['programming', 'code', 'function', 'loop', 'class', 'debug', 'python', 'javascript', 'api'],
-  Robotics: ['robot', 'robotics', 'arm', 'sensor', 'automation', 'control', 'actuator'],
+const STOP_WORDS = new Set([
+  'a', 'an', 'the', 'and', 'or', 'to', 'of', 'for', 'on', 'in', 'with', 'from', 'by', 'at', 'as', 'into', 'about',
+  'show', 'explain', 'learn', 'teaching', 'lesson', 'chapter', 'topic', 'understand', 'overview', 'introduction'
+]);
+
+const ACTION_SIGNALS = {
+  inspection: ['inspect', 'examine', 'analyze', 'observe', 'compare', 'diagnose'],
+  process: ['process', 'pipeline', 'flow', 'sequence', 'step', 'workflow'],
+  construction: ['build', 'construct', 'assemble', 'design', 'draft', 'model'],
+  simulation: ['simulate', 'predict', 'optimize', 'experiment', 'test', 'train'],
+  exploration: ['explore', 'discover', 'navigate', 'tour', 'walkthrough', 'investigate']
 };
 
-const ASSET_LIBRARY = {
-  'Human Anatomy': [
-    { assetId: 'heart-anatomy', label: 'Heart Anatomy', category: 'Human Anatomy', icon: '🫀' },
-    { assetId: 'brain-model', label: 'Brain Model', category: 'Human Anatomy', icon: '🧠' },
-    { assetId: 'skeletal-system', label: 'Skeletal System', category: 'Human Anatomy', icon: '🦴' }
-  ],
-  Biology: [
-    { assetId: 'cell-model', label: 'Cell Model', category: 'Biology', icon: '🧫' },
-    { assetId: 'dna-helix', label: 'DNA Helix', category: 'Biology', icon: '🧬' },
-    { assetId: 'microbe-scene', label: 'Microbe Scene', category: 'Biology', icon: '🦠' }
-  ],
-  Physics: [
-    { assetId: 'force-vector', label: 'Force Vector', category: 'Physics', icon: '⚛️' },
-    { assetId: 'wave-sim', label: 'Wave Sim', category: 'Physics', icon: '🌊' },
-    { assetId: 'energy-core', label: 'Energy Core', category: 'Physics', icon: '💡' }
-  ],
-  Chemistry: [
-    { assetId: 'molecule-kit', label: 'Molecule Kit', category: 'Chemistry', icon: '🧪' },
-    { assetId: 'reaction-chamber', label: 'Reaction Chamber', category: 'Chemistry', icon: '⚗️' },
-    { assetId: 'atom-core', label: 'Atom Core', category: 'Chemistry', icon: '☢️' }
-  ],
-  Astronomy: [
-    { assetId: 'solar-system', label: 'Solar System', category: 'Astronomy', icon: '☀️' },
-    { assetId: 'orbital-view', label: 'Orbital View', category: 'Astronomy', icon: '🪐' },
-    { assetId: 'galaxy-core', label: 'Galaxy Core', category: 'Astronomy', icon: '✨' }
-  ],
-  Mathematics: [
-    { assetId: 'graph-grid', label: 'Graph Grid', category: 'Mathematics', icon: '📐' },
-    { assetId: 'vector-space', label: 'Vector Space', category: 'Mathematics', icon: '📊' },
-    { assetId: 'calc-surface', label: 'Calculus Surface', category: 'Mathematics', icon: '📈' }
-  ],
-  Engineering: [
-    { assetId: 'engineering-diagram', label: 'Engineering Diagram', category: 'Engineering', icon: '🛠️' },
-    { assetId: 'prototype-rig', label: 'Prototype Rig', category: 'Engineering', icon: '🔧' },
-    { assetId: 'system-flow', label: 'System Flow', category: 'Engineering', icon: '⚙️' }
-  ],
-  Mechanical: [
-    { assetId: 'mechanical-assembly', label: 'Mechanical Assembly', category: 'Mechanical', icon: '🧰' },
-    { assetId: 'engine-block', label: 'Engine Block', category: 'Mechanical', icon: '🚗' },
-    { assetId: 'gear-train', label: 'Gear Train', category: 'Mechanical', icon: '⚙️' }
-  ],
-  Architecture: [
-    { assetId: 'building-frame', label: 'Building Frame', category: 'Architecture', icon: '🏗️' },
-    { assetId: 'bridge-structure', label: 'Bridge Structure', category: 'Architecture', icon: '🌉' },
-    { assetId: 'floor-plan', label: 'Floor Plan', category: 'Architecture', icon: '🏛️' }
-  ],
-  Animals: [
-    { assetId: 'animal-body', label: 'Animal Body', category: 'Animals', icon: '🐾' },
-    { assetId: 'habitat-scene', label: 'Habitat Scene', category: 'Animals', icon: '🌿' },
-    { assetId: 'ecosystem-map', label: 'Ecosystem Map', category: 'Animals', icon: '🦉' }
-  ],
-  Plants: [
-    { assetId: 'plant-structure', label: 'Plant Structure', category: 'Plants', icon: '🌱' },
-    { assetId: 'leaf-cross-section', label: 'Leaf Cross Section', category: 'Plants', icon: '🍃' },
-    { assetId: 'flower-bloom', label: 'Flower Bloom', category: 'Plants', icon: '🌼' }
-  ],
-  Electronics: [
-    { assetId: 'circuit-board', label: 'Circuit Board', category: 'Electronics', icon: '🔌' },
-    { assetId: 'microchip', label: 'Microchip', category: 'Electronics', icon: '💻' },
-    { assetId: 'sensor-node', label: 'Sensor Node', category: 'Electronics', icon: '📡' }
-  ],
-  Vehicles: [
-    { assetId: 'vehicle-chassis', label: 'Vehicle Chassis', category: 'Vehicles', icon: '🚙' },
-    { assetId: 'engine-system', label: 'Engine System', category: 'Vehicles', icon: '🛞' },
-    { assetId: 'aerospace-frame', label: 'Aerospace Frame', category: 'Vehicles', icon: '✈️' }
-  ],
-  Buildings: [
-    { assetId: 'building-layout', label: 'Building Layout', category: 'Buildings', icon: '🏢' },
-    { assetId: 'room-scene', label: 'Room Scene', category: 'Buildings', icon: '🛋️' },
-    { assetId: 'factory-layout', label: 'Factory Layout', category: 'Buildings', icon: '🏭' }
-  ],
-  Medical: [
-    { assetId: 'medical-suite', label: 'Medical Suite', category: 'Medical', icon: '🩺' },
-    { assetId: 'diagnostic-room', label: 'Diagnostic Room', category: 'Medical', icon: '🧑‍⚕️' },
-    { assetId: 'surgical-scene', label: 'Surgical Scene', category: 'Medical', icon: '🩹' }
-  ],
-  'Business Diagrams': [
-    { assetId: 'workflow-map', label: 'Workflow Map', category: 'Business Diagrams', icon: '📋' },
-    { assetId: 'pipeline-diagram', label: 'Pipeline Diagram', category: 'Business Diagrams', icon: '🔄' },
-    { assetId: 'org-chart', label: 'Org Chart', category: 'Business Diagrams', icon: '🧭' }
-  ],
-  'Computer Science': [
-    { assetId: 'data-graph', label: 'Data Graph', category: 'Computer Science', icon: '🧠' },
-    { assetId: 'network-map', label: 'Network Map', category: 'Computer Science', icon: '🌐' },
-    { assetId: 'code-stack', label: 'Code Stack', category: 'Computer Science', icon: '💾' }
-  ],
-  Networking: [
-    { assetId: 'network-topology', label: 'Network Topology', category: 'Networking', icon: '📶' },
-    { assetId: 'router-stack', label: 'Router Stack', category: 'Networking', icon: '🧩' },
-    { assetId: 'packet-flow', label: 'Packet Flow', category: 'Networking', icon: '📦' }
-  ],
-  Programming: [
-    { assetId: 'code-structure', label: 'Code Structure', category: 'Programming', icon: '⌨️' },
-    { assetId: 'function-flow', label: 'Function Flow', category: 'Programming', icon: '🧱' },
-    { assetId: 'debug-graph', label: 'Debug Graph', category: 'Programming', icon: '🐞' }
-  ],
-  Robotics: [
-    { assetId: 'robot-arm', label: 'Robot Arm', category: 'Robotics', icon: '🤖' },
-    { assetId: 'automation-cell', label: 'Automation Cell', category: 'Robotics', icon: '🦾' },
-    { assetId: 'sensor-grid', label: 'Sensor Grid', category: 'Robotics', icon: '📡' }
-  ],
-};
+function toTitleCase(value = '') {
+  return String(value || '')
+    .replace(/[_-]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .split(' ')
+    .filter(Boolean)
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+    .join(' ');
+}
 
-function detectDomain(content = '') {
-  const normalized = String(content || '').toLowerCase();
-  const scores = Object.entries(DOMAIN_KEYWORDS).map(([domain, keywords]) => ({
-    domain,
-    score: keywords.reduce((acc, keyword) => (normalized.includes(keyword) ? acc + 1 : acc), 0)
-  })).sort((a, b) => b.score - a.score);
+function pickTopTerms(content = '', limit = 8) {
+  const words = String(content || '')
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .split(/\s+/)
+    .filter((word) => word.length > 2 && !STOP_WORDS.has(word));
 
-  if (scores[0]?.score > 0) return scores[0].domain;
-  return 'General';
+  const counts = new Map();
+  words.forEach((word) => counts.set(word, (counts.get(word) || 0) + 1));
+  return [...counts.entries()]
+    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+    .slice(0, limit)
+    .map(([word]) => word);
+}
+
+function inferInteractionCategory(content = '', terms = []) {
+  const text = `${content} ${terms.join(' ')}`.toLowerCase();
+  const scored = Object.entries(ACTION_SIGNALS)
+    .map(([key, words]) => ({
+      key,
+      score: words.reduce((acc, word) => (text.includes(word) ? acc + 1 : acc), 0)
+    }))
+    .sort((a, b) => b.score - a.score);
+
+  if (scored[0]?.score <= 0) return 'Generic Exploration';
+  if (scored[0].key === 'inspection') return 'Interactive Inspection';
+  if (scored[0].key === 'process') return 'Process Walkthrough';
+  if (scored[0].key === 'construction') return 'Build And Breakdown';
+  if (scored[0].key === 'simulation') return 'Scenario Simulation';
+  return 'Guided Exploration';
+}
+
+function inferVisualizationStyle(content = '', terms = [], topAsset = null) {
+  const text = String(content || '').toLowerCase();
+  const signature = [topAsset?.name, topAsset?.category, ...terms.slice(0, 2)].filter(Boolean).join(' ');
+
+  if (/timeline|history|chronolog/.test(text)) return 'Timeline Visualization';
+  if (/chart|graph|metric|trend/.test(text)) return 'Analytical Chart Scene';
+  if (/diagram|workflow|pipeline|map|architecture/.test(text)) return 'System Diagram Scene';
+  if (/studio|lab|kitchen|classroom|court|factory/.test(text)) return 'Immersive Environment Scene';
+  if (signature) return `${toTitleCase(signature)} Visualization`;
+  return 'Adaptive Visualization';
+}
+
+function inferComplexity(content = '', terms = [], rankedAssets = []) {
+  const textLength = String(content || '').trim().length;
+  const uniqueTerms = new Set(terms).size;
+  const assetDensity = rankedAssets.filter((item) => (item?.rankScore || 0) > 0).length;
+  const score = textLength / 160 + uniqueTerms * 0.6 + assetDensity * 1.1;
+  if (score >= 9) return 'high';
+  if (score >= 5) return 'medium';
+  return 'low';
+}
+
+function buildClassificationFallback() {
+  return {
+    domain: 'Custom',
+    subDomain: 'Open Topic',
+    visualization: 'Adaptive',
+    sceneComplexity: 'medium',
+    objectCategory: 'Dynamic',
+    animationCategory: 'Guided Motion',
+    interactionCategory: 'Generic Exploration',
+    interaction: 'Generic Exploration'
+  };
+}
+
+export function classifyUniversalSubject(content = '', sourceType = 'typed-topic') {
+  const normalizedContent = String(content || '').trim();
+  const manager = createAssetManager();
+  const rankedAssets = manager.rankAssets(normalizedContent, '');
+  const topAsset = rankedAssets[0] || null;
+  const topTerms = pickTopTerms(normalizedContent, 10);
+
+  if (!normalizedContent) {
+    return buildClassificationFallback();
+  }
+
+  const semanticAnchor = topTerms.slice(0, 2).join(' ');
+  const inferredDomain = topAsset?.category
+    ? toTitleCase(topAsset.category)
+    : topTerms[0]
+      ? toTitleCase(topTerms[0])
+      : 'Custom';
+
+  const inferredSubDomain = topAsset?.name
+    ? toTitleCase(topAsset.name)
+    : semanticAnchor
+      ? toTitleCase(semanticAnchor)
+      : `${toTitleCase(sourceType || 'topic')} Focus`;
+
+  const visualization = inferVisualizationStyle(normalizedContent, topTerms, topAsset);
+  const interactionCategory = inferInteractionCategory(normalizedContent, topTerms);
+  const sceneComplexity = inferComplexity(normalizedContent, topTerms, rankedAssets);
+  const objectCategory = inferredDomain === 'Custom' ? 'Dynamic' : inferredDomain;
+
+  return {
+    domain: inferredDomain,
+    subDomain: inferredSubDomain,
+    visualization,
+    sceneComplexity,
+    objectCategory,
+    animationCategory: sceneComplexity === 'high' ? 'Layered Motion' : 'Guided Motion',
+    interactionCategory,
+    interaction: interactionCategory
+  };
 }
 
 function tokenizeConcepts(content = '') {
@@ -182,13 +177,14 @@ function buildAssetPlan(content = '', domain = 'General', entities = []) {
 }
 
 export function buildSceneBlueprint(content = '', sourceType = 'typed-topic') {
-  const domain = detectDomain(content) || 'General';
-  const entities = chooseEntities(content, domain);
-  const assetPlan = buildAssetPlan(content, domain, entities);
+  const classification = classifyUniversalSubject(content, sourceType);
+  const domain = classification.domain || 'Custom';
+  const entities = chooseEntities(content, classification.objectCategory || domain);
+  const assetPlan = buildAssetPlan(content, classification.objectCategory || domain, entities);
   const fallbackEntities = entities.length ? entities : [
-    { name: 'Core concept', category: domain, role: 'focus', concept: 'concept' },
-    { name: 'Practice loop', category: domain, role: 'support', concept: 'practice' },
-    { name: 'Review step', category: domain, role: 'support', concept: 'review' }
+    { name: 'Core concept', category: classification.objectCategory, role: 'focus', concept: 'concept' },
+    { name: 'Practice loop', category: classification.objectCategory, role: 'support', concept: 'practice' },
+    { name: 'Review step', category: classification.objectCategory, role: 'support', concept: 'review' }
   ];
   const safeAssetPlan = assetPlan.length ? assetPlan : fallbackEntities.map((entity, index) => ({
     assetId: `fallback-${index + 1}`,
@@ -198,7 +194,7 @@ export function buildSceneBlueprint(content = '', sourceType = 'typed-topic') {
     focus: entity.name,
     lod: 'medium',
     compression: 'balanced',
-    lazyLoading: true,
+    lazyLoading: { enabled: true, preloadDistance: 4 },
     optimization: 'fallback',
     compositePlan: null,
     rankScore: 1
@@ -206,12 +202,14 @@ export function buildSceneBlueprint(content = '', sourceType = 'typed-topic') {
 
   return {
     domain,
+    subDomain: classification.subDomain,
+    classification,
     sourceType,
     concepts: tokenizeConcepts(content),
     entities: fallbackEntities,
     assetPlan: safeAssetPlan,
-    summary: `A practical ${domain.toLowerCase()} scene was built from the available lesson content and ${sourceType} input.`,
-    sceneTitle: `${domain} learning scene`
+    summary: `A ${classification.visualization.toLowerCase()} was generated for ${classification.subDomain} under ${domain}.`,
+    sceneTitle: `${classification.subDomain} learning scene`
   };
 }
 
@@ -233,12 +231,13 @@ export function buildSceneFromBlueprint(blueprint) {
     ]
   }));
 
-  const domainLabel = String(blueprint?.domain || 'General').toLowerCase();
-  const summary = `${blueprint?.summary || 'Dynamic scene'} It adapts to ${blueprint?.domain || 'the lesson'} and uses ${assetPlan.length} auto-selected assets. This ${domainLabel} scene is generated for programming lessons and uses interactive objects that map to the lesson flow.`;
+  const classification = blueprint?.classification || buildClassificationFallback();
+  const domainLabel = String(classification?.domain || blueprint?.domain || 'Custom').toLowerCase();
+  const summary = `${blueprint?.summary || 'Dynamic scene'} It adapts to ${classification.subDomain || blueprint?.domain || 'the lesson'} and uses ${assetPlan.length} auto-selected assets with ${classification.interactionCategory || 'guided exploration'}.`;
 
   return {
     title: blueprint?.sceneTitle || 'AI scene',
-    category: blueprint?.domain || 'General',
+    category: blueprint?.domain || 'Custom',
     supports3D: true,
     fallbackType: '3d',
     objects,
@@ -248,29 +247,34 @@ export function buildSceneFromBlueprint(blueprint) {
     assetPlan,
     reusableAssets: assetPlan.map((item) => item.assetId).filter(Boolean),
     lessonFocus: blueprint?.concepts?.[0] || 'concept',
-    domain: blueprint?.domain || 'General'
+    domain: blueprint?.domain || 'Custom',
+    subDomain: blueprint?.subDomain || classification.subDomain,
+    classification
   };
 }
 
 export function buildAuto3DSceneForLesson(content = '', sourceType = 'typed-topic') {
   const normalizedContent = String(content || '').toLowerCase();
-  const has3DSignals = /(anatom|biology|medical|heart|brain|organ|cell|molecule|atom|chemistry|reaction|engineering|mechanical|machinery|robot|prototype|circuit|electronics|vehicle|building|architecture|astronomy|physics|math|equation|geometry|algebra|calculus|planet|star|galaxy|orbit|plant|leaf|root|ecosystem|animal|species|habitat|surgery)/.test(normalizedContent);
-  const hasNon3DSignals = /(programming|python|javascript|java|code|api|debug|business|marketing|trading|finance|economics|strategy|workflow|pipeline|dashboard|roadmap|sales|startup|chart|graph|timeline|diagram|map)/.test(normalizedContent);
-  const shouldUseNon3DVisual = hasNon3DSignals && !has3DSignals;
+  const classification = classifyUniversalSubject(content, sourceType);
+  const visualizationStyle = String(classification.visualization || '').toLowerCase();
+  const shouldUseNon3DVisual = /chart|timeline|diagram|map/.test(visualizationStyle)
+    || /timeline|chart|diagram|map/.test(normalizedContent);
 
   if (shouldUseNon3DVisual) {
-    const visualizationType = /timeline/.test(normalizedContent)
+    const visualizationType = /timeline/.test(visualizationStyle) || /timeline/.test(normalizedContent)
       ? 'timeline'
-      : /chart|graph/.test(normalizedContent)
+      : /chart|graph/.test(visualizationStyle) || /chart|graph/.test(normalizedContent)
         ? 'chart'
-        : /workflow|pipeline|diagram|map/.test(normalizedContent)
+        : /diagram|map|workflow|pipeline/.test(visualizationStyle) || /workflow|pipeline|diagram|map/.test(normalizedContent)
           ? 'diagram'
           : 'concept-map';
 
     return {
       shouldAutoGenerate: true,
-      title: 'Concept visualization',
-      domain: 'Concepts',
+      title: `${classification.subDomain} visualization`,
+      domain: classification.domain,
+      subDomain: classification.subDomain,
+      classification,
       supports3D: false,
       visualizationType,
       models: [],
@@ -287,7 +291,7 @@ export function buildAuto3DSceneForLesson(content = '', sourceType = 'typed-topi
         steps: [],
         currentStep: 0
       },
-      summary: `A ${visualizationType} style visualization was prepared for this lesson instead of a full 3D model.`,
+      summary: `A ${visualizationType} visualization was prepared for ${classification.subDomain}.`,
       assetPlan: [],
       reusableAssets: [],
       assetIntelligence: {
@@ -328,13 +332,14 @@ export function buildAuto3DSceneForLesson(content = '', sourceType = 'typed-topi
     value: `${index + 1} unit`,
     unit: 'u'
   }));
-  const crossSections = /cross|section|anatomy|heart|medical/.test(String(content || '').toLowerCase())
+  const interactionHint = String(scene?.classification?.interactionCategory || '').toLowerCase();
+  const crossSections = /cross\s*section/.test(normalizedContent) || /inspection/.test(interactionHint)
     ? [{ id: 'cross-section-1', label: 'Cross Section', target: models[0]?.id || 'model-1' }]
     : [];
-  const xRay = /x-ray|xray|anatomy|medical|heart/.test(String(content || '').toLowerCase())
+  const xRay = /x-ray|xray/.test(normalizedContent) || /inspection/.test(interactionHint)
     ? [{ id: 'xray-1', label: 'X-Ray View', target: models[0]?.id || 'model-1' }]
     : [];
-  const explodedView = /explode|assembly|robot|mechanical|engineering|cross section|x-ray|heart|anatomy/.test(String(content || '').toLowerCase())
+  const explodedView = /explode|assembly|breakdown|cross\s*section|x-ray|xray/.test(normalizedContent) || /build and breakdown|inspection/.test(interactionHint)
     ? [{ id: 'explode-1', label: 'Exploded View', target: models[0]?.id || 'model-1' }]
     : [];
   const timeline = animationPlan.map((step, index) => ({
@@ -349,6 +354,8 @@ export function buildAuto3DSceneForLesson(content = '', sourceType = 'typed-topi
     shouldAutoGenerate: true,
     title: scene.title,
     domain: scene.domain,
+    subDomain: scene.subDomain,
+    classification: scene.classification,
     models,
     labels,
     animations: animationPlan,
@@ -367,8 +374,8 @@ export function buildAuto3DSceneForLesson(content = '', sourceType = 'typed-topi
       strategy: scene.assetPlan?.[0]?.compositePlan?.strategy || 'single-asset',
       requiresComposition: Boolean(scene.assetPlan?.[0]?.compositePlan?.secondary || scene.assetPlan?.[0]?.rankScore < 2),
       compositePlan: scene.assetPlan?.[0]?.compositePlan || null,
-      diagramFallback: Boolean(/diagram|flow|map|process|network|system|anatomy|heart|medical/.test(String(content || '').toLowerCase())),
-      animationFallback: Boolean(/animate|motion|flow|blood|orbit|rotate|explode|walk/.test(String(content || '').toLowerCase()))
+      diagramFallback: Boolean(/diagram|flow|map|process|network|system|chart|timeline/.test(normalizedContent)),
+      animationFallback: Boolean(/animate|motion|flow|orbit|rotate|explode|walk|step/.test(normalizedContent))
     }
   };
 }
