@@ -28,7 +28,11 @@ import {
   generateVisualizationTemplate,
   selectVisualizationTemplate
 } from '../visualization-templates/index.js';
-import { generateEducationalObjects } from '../educational-objects/index.js';
+import {
+  generateEducationalObjects,
+  ensureSceneEducationalObjectBehaviorMetadata,
+  createEducationalObjectBehaviorRuntime
+} from '../educational-objects/index.js';
 
 function stableHash(input = '') {
   const text = String(input || '');
@@ -258,6 +262,10 @@ function materializeRendererPayload(runtimeScene, scene, performanceLimits) {
       replay: true
     }));
 
+  const sceneRootNode = nodes.find((node) => String(node?.id || '') === String(scene?.sceneId || ''));
+  const behaviorRuntime = sceneRootNode?.runtimeData?.behaviorRuntime || {};
+  const effectEvents = Array.isArray(behaviorRuntime?.effectEvents) ? behaviorRuntime.effectEvents : [];
+
   const models = objects.map((object, index) => ({
     id: `model-${index + 1}`,
     label: object.label,
@@ -272,6 +280,7 @@ function materializeRendererPayload(runtimeScene, scene, performanceLimits) {
     labels,
     hotspots,
     timeline,
+    effectEvents,
     models,
     accessibility: {
       textDescription: `Interactive educational scene with ${objects.length} concept objects and ${timeline.length} timeline steps.`,
@@ -334,6 +343,48 @@ async function buildSceneArtifacts(scene, performanceLimits, diagnostics) {
     fallbackSubject: scene?.subject || 'General Learning'
   });
   const runtimeScene = loadScene(processed);
+
+  const behaviorRuntime = createEducationalObjectBehaviorRuntime({
+    ...runtimeScene,
+    sceneJson: processed,
+    metadata: processed.metadata || {}
+  }, {
+    maximumEffectsPerDispatch: Number(performanceLimits?.maxInteractions || 100),
+    maximumStateHistory: 50,
+    maximumRelationshipDepth: 20,
+    maximumAutomaticBehaviorChain: 25
+  });
+
+  behaviorRuntime.load();
+  behaviorRuntime.start();
+
+  const bootstrapEvent = behaviorRuntime.dispatch({
+    signalId: `signal-bootstrap-${processed.sceneId}`,
+    type: 'manual',
+    source: 'scene-bootstrap',
+    sourceObjectId: processed.educationalObjectInstances?.[0]?.objectId || null,
+    targetObjectIds: [],
+    timelineStepId: null,
+    interactionId: null,
+    payload: {
+      sceneId: processed.sceneId,
+      reason: 'initial-runtime-sync'
+    },
+    timestamp: Date.now(),
+    metadata: {}
+  });
+
+  processed.metadata = {
+    ...(processed.metadata || {}),
+    behaviorRuntimeDiagnostics: behaviorRuntime.getDiagnostics(),
+    behaviorRuntimeSummary: {
+      loaded: true,
+      started: true,
+      emittedEvents: Array.isArray(bootstrapEvent?.events) ? bootstrapEvent.events.length : 0
+    }
+  };
+
+  runtimeScene.behaviorRuntime = behaviorRuntime;
   const rendererPayload = materializeRendererPayload(runtimeScene, processed, performanceLimits);
   markSceneGenerationTiming(diagnostics, 'sceneBuildDuration', endTimedStage(stageStart));
   return { scene: processed, runtimeScene, rendererPayload };
@@ -602,6 +653,12 @@ async function attachVisualizationCapabilityMetadata(scene, normalizedInput, con
   };
 }
 
+function attachBehaviorMetadata(scene, options = {}) {
+  return ensureSceneEducationalObjectBehaviorMetadata(scene, {
+    includeDefaultObjectBehavior: options.includeDefaultObjectBehavior !== false
+  });
+}
+
 export async function generateUniversalScene(input = {}, options = {}) {
   const config = normalizeSceneGenerationConfig(options);
   const performanceLimits = getPerformanceLimits(config.performanceProfile);
@@ -652,7 +709,8 @@ export async function generateUniversalScene(input = {}, options = {}) {
         markSceneGenerationTiming(diagnostics, 'normalizationDuration', endTimedStage(stage));
         if (cachedEntry?.scene) {
           const sceneWithCapabilities = await attachVisualizationCapabilityMetadata(cachedEntry.scene, normalizedInput, config, options);
-          const artifacts = await buildSceneArtifacts(sceneWithCapabilities, performanceLimits, diagnostics);
+          const sceneWithBehavior = attachBehaviorMetadata(sceneWithCapabilities, options);
+          const artifacts = await buildSceneArtifacts(sceneWithBehavior, performanceLimits, diagnostics);
           diagnostics.cacheHit = true;
           addSceneGenerationEvent(diagnostics, 'scene_cache_hit', { cacheKey });
           finalizeSceneGenerationDiagnostics(diagnostics, totalStart);
@@ -684,7 +742,8 @@ export async function generateUniversalScene(input = {}, options = {}) {
           reason: 'ai-disabled'
         });
         const fallbackWithCapabilities = await attachVisualizationCapabilityMetadata(fallbackScene, normalizedInput, config, options);
-        const artifacts = await buildSceneArtifacts(fallbackWithCapabilities, performanceLimits, diagnostics);
+        const fallbackWithBehavior = attachBehaviorMetadata(fallbackWithCapabilities, options);
+        const artifacts = await buildSceneArtifacts(fallbackWithBehavior, performanceLimits, diagnostics);
         diagnostics.fallbackLevel = 3;
         diagnostics.fallbackReason = 'ai-disabled';
         addSceneGenerationEvent(diagnostics, 'scene_fallback_completed', { level: 3 });
@@ -789,7 +848,8 @@ export async function generateUniversalScene(input = {}, options = {}) {
       }
 
       const sceneWithCapabilities = await attachVisualizationCapabilityMetadata(scene, normalizedInput, config, options);
-      const artifacts = await buildSceneArtifacts(sceneWithCapabilities, performanceLimits, diagnostics);
+      const sceneWithBehavior = attachBehaviorMetadata(sceneWithCapabilities, options);
+      const artifacts = await buildSceneArtifacts(sceneWithBehavior, performanceLimits, diagnostics);
 
       if (config.useCache && options.useCache !== false && !fallbackUsed) {
         const cachePayload = {
@@ -880,7 +940,8 @@ export async function generateUniversalScene(input = {}, options = {}) {
         reason: normalizedError.code
       });
       const fallbackWithCapabilities = await attachVisualizationCapabilityMetadata(fallbackScene, normalizedInput, config, options);
-      const artifacts = await buildSceneArtifacts(fallbackWithCapabilities, performanceLimits, diagnostics);
+      const fallbackWithBehavior = attachBehaviorMetadata(fallbackWithCapabilities, options);
+      const artifacts = await buildSceneArtifacts(fallbackWithBehavior, performanceLimits, diagnostics);
       diagnostics.fallbackLevel = fallbackLevel;
       diagnostics.fallbackReason = normalizedError.code;
 

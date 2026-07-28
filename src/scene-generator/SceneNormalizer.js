@@ -185,6 +185,10 @@ export function normalizeScene(rawScene, options = {}) {
   };
   const educationalObjectsAlias = pick(source, ['educationalObjects', 'educational_objects', 'sceneObjects', 'objectDescriptors'], []);
   const educationalObjectInstancesAlias = pick(source, ['educationalObjectInstances', 'educational_object_instances', 'objectInstances'], []);
+  const objectBehaviorsAlias = pick(source, ['objectBehaviors', 'object_behaviors', 'behaviors', 'actions', 'events'], []);
+  const objectStateDefinitionsAlias = pick(source, ['objectStateDefinitions', 'object_state_definitions', 'states', 'transitions'], []);
+  const objectRelationshipsAlias = pick(source, ['objectRelationships', 'object_relationships', 'relationships', 'links', 'dependencies'], []);
+  const behaviorDiagnosticsAlias = pick(source, ['behaviorDiagnostics', 'behavior_diagnostics'], null);
   const objectDiagnosticsAlias = pick(source, ['objectDiagnostics', 'educationalObjectDiagnostics'], null);
 
   const normalized = {
@@ -200,6 +204,17 @@ export function normalizeScene(rawScene, options = {}) {
     objects: toArray(pick(source, ['objects', 'models', 'entities'], []), []).map((objectValue, index) => normalizeObject(objectValue, index)),
     educationalObjects: toArray(educationalObjectsAlias, []).map((item, index) => normalizeEducationalObjectDescriptor(item, index)),
     educationalObjectInstances: toArray(educationalObjectInstancesAlias, []),
+    objectBehaviors: toArray(objectBehaviorsAlias, []),
+    objectStateDefinitions: toArray(objectStateDefinitionsAlias, []),
+    objectRelationships: toArray(objectRelationshipsAlias, []),
+    behaviorDiagnostics: isObject(behaviorDiagnosticsAlias)
+      ? behaviorDiagnosticsAlias
+      : {
+          warningCount: 0,
+          errorCount: 0,
+          repairedCount: 0,
+          items: []
+        },
     objectDiagnostics: isObject(objectDiagnosticsAlias) ? objectDiagnosticsAlias : { summary: {}, items: [] },
     animations: toArray(pick(source, ['animations'], []), []),
     labels: toArray(pick(source, ['labels'], []), []),

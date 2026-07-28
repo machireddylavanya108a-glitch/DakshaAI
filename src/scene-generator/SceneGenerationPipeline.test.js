@@ -474,6 +474,23 @@ test('scene pipeline stores educational object generation metadata and runtime g
   }
 });
 
+test('runtime graph retains behavior metadata and renderer receives declarative graph-derived effect events', async () => {
+  const provider = createMockProvider(async () => ({ text: JSON.stringify(buildSceneCandidate()) }));
+  const result = await generateUniversalScene(testInput(), { provider, useCache: false });
+
+  assert.ok(Array.isArray(result.scene.objectBehaviors));
+  assert.ok(Array.isArray(result.scene.objectStateDefinitions));
+  assert.ok(Array.isArray(result.scene.objectRelationships));
+  assert.ok(result.scene.behaviorDiagnostics);
+
+  const sceneRoot = result.runtimeGraph.nodes.find((node) => String(node?.id || '') === String(result.scene.sceneId || ''));
+  assert.ok(sceneRoot?.runtimeData?.behaviorRuntime);
+  assert.ok(Array.isArray(sceneRoot?.runtimeData?.behaviorRuntime?.effectEvents));
+
+  assert.ok(Array.isArray(result.rendererPayload.effectEvents));
+  assert.equal(result.rendererPayload.effectEvents.every((event) => typeof event.effectType === 'string'), true);
+});
+
 test('new arbitrary topic works without code changes', async () => {
   const provider = createMockProvider(async () => ({ text: JSON.stringify(buildSceneCandidate({ subject: 'Quantum-historic civic bioinformatics' })) }));
   const result = await generateUniversalScene({

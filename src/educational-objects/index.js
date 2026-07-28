@@ -97,6 +97,56 @@ export { applyEducationalObjectGenerationFallback } from './EducationalObjectFal
 export { evaluateEducationalObjectQuality } from './EducationalObjectQuality.js';
 export { createEducationalObject as createEducationalObjectFromDescriptor } from './EducationalObjectFactory.js';
 export { generateEducationalObjects } from './EducationalObjectGenerator.js';
+export { EducationalObjectBehaviorError, toEducationalObjectBehaviorError } from './EducationalObjectBehaviorError.js';
+export {
+  EDUCATIONAL_OBJECT_BEHAVIOR_LATEST_VERSION,
+  createDefaultBehaviorTrigger,
+  createDefaultBehaviorCondition,
+  createDefaultBehaviorEffect,
+  createDefaultBehaviorState,
+  createDefaultBehaviorTransition,
+  createDefaultBehaviorAccessibility,
+  createDefaultBehaviorPerformance,
+  createDefaultBehaviorLimits,
+  createDefaultBehaviorScheduling,
+  createDefaultObjectStateConfiguration,
+  createAdaptiveFallbackBehavior
+} from './EducationalObjectBehaviorSchema.js';
+export { normalizeEducationalObjectBehavior } from './EducationalObjectBehaviorNormalizer.js';
+export {
+  validateEducationalObjectBehavior,
+  validateBehaviorTriggers,
+  validateBehaviorConditions,
+  validateBehaviorEffects,
+  validateBehaviorStates,
+  validateBehaviorTransitions,
+  validateBehaviorRelationships,
+  validateBehaviorAccessibility,
+  validateBehaviorPerformance
+} from './EducationalObjectBehaviorValidator.js';
+export {
+  createEducationalObjectBehaviorDiagnostics,
+  finalizeEducationalObjectBehaviorDiagnostics
+} from './EducationalObjectBehaviorDiagnostics.js';
+export { repairEducationalObjectBehavior } from './EducationalObjectBehaviorRepair.js';
+export {
+  createEducationalObjectBehavior,
+  ensureSceneEducationalObjectBehaviorMetadata
+} from './EducationalObjectBehavior.js';
+export {
+  createEducationalObjectBehaviorRegistry,
+  defaultEducationalObjectBehaviorRegistry
+} from './EducationalObjectBehaviorRegistry.js';
+export { resolveEducationalObjectTransitions } from './EducationalObjectTransitionResolver.js';
+export { validateEducationalObjectStateConfiguration } from './EducationalObjectStateValidator.js';
+export { createEducationalObjectStateMachine } from './EducationalObjectStateMachine.js';
+export { resolveEducationalObjectTriggers } from './EducationalObjectTriggerResolver.js';
+export { resolveEducationalObjectEffects } from './EducationalObjectEffectResolver.js';
+export { createEducationalObjectRelationshipGraph } from './EducationalObjectRelationshipGraph.js';
+export { resolveEducationalObjectRelationships } from './EducationalObjectRelationshipResolver.js';
+export { resolveEducationalObjectDependencies } from './EducationalObjectDependencyResolver.js';
+export { resolveEducationalObjectBehaviorConflicts } from './EducationalObjectConflictResolver.js';
+export { createEducationalObjectBehaviorRuntime } from './EducationalObjectBehaviorRuntime.js';
 export {
   createEducationalObject as createEducationalObjectRecord,
   ensureSceneEducationalObjectMetadata

@@ -93,6 +93,17 @@ export function repairScene(sceneInput, validationInput = null) {
     objects: ensureArray(source.objects),
     educationalObjects: ensureArray(source.educationalObjects),
     educationalObjectInstances: ensureArray(source.educationalObjectInstances),
+    objectBehaviors: ensureArray(source.objectBehaviors || source.behaviors || source.actions || source.events),
+    objectStateDefinitions: ensureArray(source.objectStateDefinitions || source.states || source.transitions),
+    objectRelationships: ensureArray(source.objectRelationships || source.relationships || source.links || source.dependencies),
+    behaviorDiagnostics: isObject(source.behaviorDiagnostics)
+      ? source.behaviorDiagnostics
+      : {
+          warningCount: 0,
+          errorCount: 0,
+          repairedCount: 0,
+          items: []
+        },
     objectDiagnostics: isObject(source.objectDiagnostics)
       ? {
           summary: isObject(source.objectDiagnostics.summary) ? source.objectDiagnostics.summary : {},
@@ -147,6 +158,10 @@ export function repairScene(sceneInput, validationInput = null) {
   if (!source.objects) repairMessages.push('Inserted empty objects list.');
   if (!source.educationalObjects) repairMessages.push('Inserted empty educationalObjects list.');
   if (!source.educationalObjectInstances) repairMessages.push('Inserted empty educationalObjectInstances list.');
+  if (!source.objectBehaviors && !source.behaviors && !source.actions && !source.events) repairMessages.push('Inserted empty objectBehaviors list.');
+  if (!source.objectStateDefinitions && !source.states && !source.transitions) repairMessages.push('Inserted empty objectStateDefinitions list.');
+  if (!source.objectRelationships && !source.relationships && !source.links && !source.dependencies) repairMessages.push('Inserted empty objectRelationships list.');
+  if (!source.behaviorDiagnostics) repairMessages.push('Inserted default behaviorDiagnostics.');
   if (!source.labels) repairMessages.push('Inserted empty labels list.');
   if (!source.narration) repairMessages.push('Inserted empty narration.');
 

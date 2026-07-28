@@ -163,6 +163,91 @@ export function validateEducationalObjectInstances(instances) {
   return makeResult(errors, warnings, true);
 }
 
+export function validateObjectBehaviors(objectBehaviors) {
+  const errors = [];
+  const warnings = [];
+
+  if (!Array.isArray(objectBehaviors)) {
+    errors.push('Object behaviors must be an array.');
+    return makeResult(errors, warnings, true);
+  }
+
+  const seenIds = new Set();
+  objectBehaviors.forEach((behavior, index) => {
+    if (!isObject(behavior)) {
+      errors.push(`Object behavior at index ${index} is invalid.`);
+      return;
+    }
+
+    const behaviorId = String(behavior.behaviorId || behavior.id || '').trim();
+    if (!behaviorId) {
+      warnings.push(`Object behavior ${index} is missing behaviorId.`);
+      return;
+    }
+
+    if (seenIds.has(behaviorId)) warnings.push(`Duplicate behavior id detected: ${behaviorId}`);
+    seenIds.add(behaviorId);
+  });
+
+  return makeResult(errors, warnings, true);
+}
+
+export function validateObjectStateDefinitions(objectStateDefinitions) {
+  const errors = [];
+  const warnings = [];
+
+  if (!Array.isArray(objectStateDefinitions)) {
+    errors.push('Object state definitions must be an array.');
+    return makeResult(errors, warnings, true);
+  }
+
+  objectStateDefinitions.forEach((definition, index) => {
+    if (!isObject(definition)) {
+      warnings.push(`Object state definition at index ${index} is invalid.`);
+      return;
+    }
+    if (!definition.behaviorId) warnings.push(`Object state definition ${index} is missing behaviorId.`);
+  });
+
+  return makeResult(errors, warnings, true);
+}
+
+export function validateObjectRelationships(objectRelationships) {
+  const errors = [];
+  const warnings = [];
+
+  if (!Array.isArray(objectRelationships)) {
+    errors.push('Object relationships must be an array.');
+    return makeResult(errors, warnings, true);
+  }
+
+  objectRelationships.forEach((relationship, index) => {
+    if (!isObject(relationship)) {
+      warnings.push(`Object relationship at index ${index} is invalid.`);
+      return;
+    }
+    if (!relationship.relationshipId && !relationship.relationId && !relationship.id) {
+      warnings.push(`Object relationship ${index} is missing relationship id.`);
+    }
+  });
+
+  return makeResult(errors, warnings, true);
+}
+
+export function validateBehaviorDiagnostics(behaviorDiagnostics) {
+  const errors = [];
+  const warnings = [];
+
+  if (!isObject(behaviorDiagnostics)) {
+    errors.push('Behavior diagnostics must be an object.');
+    return makeResult(errors, warnings, true);
+  }
+
+  if (!Array.isArray(behaviorDiagnostics.items)) warnings.push('Behavior diagnostics items should be an array.');
+
+  return makeResult(errors, warnings, true);
+}
+
 export function validateObjectDiagnostics(objectDiagnostics) {
   const errors = [];
   const warnings = [];
@@ -308,7 +393,7 @@ export function validateScene(scene) {
 
   const requiredTopLevel = [
     'sceneId', 'version', 'title', 'subject', 'classification', 'environment', 'camera', 'timeline',
-    'objects', 'animations', 'educationalObjects', 'educationalObjectInstances', 'objectDiagnostics', 'labels', 'interactions', 'narration', 'audio', 'lighting', 'physics',
+    'objects', 'animations', 'educationalObjects', 'educationalObjectInstances', 'objectBehaviors', 'objectStateDefinitions', 'objectRelationships', 'behaviorDiagnostics', 'objectDiagnostics', 'labels', 'interactions', 'narration', 'audio', 'lighting', 'physics',
     'metadata', 'statistics', 'settings', 'checkpoints', 'validation', 'diagnostics'
   ];
 
@@ -324,6 +409,10 @@ export function validateScene(scene) {
     validateObjects(scene.objects),
     validateEducationalObjects(scene.educationalObjects),
     validateEducationalObjectInstances(scene.educationalObjectInstances),
+    validateObjectBehaviors(scene.objectBehaviors),
+    validateObjectStateDefinitions(scene.objectStateDefinitions),
+    validateObjectRelationships(scene.objectRelationships),
+    validateBehaviorDiagnostics(scene.behaviorDiagnostics),
     validateObjectDiagnostics(scene.objectDiagnostics),
     validateTimeline(scene.timeline),
     validateAnimations(scene.animations),

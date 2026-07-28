@@ -242,6 +242,15 @@ export function createSafeScene(overrides = {}) {
     animations: [],
     educationalObjects: [],
     educationalObjectInstances: [],
+    objectBehaviors: [],
+    objectStateDefinitions: [],
+    objectRelationships: [],
+    behaviorDiagnostics: {
+      warningCount: 0,
+      errorCount: 0,
+      repairedCount: 0,
+      items: []
+    },
     objectDiagnostics: {
       summary: {
         objectCount: 0,
@@ -289,6 +298,17 @@ export function createSafeScene(overrides = {}) {
     educationalObjectInstances: Array.isArray(overrides.educationalObjectInstances)
       ? overrides.educationalObjectInstances
       : base.educationalObjectInstances,
+    objectBehaviors: Array.isArray(overrides.objectBehaviors) ? overrides.objectBehaviors : base.objectBehaviors,
+    objectStateDefinitions: Array.isArray(overrides.objectStateDefinitions)
+      ? overrides.objectStateDefinitions
+      : base.objectStateDefinitions,
+    objectRelationships: Array.isArray(overrides.objectRelationships)
+      ? overrides.objectRelationships
+      : base.objectRelationships,
+    behaviorDiagnostics: {
+      ...base.behaviorDiagnostics,
+      ...(overrides.behaviorDiagnostics || {})
+    },
     objectDiagnostics: {
       ...base.objectDiagnostics,
       ...(overrides.objectDiagnostics || {})
