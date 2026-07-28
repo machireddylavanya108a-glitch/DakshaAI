@@ -1,4 +1,4 @@
-import { modelLibrary } from '../../utils/learning3dUtils';
+import { buildSceneBlueprint } from '../../utils/aiSceneEngine.js';
 
 const SUBJECT_KEYWORDS = {
   medicine: ['medical', 'anatomy', 'surgery', 'heart', 'kidney', 'hospital', 'clinical'],
@@ -93,8 +93,12 @@ function buildTimeline(entities = []) {
 
 export function planSceneFromLesson({ content = '', sourceType = 'typed-topic', lessonContext = '' } = {}) {
   const mergedContent = `${content || ''} ${lessonContext || ''}`.trim();
-  const subject = detectSubject(mergedContent);
-  const entities = detectEntities(mergedContent);
+  const blueprint = buildSceneBlueprint(mergedContent, sourceType);
+  const entities = blueprint.entities.map((entity) => ({
+    name: entity.name,
+    category: entity.category,
+    tags: [entity.concept, entity.category.toLowerCase()]
+  }));
 
   const sceneTitle = mergedContent
     ? `${mergedContent.slice(0, 80)}${mergedContent.length > 80 ? '...' : ''}`
@@ -106,12 +110,12 @@ export function planSceneFromLesson({ content = '', sourceType = 'typed-topic', 
   return {
     sceneTitle,
     sourceType,
-    subject,
+    subject: blueprint.domain,
     entities,
     timeline,
     cameraCues,
     animationTargets: entities.map((entity) => entity.name),
-    simulationMode: subject,
+    simulationMode: blueprint.domain,
     assessment: {
       tasks: entities.slice(0, 4).map((entity, index) => `Task ${index + 1}: Identify ${entity.name}`)
     },
@@ -123,6 +127,8 @@ export function planSceneFromLesson({ content = '', sourceType = 'typed-topic', 
       target: entity.name,
       timelineStep: index
     })),
-    summary: `Auto-generated scene plan for ${subject} based on ${sourceType} lesson input.`
+    summary: blueprint.summary,
+    assetPlan: blueprint.assetPlan,
+    domain: blueprint.domain
   };
 }

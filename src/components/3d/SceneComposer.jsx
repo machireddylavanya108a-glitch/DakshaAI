@@ -64,11 +64,12 @@ function makePosition(index, total) {
 
 export function composeSceneFromPlan(plan) {
   const entities = plan?.entities || [];
+  const assetPlan = Array.isArray(plan?.assetPlan) ? plan.assetPlan : [];
   const objects = entities.map((entity, index) => ({
     id: `obj-${index + 1}`,
     label: entity.name,
     category: entity.category,
-    asset: chooseAsset(entity.category),
+    asset: assetPlan[index]?.assetId || chooseAsset(entity.category),
     color: CATEGORY_COLOR[entity.category] || '#94a3b8',
     position: makePosition(index, entities.length),
     size: [1 + (index % 2) * 0.2, 1, 1],
@@ -78,8 +79,8 @@ export function composeSceneFromPlan(plan) {
     ],
     facts: [
       `Function: ${entity.name} supports the lesson objective.`,
-      `Working: interact and inspect ${entity.name} from multiple angles.`,
-      `Interesting fact: this element was selected automatically by AI planning.`
+      `Working: inspect ${entity.name} from multiple angles.`,
+      `Interesting fact: this element was auto-selected by the AI scene engine.`
     ]
   }));
 

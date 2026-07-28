@@ -10,6 +10,7 @@ import {
   saveSceneHistory,
   saveUserBookmark
 } from '../services/firestoreService';
+import { buildSceneBlueprint, buildSceneFromBlueprint } from '../utils/aiSceneEngine.js';
 
 const SceneLoader = lazy(() => import('../components/3d/SceneLoader'));
 const SceneViewer = lazy(() => import('../components/3d/SceneViewer'));
@@ -141,6 +142,27 @@ export default function Learning3D() {
     const timer = setTimeout(() => setLoading(false), 500);
     return () => clearTimeout(timer);
   }, []);
+
+  useEffect(() => {
+    const blueprint = buildSceneBlueprint(effectiveContent, sourceType);
+    const dynamicScene = buildSceneFromBlueprint(blueprint);
+    setSceneData((current) => current ? { ...current, ...dynamicScene, summary: dynamicScene.summary } : dynamicScene);
+    setScenePlan((current) => current ? { ...current, subject: blueprint.domain, summary: blueprint.summary, assetPlan: blueprint.assetPlan } : {
+      sceneTitle: blueprint.sceneTitle,
+      subject: blueprint.domain,
+      summary: blueprint.summary,
+      assetPlan: blueprint.assetPlan,
+      entities: blueprint.entities.map((entity) => ({ name: entity.name, category: entity.category, tags: [entity.concept] })),
+      timeline: blueprint.entities.map((entity, index) => ({ id: `auto-${index + 1}`, title: `Explore ${entity.name}`, objective: `Understand ${entity.name}`, target: entity.name, animation: 'highlight-pulse', durationMs: 1800 + index * 220 })),
+      cameraCues: blueprint.entities.map((entity, index) => ({ stepId: `camera-${index + 1}`, target: entity.name, action: 'orbit-focus', durationMs: 1800 + index * 250 })),
+      animationTargets: blueprint.entities.map((entity) => entity.name),
+      simulationMode: blueprint.domain,
+      assessment: { tasks: blueprint.entities.slice(0, 4).map((entity, index) => `Task ${index + 1}: Identify ${entity.name}`) },
+      practiceMode: { tasks: blueprint.entities.slice(0, 4).map((entity, index) => `Practice ${index + 1}: Interact with ${entity.name}`) },
+      syncCues: blueprint.entities.map((entity, index) => ({ cue: `Now look at ${entity.name}.`, target: entity.name, timelineStep: index }))
+    });
+    setSceneStatus(`Scene engine ready for ${blueprint.domain}`);
+  }, [effectiveContent, sourceType]);
 
   useEffect(() => {
     if (!user?.uid) return;
