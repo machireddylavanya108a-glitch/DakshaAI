@@ -40,6 +40,8 @@ export default function WebGLContextManager({ onContextLost, onContextRestored, 
   }, [gl, invalidate, onContextLost, onContextRestored]);
 
   useEffect(() => {
+    if (typeof document === 'undefined') return undefined;
+
     const handleVisibility = () => {
       if (document.hidden) {
         pauseForVisibility?.();

@@ -1,4 +1,4 @@
-import { Suspense, lazy, useDeferredValue, useEffect, useMemo, useState } from 'react';
+import { Suspense, lazy, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Search, Sparkles, BookOpen, Layers3, BrainCircuit, Target, Focus, PlayCircle, Film, Camera, Monitor, Save } from 'lucide-react';
@@ -132,6 +132,8 @@ export default function Learning3D() {
   const [sceneCameraPosition, setSceneCameraPosition] = useState([0, 0, 0]);
   const [animationPlan, setAnimationPlan] = useState([]);
   const [visualizationMode, setVisualizationMode] = useState('interactive-3d');
+  const [runtimePaused, setRuntimePaused] = useState(false);
+  const wasTimelinePlayingBeforeRuntimePauseRef = useRef(false);
 
   useEffect(() => {
     const params = new URLSearchParams(location.search || '');
@@ -212,7 +214,7 @@ export default function Learning3D() {
   }, [user?.uid]);
 
   useEffect(() => {
-    if (!sceneSteps.length || !isTimelinePlaying || animationPaused || pausedByLearner) return undefined;
+    if (!sceneSteps.length || !isTimelinePlaying || animationPaused || pausedByLearner || runtimePaused) return undefined;
 
     const step = sceneSteps[activeStepIndex] || sceneSteps[0];
     const duration = Math.max(1000, Math.round((step?.durationMs || 1600) / Math.max(0.5, motionSpeed)));
@@ -221,7 +223,22 @@ export default function Learning3D() {
     }, duration);
 
     return () => clearTimeout(timer);
-  }, [sceneSteps, activeStepIndex, isTimelinePlaying, animationPaused, motionSpeed, pausedByLearner]);
+  }, [sceneSteps, activeStepIndex, isTimelinePlaying, animationPaused, motionSpeed, pausedByLearner, runtimePaused]);
+
+  const handleRuntimePauseChange = useCallback((paused) => {
+    setRuntimePaused((current) => {
+      if (current === paused) return current;
+
+      if (paused) {
+        wasTimelinePlayingBeforeRuntimePauseRef.current = isTimelinePlaying;
+        if (isTimelinePlaying) setIsTimelinePlaying(false);
+      } else if (wasTimelinePlayingBeforeRuntimePauseRef.current && !pausedByLearner) {
+        setIsTimelinePlaying(true);
+      }
+
+      return paused;
+    });
+  }, [isTimelinePlaying, pausedByLearner]);
 
   useEffect(() => {
     if (!syncMode || !currentStep?.target) return;
@@ -275,6 +292,7 @@ export default function Learning3D() {
     setHighlightMode('glow');
     setSceneEffects([]);
     setPausedByLearner(false);
+    setRuntimePaused(false);
     setVisualizationMode('interactive-3d');
   };
 
@@ -302,6 +320,7 @@ export default function Learning3D() {
   };
 
   const handlePauseLesson = () => {
+    wasTimelinePlayingBeforeRuntimePauseRef.current = false;
     setPausedByLearner(true);
     setAnimationPaused(true);
     setIsTimelinePlaying(false);
@@ -415,6 +434,7 @@ export default function Learning3D() {
     activeStepIndex,
     animationPaused,
     isTimelinePlaying,
+    runtimePaused,
     pausedByLearner,
     autoRotate,
     cameraMode,
@@ -441,6 +461,7 @@ export default function Learning3D() {
     if (Number.isFinite(state.activeStepIndex)) setActiveStepIndex(state.activeStepIndex);
     if (typeof state.animationPaused === 'boolean') setAnimationPaused(state.animationPaused);
     if (typeof state.isTimelinePlaying === 'boolean') setIsTimelinePlaying(state.isTimelinePlaying);
+    if (typeof state.runtimePaused === 'boolean') setRuntimePaused(state.runtimePaused);
     if (typeof state.pausedByLearner === 'boolean') setPausedByLearner(state.pausedByLearner);
     if (typeof state.autoRotate === 'boolean') setAutoRotate(state.autoRotate);
     if (typeof state.cameraMode === 'string') setCameraMode(state.cameraMode);
@@ -632,6 +653,8 @@ export default function Learning3D() {
                             lodLevel={lodLevel}
                             performanceProfile={performanceProfile}
                             onCameraStateChange={setSceneCameraPosition}
+                            isPlaybackActive={isTimelinePlaying && !animationPaused && !pausedByLearner && !runtimePaused}
+                            onRuntimePauseChange={handleRuntimePauseChange}
                           />
                         </ThreeErrorBoundary>
                       </Suspense>

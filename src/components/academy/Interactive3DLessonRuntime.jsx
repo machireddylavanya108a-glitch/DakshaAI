@@ -1,4 +1,4 @@
-import { Suspense, lazy, useEffect, useMemo, useState } from 'react';
+import { Suspense, lazy, useEffect, useMemo, useRef, useState } from 'react';
 import { CheckCircle2, Circle, Loader, Pause, Play, RotateCcw, ZoomIn, Hand } from 'lucide-react';
 import SceneLoader from '../3d/SceneLoader';
 import SceneTimeline from '../3d/SceneTimeline';
@@ -49,6 +49,8 @@ export default function Interactive3DLessonRuntime({
   const [autoRotate, setAutoRotate] = useState(true);
   const [showLabels, setShowLabels] = useState(true);
   const [visualizationMode, setVisualizationMode] = useState('interactive-3d');
+  const [runtimePaused, setRuntimePaused] = useState(false);
+  const wasPlayingBeforeRuntimePauseRef = useRef(false);
 
   const sceneSteps = Array.isArray(scenePlan?.timeline) ? scenePlan.timeline : [];
   const activeStep = sceneSteps[activeStepIndex] || null;
@@ -87,7 +89,7 @@ export default function Interactive3DLessonRuntime({
   };
 
   useEffect(() => {
-    if (!sceneSteps.length || !isPlaying) return undefined;
+    if (!sceneSteps.length || !isPlaying || runtimePaused) return undefined;
 
     const step = sceneSteps[activeStepIndex] || sceneSteps[0];
     const duration = Math.max(1200, step?.durationMs || 1600);
@@ -96,7 +98,22 @@ export default function Interactive3DLessonRuntime({
     }, duration);
 
     return () => clearTimeout(timer);
-  }, [sceneSteps, activeStepIndex, isPlaying]);
+  }, [sceneSteps, activeStepIndex, isPlaying, runtimePaused]);
+
+  const handleRuntimePauseChange = (paused) => {
+    setRuntimePaused((current) => {
+      if (current === paused) return current;
+
+      if (paused) {
+        wasPlayingBeforeRuntimePauseRef.current = isPlaying;
+        if (isPlaying) setIsPlaying(false);
+      } else if (wasPlayingBeforeRuntimePauseRef.current) {
+        setIsPlaying(true);
+      }
+
+      return paused;
+    });
+  };
 
   useEffect(() => {
     if (!activeStep?.target) return;
@@ -197,6 +214,8 @@ export default function Interactive3DLessonRuntime({
                 showDynamicLabels={showLabels}
                 lodLevel="medium"
                 performanceProfile="balanced"
+                isPlaybackActive={isPlaying && !runtimePaused}
+                onRuntimePauseChange={handleRuntimePauseChange}
               />
             </ThreeErrorBoundary>
           </Suspense>

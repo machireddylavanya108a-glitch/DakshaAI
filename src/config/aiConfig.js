@@ -1,6 +1,10 @@
 const runtimeEnv = typeof import.meta !== 'undefined' && import.meta.env ? import.meta.env : {};
 const emittedWarnings = new Set();
 
+export const DEFAULT_OPENROUTER_TEXT_MODEL = 'openai/gpt-4.1-mini';
+export const DEFAULT_OPENROUTER_VISION_MODEL = 'openai/gpt-4.1-mini';
+export const DEFAULT_OPENROUTER_BASE_URL = 'https://openrouter.ai/api/v1';
+
 function normalize(value) {
   return String(value || '').trim();
 }
@@ -11,13 +15,18 @@ function warnOnce(key, message, logger = console) {
   logger.warn(message);
 }
 
-export const AI_CONFIG = {
-  provider: 'openrouter',
-  textModel: normalize(runtimeEnv.VITE_OPENROUTER_TEXT_MODEL) || 'openai/gpt-4.1-mini',
-  visionModel: normalize(runtimeEnv.VITE_OPENROUTER_VISION_MODEL) || 'openai/gpt-4.1-mini',
-  apiKey: normalize(runtimeEnv.VITE_OPENROUTER_API_KEY),
-  baseUrl: 'https://openrouter.ai/api/v1'
-};
+export function createAiConfig(envInput = runtimeEnv) {
+  const env = envInput || {};
+  return {
+    provider: 'openrouter',
+    textModel: normalize(env.VITE_OPENROUTER_TEXT_MODEL) || DEFAULT_OPENROUTER_TEXT_MODEL,
+    visionModel: normalize(env.VITE_OPENROUTER_VISION_MODEL) || DEFAULT_OPENROUTER_VISION_MODEL,
+    apiKey: normalize(env.VITE_OPENROUTER_API_KEY),
+    baseUrl: normalize(env.VITE_OPENROUTER_BASE_URL) || DEFAULT_OPENROUTER_BASE_URL
+  };
+}
+
+export const AI_CONFIG = createAiConfig(runtimeEnv);
 
 export function getTextModelCandidates() {
   return [

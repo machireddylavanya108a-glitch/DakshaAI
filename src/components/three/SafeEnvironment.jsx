@@ -32,8 +32,10 @@ export default function SafeEnvironment({ localHdr = '', enabled = true }) {
       return;
     }
 
-    if (/raw\.githack\.com|drei-assets/i.test(hdr)) {
-      warnOnce(`hdr-blocked:${hdr}`, `[3D] Blocked external HDR source: ${hdr}`);
+    const lowered = hdr.toLowerCase();
+    const blockedExternalHost = lowered.includes('githack') || (lowered.includes('drei') && lowered.includes('asset'));
+    if (blockedExternalHost) {
+      warnOnce(`hdr-blocked:${hdr}`, `[3D] Blocked unsupported external HDR source: ${hdr}`);
       return;
     }
 

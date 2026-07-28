@@ -38,7 +38,9 @@ test('source does not contain forbidden external HDR or Drei preset references',
 
   const forbidden = [
     { pattern: /https?:\/\/[^\s'"`]*(raw\.githack\.com|drei-assets)/i, label: 'external HDR/CDN URL' },
-    { pattern: /<Environment\s+preset=/i, label: 'Drei Environment preset' }
+    { pattern: /<Environment\s+preset=/i, label: 'Drei Environment preset' },
+    { pattern: /potsdamer_platz_1k\.hdr/i, label: 'deprecated HDR asset' },
+    { pattern: /THREE\.Clock|new\s+Clock\s*\(/i, label: 'application-owned THREE.Clock' }
   ];
 
   const matches = [];

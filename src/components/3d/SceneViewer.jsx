@@ -1,6 +1,6 @@
 import { Canvas, useFrame } from '@react-three/fiber';
 import { OrbitControls, Html } from '@react-three/drei';
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { buildAutoFocusState } from './AutoFocus';
 import { getHighlightPreset } from './ObjectHighlighter';
@@ -16,6 +16,11 @@ import {
 
 function PrimitiveShape({ label, color, position }) {
   const geometry = useMemo(() => new THREE.BoxGeometry(1, 1, 1), []);
+
+  useEffect(() => () => {
+    geometry.dispose();
+  }, [geometry]);
+
   return (
     <mesh position={position} castShadow receiveShadow>
       <primitive object={geometry} attach="geometry" />
@@ -25,10 +30,11 @@ function PrimitiveShape({ label, color, position }) {
   );
 }
 
-function SceneObject({ object, index, selectedPart, onSelectPart, onHotspot, hovered, setHovered, sceneEffects = [], highlightPreset, activeTimelineStep = null, forceXRay, forceWireframe, baseOpacity, derivedExploded, showLabels, showDynamicLabels }) {
+function SceneObject({ object, index, selectedPart, onSelectPart, onHotspot, hovered, setHovered, sceneEffects = [], highlightPreset, activeTimelineStep = null, forceXRay, forceWireframe, baseOpacity, derivedExploded, showLabels, showDynamicLabels, shouldAnimate = true }) {
   const meshRef = useRef(null);
 
   useFrame((state, delta) => {
+    if (!shouldAnimate) return;
     const mesh = meshRef.current;
     if (!mesh) return;
     const t = state.clock.elapsedTime;
@@ -96,7 +102,9 @@ export default function SceneViewer({
   lodLevel = 'high',
   performanceProfile = 'balanced',
   transparency = false,
-  onCameraStateChange
+  onCameraStateChange,
+  isPlaybackActive = true,
+  onRuntimePauseChange
 }) {
   const [hovered, setHovered] = useState(null);
   const [lifecycleState, setLifecycleState] = useState(createWebGLLifecycleState);
@@ -151,7 +159,9 @@ export default function SceneViewer({
   const derivedExploded = exploded || cameraMode === 'explodedView';
   const shouldRotate = cameraMode !== 'freeCamera' && !animationPausedByProfile(performanceProfile);
   const shouldPause = lifecycleState.paused || lifecycleState.restoring;
+  const shouldAnimate = isPlaybackActive && !shouldPause && (shouldRotate || showParticles || showLaser || showHeat || Boolean(activeTimelineStep));
   const localEnvironmentHdr = useMemo(() => resolveEnvironmentAsset('studio'), []);
+  const safeCamera = useMemo(() => ({ ...getSafeCanvasProps().camera, position: cameraPosition }), [cameraPosition]);
 
   const handleContextLost = useCallback(() => {
     setLifecycleState((state) => reduceWebGLLifecycle(state, { type: 'context-lost' }));
@@ -171,10 +181,14 @@ export default function SceneViewer({
     setLifecycleState((state) => reduceWebGLLifecycle(state, { type: 'resume' }));
   }, []);
 
-  const canvasProps = useMemo(() => getSafeCanvasProps({ animated: !shouldPause }), [shouldPause]);
+  const canvasProps = useMemo(() => getSafeCanvasProps({ animated: shouldAnimate }), [shouldAnimate]);
+
+  useEffect(() => {
+    onRuntimePauseChange?.(shouldPause);
+  }, [onRuntimePauseChange, shouldPause]);
 
   return (
-    <Canvas {...canvasProps} shadows camera={{ ...canvasProps.camera, position: cameraPosition }}>
+    <Canvas {...canvasProps} shadows camera={safeCamera}>
       <WebGLContextManager
         onContextLost={handleContextLost}
         onContextRestored={handleContextRestored}
@@ -189,7 +203,6 @@ export default function SceneViewer({
       <SafeEnvironment localHdr={localEnvironmentHdr} enabled={!shouldPause} />
       <group>
         {viewObjects.map((object, index) => {
-          const position = derivedExploded ? [object.position[0], object.position[1] + (index % 2 === 0 ? 0.6 : -0.4), object.position[2]] : object.position;
           const baseOpacity = forceXRay ? 0.35 : transparency ? 0.75 : highlightPreset.opacity;
           return (
             <SceneObject
@@ -210,6 +223,7 @@ export default function SceneViewer({
               derivedExploded={derivedExploded}
               showLabels={showLabels}
               showDynamicLabels={showDynamicLabels}
+              shouldAnimate={shouldAnimate}
             />
           );
         })}
