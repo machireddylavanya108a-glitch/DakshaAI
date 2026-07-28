@@ -28,6 +28,70 @@ function isStructuredMindMap(value) {
     && Array.isArray(value.edges);
 }
 
+function looksLikeRawJson(value) {
+  if (value && typeof value === 'object') return true;
+  const text = String(value || '').trim();
+  if (!text) return false;
+  if (/^\s*[\[{]/.test(text)) return true;
+  return /"(completeCourse|beginnerExplanation|intermediateExplanation|advancedExplanation|modules|title|quiz|flashcards)"\s*:/.test(text);
+}
+
+function cleanDisplayText(value = '') {
+  return String(value || '')
+    .replace(/```[\s\S]*?```/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function distinctLevelExplanation(level = 'Beginner', topic = 'this topic') {
+  if (level === 'Beginner') {
+    return `Start with the basics of ${topic}. Focus on what each concept does and one simple workflow you can repeat.`;
+  }
+  if (level === 'Intermediate') {
+    return `Use ${topic} in realistic tasks. Compare options, connect features, and practice complete workflows.`;
+  }
+  return `Apply ${topic} professionally. Evaluate trade-offs, optimize your setup, and handle advanced edge cases.`;
+}
+
+function normalizeExplanationForDisplay(value, fallback, courseText = '') {
+  const text = cleanDisplayText(value);
+  if (!text || looksLikeRawJson(value)) return fallback;
+  const normalizedCourse = cleanDisplayText(courseText);
+  if (normalizedCourse && (text === normalizedCourse || text.includes(normalizedCourse.slice(0, 220)))) {
+    return fallback;
+  }
+  return text;
+}
+
+function parseCompleteCourse(value = '', topic = 'Adaptive Course') {
+  if (value && typeof value === 'object') {
+    const title = String(value.title || value.course_title || topic || 'Adaptive Course').trim();
+    const summary = String(value.summary || value.overview || '').trim();
+    const modules = (value.modules || value.sections || value.lessons || value.outline?.sections || [])
+      .map((entry, index) => {
+        if (typeof entry === 'string') return { title: entry, details: '' };
+        if (!entry || typeof entry !== 'object') return { title: `Module ${index + 1}`, details: '' };
+        return {
+          title: String(entry.title || entry.name || entry.module || `Module ${index + 1}`).trim(),
+          details: String(entry.description || entry.content || entry.summary || '').trim()
+        };
+      })
+      .filter((entry) => entry.title)
+      .slice(0, 10);
+    return { title, summary, modules };
+  }
+
+  const text = cleanDisplayText(value);
+  const lines = text.split(/\n+/).map((line) => line.trim()).filter(Boolean);
+  const moduleLines = lines.filter((line) => /^(module|chapter|section|lesson)\s*\d*/i.test(line));
+
+  return {
+    title: topic,
+    summary: text,
+    modules: moduleLines.slice(0, 10).map((line, index) => ({ title: line, details: '' }))
+  };
+}
+
 const detectSourceHintFromFile = (file = null) => {
   const name = (file?.name || '').toLowerCase();
   if (file?.type?.startsWith('image/')) return 'image';
@@ -177,6 +241,31 @@ export default function Scanner() {
       quiz: suite.quiz?.length ? suite.quiz : fallbackSuite.quiz,
       flashcards: suite.flashcards?.length ? suite.flashcards : fallbackSuite.flashcards
     };
+
+    const courseTextForComparison = cleanDisplayText(safeSuite.completeCourse);
+    safeSuite.beginnerExplanation = normalizeExplanationForDisplay(
+      safeSuite.beginnerExplanation,
+      distinctLevelExplanation('Beginner', detectedTopic),
+      courseTextForComparison
+    );
+    safeSuite.intermediateExplanation = normalizeExplanationForDisplay(
+      safeSuite.intermediateExplanation,
+      distinctLevelExplanation('Intermediate', detectedTopic),
+      courseTextForComparison
+    );
+    safeSuite.advancedExplanation = normalizeExplanationForDisplay(
+      safeSuite.advancedExplanation,
+      distinctLevelExplanation('Advanced', detectedTopic),
+      courseTextForComparison
+    );
+
+    if (looksLikeRawJson(safeSuite.completeCourse)) {
+      const normalizedCourse = parseCompleteCourse(safeSuite.completeCourse, detectedTopic);
+      const composed = [normalizedCourse.title, normalizedCourse.summary]
+        .filter(Boolean)
+        .join('\n\n');
+      safeSuite.completeCourse = composed || fallbackSuite.completeCourse;
+    }
 
     const analysis = {
       overview: safeSuite.learningSession?.contentOverview || safeSuite.learningSession?.summary || result.sourceModel?.overview || '',
@@ -471,7 +560,7 @@ export default function Scanner() {
       <div className="grid gap-4">
         {items.map((item, index) => (
           <div key={index} className="rounded-2xl border border-slate-800 bg-slate-900 p-4">
-            {renderItem ? renderItem(item, index) : <p className="text-slate-200">{typeof item === 'string' ? item : JSON.stringify(item)}</p>}
+            {renderItem ? renderItem(item, index) : <p className="text-slate-200">{typeof item === 'string' ? item : cleanDisplayText(item?.title || item?.name || item?.label || item?.summary || 'Structured item')}</p>}
           </div>
         ))}
       </div>
@@ -501,6 +590,7 @@ export default function Scanner() {
   };
 
   const currentAnalysis = analysisResult;
+  const completeCourseView = parseCompleteCourse(lessonPackage?.completeCourse, learningPlan?.topic || 'Adaptive Course');
 
   return (
     <div className="min-h-[calc(100vh-4rem)] bg-slate-950 text-white p-4 sm:p-6 lg:p-8">
@@ -757,7 +847,23 @@ export default function Scanner() {
             <div className="grid gap-4 lg:grid-cols-2">
               <div className="rounded-3xl border border-slate-800 bg-slate-950 p-5">
                 <h3 className="text-xl font-semibold mb-3">Complete Course</h3>
-                <p className="text-slate-300 leading-relaxed whitespace-pre-wrap">{lessonPackage.completeCourse || 'The learning summary is being assembled from the uploaded material. You can retry AI or ask the learner for more context.'}</p>
+                <div className="space-y-4">
+                  <div>
+                    <p className="text-lg font-semibold text-white">{completeCourseView.title || 'Adaptive Course'}</p>
+                    <p className="mt-2 text-slate-300 leading-relaxed whitespace-pre-wrap">{completeCourseView.summary || 'The learning summary is being assembled from the uploaded material. You can retry AI or ask the learner for more context.'}</p>
+                  </div>
+                  {completeCourseView.modules.length > 0 ? (
+                    <div className="grid gap-3">
+                      {completeCourseView.modules.map((module, index) => (
+                        <div key={`${module.title}-${index}`} className="rounded-2xl border border-slate-800 bg-slate-900 p-4">
+                          <p className="text-sm uppercase tracking-[0.2em] text-cyan-300">Module {index + 1}</p>
+                          <p className="mt-1 font-semibold text-white">{module.title}</p>
+                          {module.details ? <p className="mt-2 text-sm text-slate-400">{module.details}</p> : null}
+                        </div>
+                      ))}
+                    </div>
+                  ) : null}
+                </div>
               </div>
               <div className="rounded-3xl border border-slate-800 bg-slate-950 p-5">
                 <h3 className="text-xl font-semibold mb-3">Learning Roadmap</h3>

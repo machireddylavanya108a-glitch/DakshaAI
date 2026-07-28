@@ -49,6 +49,30 @@ function normalizeList(value) {
   return [];
 }
 
+function normalizeNarrativeText(value = '') {
+  if (!value) return '';
+  if (typeof value === 'object') {
+    const title = safeString(value.title || value.course_title || value.name || '');
+    const summary = safeString(value.summary || value.overview || value.description || '');
+    return [title, summary].filter(Boolean).join(': ');
+  }
+  const text = safeString(value)
+    .replace(/```[\s\S]*?```/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+  return /^\{/.test(text) ? '' : text;
+}
+
+function distinctLessonLayer(level, topic, fallback) {
+  if (level === 'beginner') {
+    return fallback || `Start with the key ideas in ${topic} and understand the core concepts with simple examples.`;
+  }
+  if (level === 'intermediate') {
+    return fallback || `Connect the core concepts in ${topic} to practical workflows, comparisons, and applied examples.`;
+  }
+  return fallback || `Use ${topic} at a deeper level by evaluating trade-offs, edge cases, and advanced applications.`;
+}
+
 function extensionFromName(name = '') {
   const lower = String(name).toLowerCase();
   const match = lower.match(/\.([a-z0-9]+)$/i);
@@ -330,10 +354,22 @@ function buildSourceModel({ sourceName, sourceType, extractedText, slides, intel
 
 function buildLessonSession(packageData, sourceModel, detections, metadata, intelligenceProfile, assets, planSize) {
   const fallbackPackage = packageData && typeof packageData === 'object' ? packageData : {};
-  const summary = safeString(assets?.summary || fallbackPackage.summary || fallbackPackage.completeCourse || fallbackPackage.beginnerExplanation || sourceModel.overview || metadata.subject).slice(0, 3000);
-  const beginnerLesson = safeString(fallbackPackage.beginnerLesson || fallbackPackage.beginnerExplanation || summary || `Start with the key ideas from ${metadata.subject || 'this lesson'} and build understanding from the main concepts first.`);
-  const intermediateLesson = safeString(packageData.intermediateLesson || packageData.intermediateExplanation || beginnerLesson);
-  const advancedLesson = safeString(packageData.advancedLesson || packageData.advancedExplanation || intermediateLesson);
+  const summary = normalizeNarrativeText(assets?.summary)
+    || normalizeNarrativeText(fallbackPackage.summary)
+    || normalizeNarrativeText(fallbackPackage.completeCourse)
+    || normalizeNarrativeText(fallbackPackage.beginnerExplanation)
+    || normalizeNarrativeText(sourceModel.overview)
+    || safeString(metadata.subject);
+  const safeSummary = summary.slice(0, 3000);
+
+  const topicLabel = metadata.subject || intelligenceProfile?.title || sourceModel?.title || 'this lesson';
+  const beginnerCandidate = normalizeNarrativeText(fallbackPackage.beginnerLesson || fallbackPackage.beginnerExplanation);
+  const intermediateCandidate = normalizeNarrativeText(packageData.intermediateLesson || packageData.intermediateExplanation);
+  const advancedCandidate = normalizeNarrativeText(packageData.advancedLesson || packageData.advancedExplanation);
+
+  const beginnerLesson = distinctLessonLayer('beginner', topicLabel, beginnerCandidate || safeSummary);
+  const intermediateLesson = distinctLessonLayer('intermediate', topicLabel, intermediateCandidate && intermediateCandidate !== beginnerLesson ? intermediateCandidate : '');
+  const advancedLesson = distinctLessonLayer('advanced', topicLabel, advancedCandidate && advancedCandidate !== intermediateLesson && advancedCandidate !== beginnerLesson ? advancedCandidate : '');
   const keyConcepts = normalizeList(assets?.topics || fallbackPackage.keyConcepts || fallbackPackage.realWorldExamples || sourceModel.sections).slice(0, 10);
   const importantDefinitions = normalizeList(fallbackPackage.importantDefinitions || sourceModel.definitions).slice(0, 10);
   const examples = normalizeList(fallbackPackage.examples || fallbackPackage.realWorldExamples).slice(0, 10);
@@ -353,7 +389,7 @@ function buildLessonSession(packageData, sourceModel, detections, metadata, inte
 
   return {
     title: assets?.title || intelligenceProfile?.title || sourceModel.title || metadata.sourceName || 'Adaptive lesson',
-    summary,
+    summary: safeSummary,
     beginnerLesson,
     intermediateLesson,
     advancedLesson,

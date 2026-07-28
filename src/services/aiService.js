@@ -280,19 +280,207 @@ Rules:
 - Think step by step before answering.`;
 
 function parseJsonResponse(content) {
+  const normalized = String(content || '').trim();
+  if (!normalized) return null;
+
+  const direct = tryParseJson(normalized);
+  if (direct) return direct;
+
+  const withoutFences = stripMarkdownFences(normalized);
+  const candidate = extractJSONObjectCandidate(withoutFences);
+  if (!candidate) return null;
+
+  const parsedCandidate = tryParseJson(candidate);
+  if (parsedCandidate) return parsedCandidate;
+
+  const repaired = repairJsonLikeString(candidate);
+  const parsedRepaired = tryParseJson(repaired);
+  if (parsedRepaired) return parsedRepaired;
+
+  console.warn('JSON parse fallback failed after repair attempts.');
+  return null;
+}
+
+function tryParseJson(value) {
   try {
-    return JSON.parse(content);
-  } catch (error) {
-    const jsonMatch = content.match(/\{[\s\S]*\}/);
-    if (jsonMatch) {
-      try {
-        return JSON.parse(jsonMatch[0]);
-      } catch (innerError) {
-        console.error('JSON parse fallback failed:', innerError);
-      }
-    }
+    return JSON.parse(value);
+  } catch {
     return null;
   }
+}
+
+function stripMarkdownFences(value = '') {
+  return String(value || '')
+    .replace(/```json/gi, '```')
+    .replace(/```/g, '')
+    .trim();
+}
+
+function extractJSONObjectCandidate(value = '') {
+  const text = String(value || '');
+  const start = text.indexOf('{');
+  if (start < 0) return '';
+
+  let depth = 0;
+  let inString = false;
+  let escaped = false;
+
+  for (let index = start; index < text.length; index += 1) {
+    const char = text[index];
+    if (escaped) {
+      escaped = false;
+      continue;
+    }
+
+    if (char === '\\') {
+      escaped = true;
+      continue;
+    }
+
+    if (char === '"') {
+      inString = !inString;
+      continue;
+    }
+
+    if (inString) continue;
+
+    if (char === '{') depth += 1;
+    if (char === '}') {
+      depth -= 1;
+      if (depth === 0) {
+        return text.slice(start, index + 1);
+      }
+    }
+  }
+
+  return text.slice(start);
+}
+
+function repairJsonLikeString(value = '') {
+  return String(value || '')
+    .replace(/[\u2018\u2019]/g, "'")
+    .replace(/[\u201C\u201D]/g, '"')
+    .replace(/,\s*([}\]])/g, '$1')
+    .replace(/([{,]\s*)([A-Za-z_][A-Za-z0-9_\-]*)(\s*:)/g, '$1"$2"$3')
+    .trim();
+}
+
+function isRawJsonLike(value) {
+  if (value && typeof value === 'object') return true;
+  const text = String(value || '').trim();
+  if (!text) return false;
+  if (/^\s*[\[{]/.test(text)) return true;
+  return /"(completeCourse|beginnerExplanation|intermediateExplanation|advancedExplanation|title|modules|quiz|flashcards)"\s*:/.test(text);
+}
+
+function sanitizePlainLearningText(value = '') {
+  return String(value || '')
+    .replace(/```[\s\S]*?```/g, '')
+    .replace(/[{}\[\]"]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function normalizeModules(input = []) {
+  if (!Array.isArray(input)) return [];
+  return input
+    .map((entry, index) => {
+      if (typeof entry === 'string') {
+        return { title: entry, details: '' };
+      }
+      if (!entry || typeof entry !== 'object') {
+        return { title: `Module ${index + 1}`, details: '' };
+      }
+      const title = String(entry.title || entry.name || entry.module || `Module ${index + 1}`).trim();
+      const details = String(entry.description || entry.content || entry.summary || '').trim();
+      return { title, details };
+    })
+    .filter((entry) => entry.title)
+    .slice(0, 12);
+}
+
+function normalizeCourseStructure(completeCourse, sourceName = 'topic', context = 'topic') {
+  if (completeCourse && typeof completeCourse === 'object') {
+    const title = String(completeCourse.title || completeCourse.course_title || completeCourse.name || sourceName || 'Adaptive course').trim();
+    const summary = String(completeCourse.summary || completeCourse.overview || completeCourse.description || '').trim();
+    const modules = normalizeModules(
+      completeCourse.modules
+      || completeCourse.lessons
+      || completeCourse.sections
+      || completeCourse.outline?.sections
+      || []
+    );
+    return { title, summary, modules };
+  }
+
+  const text = sanitizePlainLearningText(completeCourse);
+  const title = String(sourceName || context || 'Adaptive course').trim();
+  return { title, summary: text.slice(0, 800), modules: [] };
+}
+
+function serializeCourseStructure(course = {}) {
+  const title = String(course.title || '').trim();
+  const summary = String(course.summary || '').trim();
+  const moduleLines = (course.modules || [])
+    .map((module, index) => {
+      const heading = `${index + 1}. ${module.title}`;
+      return module.details ? `${heading}\n${module.details}` : heading;
+    });
+
+  return [title, summary, ...moduleLines].filter(Boolean).join('\n\n').trim();
+}
+
+function buildLevelExplanation(level = 'Beginner', courseTitle = 'this topic', sourceName = 'topic', context = 'topic') {
+  if (level === 'Beginner') {
+    return `Start with the foundations of ${courseTitle}. Focus on what it is, why it matters, and one simple workflow you can repeat confidently.`;
+  }
+  if (level === 'Intermediate') {
+    return `Move from basics to practice in ${courseTitle}. Connect concepts to features, compare options, and complete a realistic workflow end-to-end.`;
+  }
+  return `Treat ${courseTitle} as a professional skill. Evaluate trade-offs, optimize your setup, and apply advanced patterns for speed and reliability.`;
+}
+
+function normalizeExplanation(value, fallback, courseText = '') {
+  const text = sanitizePlainLearningText(value);
+  if (!text) return fallback;
+  if (isRawJsonLike(value)) return fallback;
+
+  const normalizedCourse = sanitizePlainLearningText(courseText).slice(0, 1400);
+  const normalizedText = sanitizePlainLearningText(text).slice(0, 1400);
+  if (normalizedCourse && normalizedText && (normalizedText === normalizedCourse || normalizedText.includes(normalizedCourse.slice(0, 220)))) {
+    return fallback;
+  }
+  return text;
+}
+
+function normalizeLessonPackagePayload(payload = {}, sourceName = 'topic', context = 'topic') {
+  const normalizedPayload = payload && typeof payload === 'object' ? payload : {};
+  const course = normalizeCourseStructure(normalizedPayload.completeCourse, sourceName, context);
+  const completeCourseText = serializeCourseStructure(course) || sanitizePlainLearningText(sourceName || context || 'Adaptive course');
+
+  const beginnerFallback = buildLevelExplanation('Beginner', course.title || sourceName || context, sourceName, context);
+  const intermediateFallback = buildLevelExplanation('Intermediate', course.title || sourceName || context, sourceName, context);
+  const advancedFallback = buildLevelExplanation('Advanced', course.title || sourceName || context, sourceName, context);
+
+  return {
+    completeCourse: completeCourseText,
+    beginnerExplanation: normalizeExplanation(normalizedPayload.beginnerExplanation || normalizedPayload.beginnerLesson, beginnerFallback, completeCourseText),
+    intermediateExplanation: normalizeExplanation(normalizedPayload.intermediateExplanation || normalizedPayload.intermediateLesson, intermediateFallback, completeCourseText),
+    advancedExplanation: normalizeExplanation(normalizedPayload.advancedExplanation || normalizedPayload.advancedLesson, advancedFallback, completeCourseText),
+    realWorldExamples: Array.isArray(normalizedPayload.realWorldExamples) ? normalizedPayload.realWorldExamples : [],
+    interviewQuestions: Array.isArray(normalizedPayload.interviewQuestions) ? normalizedPayload.interviewQuestions : [],
+    practiceQuestions: Array.isArray(normalizedPayload.practiceQuestions) ? normalizedPayload.practiceQuestions : [],
+    quiz: Array.isArray(normalizedPayload.quiz) ? normalizedPayload.quiz : [],
+    flashcards: Array.isArray(normalizedPayload.flashcards) ? normalizedPayload.flashcards : [],
+    revisionNotes: sanitizePlainLearningText(normalizedPayload.revisionNotes),
+    cheatSheet: sanitizePlainLearningText(normalizedPayload.cheatSheet),
+    mindMap: normalizedPayload.mindMap || '',
+    learningRoadmap: Array.isArray(normalizedPayload.learningRoadmap)
+      ? normalizedPayload.learningRoadmap
+      : typeof normalizedPayload.learningRoadmap === 'string'
+        ? normalizedPayload.learningRoadmap.split(/\n|•|- /).map((item) => item.trim()).filter(Boolean).slice(0, 10)
+        : []
+  };
 }
 
 function optimizeTextPayload(text, maxCharacters = 24000) {
@@ -589,45 +777,56 @@ ${limitedSource}`;
     const content = toModelTextContent(response?.choices?.[0]?.message?.content);
     const parsed = parseJsonResponse(content);
     if (parsed) {
-      setCachedValue(cacheKey, parsed, 1000 * 60 * 20);
-      return parsed;
+      const normalized = normalizeLessonPackagePayload(parsed, sourceName, context);
+      setCachedValue(cacheKey, normalized, 1000 * 60 * 20);
+      return normalized;
     }
 
-    const fallback = {
-      completeCourse: content,
-      beginnerExplanation: content,
-      intermediateExplanation: '',
-      advancedExplanation: '',
-      realWorldExamples: [],
-      interviewQuestions: [],
-      practiceQuestions: [],
-      quiz: [],
-      flashcards: [],
-      revisionNotes: '',
-      cheatSheet: '',
-      mindMap: '',
-      learningRoadmap: ''
-    };
-    setCachedValue(cacheKey, fallback, 1000 * 60 * 20);
-    return fallback;
+    const repairPrompt = `Convert the following content into strict valid JSON with these exact keys:
+completeCourse, beginnerExplanation, intermediateExplanation, advancedExplanation, realWorldExamples, interviewQuestions, practiceQuestions, quiz, flashcards, revisionNotes, cheatSheet, mindMap, learningRoadmap.
+
+Return only JSON and do not include markdown.
+
+Content:
+${String(content || '').slice(0, 9000)}`;
+
+    try {
+      const { response: repairedResponse } = await callModelWithFallback({
+        requestType: 'text',
+        task: 'lesson',
+        maxTokens: 1200,
+        messages: [
+          { role: 'system', content: `${DAKSHA_SYSTEM_PROMPT} You MUST return only valid JSON.` },
+          { role: 'user', content: repairPrompt }
+        ],
+        models: getConfiguredTextModels()
+      });
+
+      const repairedContent = toModelTextContent(repairedResponse?.choices?.[0]?.message?.content);
+      const repairedParsed = parseJsonResponse(repairedContent);
+      if (repairedParsed) {
+        const normalized = normalizeLessonPackagePayload(repairedParsed, sourceName, context);
+        setCachedValue(cacheKey, normalized, 1000 * 60 * 20);
+        return normalized;
+      }
+    } catch {
+      // If repair fails, continue to deterministic fallback package.
+    }
+
+    const deterministicFallback = normalizeLessonPackagePayload(
+      buildLessonFallbackPackage(sourceText, sourceName, context),
+      sourceName,
+      context
+    );
+    setCachedValue(cacheKey, deterministicFallback, 1000 * 60 * 20);
+    return deterministicFallback;
   } catch (error) {
     console.error("AI Lesson Package Error:", error);
-    const fallbackText = sanitizePrompt(sourceText || sourceName || 'This learning material').slice(0, 2400);
-    return {
-      completeCourse: `A useful lesson map was built from the available content. Key ideas from this material include: ${fallbackText}`,
-      beginnerExplanation: `Start by reviewing the main ideas in this material and build understanding from the key concepts it contains.`,
-      intermediateExplanation: `Connect the main ideas to practical examples and review the important relationships in the content.`,
-      advancedExplanation: `Use the material to deepen your understanding with advanced comparisons, practice questions, and self-review.`,
-      realWorldExamples: ['Connect the lesson to practical examples from everyday life or workplace scenarios.'],
-      interviewQuestions: ['What is the main idea of this material?', 'How would you explain this topic in simple terms?'],
-      practiceQuestions: ['Summarize the key takeaway from this lesson.', 'List the most important concepts and explain them.'],
-      quiz: [],
-      flashcards: [],
-      revisionNotes: fallbackText,
-      cheatSheet: fallbackText,
-      mindMap: fallbackText,
-      learningRoadmap: ['Understand the main topic', 'Break the material into concepts', 'Practice recall and examples']
-    };
+    return normalizeLessonPackagePayload(
+      buildLessonFallbackPackage(sourceText, sourceName, context),
+      sourceName,
+      context
+    );
   }
 }
 

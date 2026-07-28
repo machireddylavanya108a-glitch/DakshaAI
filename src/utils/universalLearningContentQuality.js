@@ -159,8 +159,32 @@ function isLikelyDescriptiveFilename(name = '') {
   return words.length >= 2 && words.length <= 8;
 }
 
-function buildTitleFromConcepts(concepts = [], subject = 'General Learning') {
+function deriveSpecificTopicFromText(sample = '') {
+  const normalized = String(sample || '').toLowerCase();
+  if (!normalized) return '';
+
+  if (/visual studio code|\bvs\s*code\b|vscode/.test(normalized)) {
+    if (/theme|color theme|appearance/.test(normalized)) {
+      return 'VS Code Theme Configuration';
+    }
+    if (/welcome|setup|onboarding|get started|getting started/.test(normalized)) {
+      return 'Getting Started with VS Code';
+    }
+    return 'VS Code Setup';
+  }
+
+  return '';
+}
+
+function buildTitleFromConcepts(concepts = [], subject = 'General Learning', rawText = '') {
   const conceptText = concepts.join(' ').toLowerCase();
+  const contextualText = `${conceptText} ${String(rawText || '').toLowerCase()}`;
+
+  if (/visual studio code|\bvs\s*code\b|vscode|command palette|extensions? view|activity bar/.test(contextualText)) {
+    if (/theme|color theme|appearance/.test(contextualText)) return 'VS Code Theme Configuration';
+    return 'Getting Started with VS Code';
+  }
+
   if (/education|learning/.test(conceptText) && /(ai|digital|analytics|visualization|bioinformatics)/.test(conceptText)) {
     return 'Technology-Enhanced Learning';
   }
@@ -176,7 +200,12 @@ export function resolveLearningTopic(content = {}) {
   const subject = safeString(content.subject) || inferSubjectFromConcepts(concepts, content.rawExtractedContent);
 
   const candidates = [];
-  const conceptTitle = buildTitleFromConcepts(concepts, subject);
+  const concreteTitle = deriveSpecificTopicFromText(`${content.detectedText || ''} ${content.visualDescription || ''} ${content.rawExtractedContent || ''}`);
+  if (concreteTitle) {
+    candidates.push({ value: concreteTitle, sourceBasis: 'interface-detection', confidence: 0.96 });
+  }
+
+  const conceptTitle = buildTitleFromConcepts(concepts, subject, `${content.detectedText || ''} ${content.visualDescription || ''}`);
   if (conceptTitle) candidates.push({ value: conceptTitle, sourceBasis: 'concepts', confidence: 0.86 });
 
   if (isLikelyDescriptiveFilename(filename)) {
@@ -189,6 +218,10 @@ export function resolveLearningTopic(content = {}) {
     .find((segment) => toWords(segment).length >= 3 && toWords(segment).length <= 8);
 
   if (textSample) {
+    const textBasedSpecific = deriveSpecificTopicFromText(textSample);
+    if (textBasedSpecific) {
+      candidates.push({ value: textBasedSpecific, sourceBasis: 'text-sample-specific', confidence: 0.93 });
+    }
     candidates.push({ value: textSample, sourceBasis: 'text-sample', confidence: 0.42 });
   }
 

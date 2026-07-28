@@ -40,6 +40,18 @@ test('filename and first sentence are not used as the topic', () => {
   assert.ok(topicFromSentence.title.length <= 80);
 });
 
+test('vscode interface screenshot resolves to a concrete vscode topic', () => {
+  const normalized = normalizeVisionOutput({
+    sourceType: 'image',
+    sourceName: 'Screenshot 2026-07-28 at 16.12.04.png',
+    rawExtractedContent: 'Visual Studio Code welcome screen. Get started with VS Code setup and choose your color theme. Install extensions and configure the command palette.',
+    visualDescription: 'VS Code onboarding and theme selection interface.'
+  });
+
+  assert.ok(/vs\s*code|visual studio code/i.test(normalized.topic));
+  assert.notEqual(normalized.topic, 'Technology-Enhanced Learning');
+});
+
 test('decorative image creates a micro lesson plan size', () => {
   const normalized = normalizeVisionOutput({
     sourceType: 'image',
