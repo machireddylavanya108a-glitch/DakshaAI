@@ -11,7 +11,9 @@ import {
   reloadScene,
   resetScene,
   pauseScene,
-  resumeScene
+  resumeScene,
+  setEducationalObjectLifecycleManager,
+  getEducationalObjectLifecycleManager
 } from './SceneRuntime.js';
 
 test('large scene builds runtime graph with relationships', () => {
@@ -145,4 +147,21 @@ test('diagnostics include build metrics', () => {
   assert.ok(runtime.diagnostics.relationshipCount >= 0);
   assert.ok(runtime.diagnostics.graphDepth >= 1);
   assert.ok(runtime.diagnostics.memoryEstimateBytes > 0);
+});
+
+test('destroy scene invokes educational object lifecycle cleanup when available', () => {
+  let cleanupCalls = 0;
+  const manager = {
+    cleanupScene(sceneId) {
+      if (sceneId) cleanupCalls += 1;
+    }
+  };
+
+  setEducationalObjectLifecycleManager(manager);
+  loadScene({ title: 'Lifecycle Hook Scene', sceneId: 'scene-lifecycle-1', objects: [{ id: 'obj-1', name: 'One' }] });
+  destroyScene();
+
+  assert.equal(cleanupCalls, 1);
+  assert.equal(getEducationalObjectLifecycleManager(), manager);
+  setEducationalObjectLifecycleManager(null);
 });

@@ -2,6 +2,24 @@ import { processSceneJsonPipeline } from '../scene-generator/SceneVersionManager
 import { buildRuntimeSceneGraph } from './SceneBuilder.js';
 
 let activeRuntime = null;
+let educationalObjectLifecycleManager = null;
+
+function runLifecycleCleanupForRuntime(runtime) {
+  if (!educationalObjectLifecycleManager || typeof educationalObjectLifecycleManager.cleanupScene !== 'function') {
+    return;
+  }
+
+  const sceneId = String(runtime?.sceneId || '').trim();
+  if (!sceneId) return;
+
+  try {
+    educationalObjectLifecycleManager.cleanupScene(sceneId, {
+      source: 'scene-runtime-destroy'
+    });
+  } catch {
+    // Lifecycle cleanup is best-effort and must not break scene teardown.
+  }
+}
 
 function ensureRuntime() {
   if (!activeRuntime) {
@@ -24,6 +42,7 @@ export function loadScene(sceneJson = {}) {
 
 export function destroyScene() {
   const runtime = ensureRuntime();
+  runLifecycleCleanupForRuntime(runtime);
   runtime.stateManager.destroyAll();
   runtime.registry.destroy();
   runtime.graph.nodes.clear();
@@ -57,4 +76,17 @@ export function resumeScene() {
 
 export function getActiveRuntimeScene() {
   return activeRuntime;
+}
+
+export function setEducationalObjectLifecycleManager(manager) {
+  if (manager && typeof manager === 'object') {
+    educationalObjectLifecycleManager = manager;
+    return true;
+  }
+  educationalObjectLifecycleManager = null;
+  return false;
+}
+
+export function getEducationalObjectLifecycleManager() {
+  return educationalObjectLifecycleManager;
 }

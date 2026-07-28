@@ -151,3 +151,62 @@ export {
   createEducationalObject as createEducationalObjectRecord,
   ensureSceneEducationalObjectMetadata
 } from './EducationalObject.js';
+export { EducationalObjectRegistryError, toEducationalObjectRegistryError } from './EducationalObjectRegistryError.js';
+export {
+  createEducationalObjectFingerprint,
+  createEducationalObjectCompatibilityFingerprint
+} from './EducationalObjectFingerprint.js';
+export {
+  createEducationalObjectTrust,
+  canTrustAllowSharedReuse,
+  summarizeTrustDistribution
+} from './EducationalObjectTrust.js';
+export {
+  createEducationalObjectUsageMetrics,
+  applyUsageEvent
+} from './EducationalObjectUsageMetrics.js';
+export { evaluateEducationalObjectQualityGate } from './EducationalObjectQualityGate.js';
+export {
+  createEducationalObjectRegistryDiagnostics,
+  refreshEducationalObjectRegistryDiagnostics
+} from './EducationalObjectRegistryDiagnostics.js';
+export {
+  createEducationalObjectPoolDiagnostics,
+  refreshEducationalObjectPoolDiagnostics
+} from './EducationalObjectPoolDiagnostics.js';
+export { createEducationalObjectRegistryEntry } from './EducationalObjectRegistryEntry.js';
+export {
+  matchesEducationalObjectQuery,
+  queryEducationalObjectEntries
+} from './EducationalObjectQuery.js';
+export { detectEducationalObjectDuplicates } from './EducationalObjectDuplicateResolver.js';
+export {
+  createEducationalObjectInstanceRegistry,
+  defaultEducationalObjectInstanceRegistry
+} from './EducationalObjectInstanceRegistry.js';
+export { createEducationalObjectPoolEntry } from './EducationalObjectPoolEntry.js';
+export {
+  DEFAULT_EDUCATIONAL_OBJECT_POOL_POLICY,
+  normalizeEducationalObjectPoolPolicy,
+  evaluateObjectPoolEligibility
+} from './EducationalObjectPoolPolicy.js';
+export { resetEducationalObjectForReuse } from './EducationalObjectPoolReset.js';
+export {
+  createEducationalObjectRegistry,
+  defaultEducationalObjectRegistry
+} from './EducationalObjectRegistry.js';
+export {
+  createEducationalObjectPool,
+  defaultEducationalObjectPool
+} from './EducationalObjectPool.js';
+export {
+  createEducationalObjectLifecycleManager,
+  defaultEducationalObjectLifecycleManager
+} from './EducationalObjectLifecycleManager.js';
+export {
+  serializeEducationalObjectRegistryState,
+  deserializeEducationalObjectRegistryState,
+  restoreEducationalObjectRegistryFromSerialized,
+  serializeEducationalObjectPoolState,
+  restoreEducationalObjectPoolFromSerialized
+} from './EducationalObjectRegistrySerializer.js';
