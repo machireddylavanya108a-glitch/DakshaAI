@@ -16,6 +16,55 @@ function PrimitiveShape({ label, color, position }) {
   );
 }
 
+function SceneObject({ object, index, selectedPart, onSelectPart, onHotspot, hovered, setHovered, sceneEffects = [], highlightPreset, activeTimelineStep = null, forceXRay, forceWireframe, baseOpacity, derivedExploded, showLabels, showDynamicLabels }) {
+  const meshRef = useRef(null);
+
+  useFrame((state, delta) => {
+    const mesh = meshRef.current;
+    if (!mesh) return;
+    const t = state.clock.elapsedTime;
+    const bob = sceneEffects.includes('humanMotion') ? Math.sin(t * 2 + index) * 0.04 : 0;
+    const drift = sceneEffects.includes('machineMotion') ? Math.sin(t * 1.5 + index) * 0.03 : 0;
+    const pulse = sceneEffects.includes('bloodFlow') ? 1 + Math.sin(t * 4 + index) * 0.03 : 1;
+    const rotationSpeed = sceneEffects.includes('planetRotation') ? 0.4 : sceneEffects.includes('machineMotion') ? 0.2 : 0.05;
+    mesh.position.y = object.position[1] + bob + (sceneEffects.includes('objectMovement') ? Math.sin(t * 2.2 + index) * 0.02 : 0);
+    mesh.position.x = object.position[0] + drift;
+    mesh.rotation.y += delta * rotationSpeed;
+    mesh.scale.setScalar(1 + pulse * 0.01);
+  });
+
+  const isSelected = selectedPart === object.label;
+  const emissiveIntensity = isSelected ? highlightPreset.emissiveIntensity : hovered === object.label ? 0.2 : 0;
+  const dynamicPulse = activeTimelineStep?.target === object.label && sceneEffects.includes('particles') ? 1 + Math.sin(index + Date.now() / 250) * 0.03 : 1;
+
+  return (
+    <mesh
+      ref={meshRef}
+      position={derivedExploded ? [object.position[0], object.position[1] + (index % 2 === 0 ? 0.6 : -0.4), object.position[2]] : object.position}
+      onClick={() => {
+        onSelectPart?.(object.label);
+        onHotspot?.(object);
+      }}
+      onPointerOver={() => setHovered(object.label)}
+      onPointerOut={() => setHovered(null)}
+      castShadow
+      receiveShadow
+      scale={isSelected ? highlightPreset.scale * dynamicPulse : 1}
+    >
+      <boxGeometry args={object.size} />
+      <meshStandardMaterial
+        color={isSelected ? '#22d3ee' : hovered === object.label ? '#f59e0b' : object.color}
+        emissive={new THREE.Color(isSelected ? '#22d3ee' : '#000000')}
+        emissiveIntensity={emissiveIntensity}
+        transparent={forceXRay || highlightPreset.opacity < 1}
+        opacity={baseOpacity}
+        wireframe={forceWireframe}
+      />
+      {showLabels && showDynamicLabels ? <Html position={[0, 1.2, 0]} center>{object.label}</Html> : null}
+    </mesh>
+  );
+}
+
 export default function SceneViewer({
   scene,
   selectedPart,
@@ -37,6 +86,7 @@ export default function SceneViewer({
   showDynamicLabels = true,
   lodLevel = 'high',
   performanceProfile = 'balanced',
+  transparency = false,
   onCameraStateChange
 }) {
   const [hovered, setHovered] = useState(null);
@@ -102,35 +152,27 @@ export default function SceneViewer({
       <group>
         {viewObjects.map((object, index) => {
           const position = derivedExploded ? [object.position[0], object.position[1] + (index % 2 === 0 ? 0.6 : -0.4), object.position[2]] : object.position;
-          const isSelected = selectedPart === object.label;
-          const emissiveIntensity = isSelected ? highlightPreset.emissiveIntensity : hovered === object.label ? 0.2 : 0;
-          const baseOpacity = forceXRay ? 0.35 : highlightPreset.opacity;
-          const dynamicPulse = activeTimelineStep?.target === object.label && showParticles ? 1 + Math.sin(index + Date.now() / 250) * 0.03 : 1;
+          const baseOpacity = forceXRay ? 0.35 : transparency ? 0.75 : highlightPreset.opacity;
           return (
-            <mesh
+            <SceneObject
               key={`${object.label}-${index}`}
-              position={position}
-              onClick={() => {
-                onSelectPart?.(object.label);
-                onHotspot?.(object);
-              }}
-              onPointerOver={() => setHovered(object.label)}
-              onPointerOut={() => setHovered(null)}
-              castShadow
-              receiveShadow
-              scale={isSelected ? highlightPreset.scale * dynamicPulse : 1}
-            >
-              <boxGeometry args={object.size} />
-              <meshStandardMaterial
-                color={isSelected ? '#22d3ee' : hovered === object.label ? '#f59e0b' : object.color}
-                emissive={new THREE.Color(isSelected ? '#22d3ee' : '#000000')}
-                emissiveIntensity={emissiveIntensity}
-                transparent={forceXRay || highlightPreset.opacity < 1}
-                opacity={baseOpacity}
-                wireframe={forceWireframe}
-              />
-              {showLabels && showDynamicLabels ? <Html position={[0, 1.2, 0]} center>{object.label}</Html> : null}
-            </mesh>
+              object={object}
+              index={index}
+              selectedPart={selectedPart}
+              onSelectPart={onSelectPart}
+              onHotspot={onHotspot}
+              hovered={hovered}
+              setHovered={setHovered}
+              sceneEffects={sceneEffects}
+              highlightPreset={highlightPreset}
+              activeTimelineStep={activeTimelineStep}
+              forceXRay={forceXRay}
+              forceWireframe={forceWireframe}
+              baseOpacity={baseOpacity}
+              derivedExploded={derivedExploded}
+              showLabels={showLabels}
+              showDynamicLabels={showDynamicLabels}
+            />
           );
         })}
         {viewObjects.length === 0 ? <PrimitiveShape label="Concept" color="#34d399" position={[0, 0, 0]} /> : null}

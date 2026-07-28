@@ -11,6 +11,7 @@ import {
   saveUserBookmark
 } from '../services/firestoreService';
 import { buildSceneBlueprint, buildSceneFromBlueprint } from '../utils/aiSceneEngine.js';
+import { buildAnimationPlan, buildAutoAnimationState } from '../utils/aiAnimationEngine.js';
 
 const SceneLoader = lazy(() => import('../components/3d/SceneLoader'));
 const SceneViewer = lazy(() => import('../components/3d/SceneViewer'));
@@ -99,6 +100,7 @@ export default function Learning3D() {
   const [xRay, setXRay] = useState(false);
   const [showLabels, setShowLabels] = useState(true);
   const [animationPaused, setAnimationPaused] = useState(false);
+  const [transparency, setTransparency] = useState(false);
   const [motionSpeed, setMotionSpeed] = useState(1);
   const [isTimelinePlaying, setIsTimelinePlaying] = useState(true);
   const [loading, setLoading] = useState(true);
@@ -124,6 +126,7 @@ export default function Learning3D() {
   const [performanceProfile, setPerformanceProfile] = useState('balanced');
   const [bookmarks, setBookmarks] = useState([]);
   const [sceneCameraPosition, setSceneCameraPosition] = useState([0, 0, 0]);
+  const [animationPlan, setAnimationPlan] = useState([]);
 
   const effectiveContent = useMemo(() => {
     const direct = `${topic}\n${sourceContent}`.trim();
@@ -146,6 +149,8 @@ export default function Learning3D() {
   useEffect(() => {
     const blueprint = buildSceneBlueprint(effectiveContent, sourceType);
     const dynamicScene = buildSceneFromBlueprint(blueprint);
+    const autoAnimationState = buildAutoAnimationState(effectiveContent, { sceneEffects });
+    const nextAnimationPlan = buildAnimationPlan(effectiveContent, sceneSteps.length ? sceneSteps : blueprint.entities.map((entity, index) => ({ id: `auto-${index + 1}`, title: `Explore ${entity.name}`, target: entity.name })));
     setSceneData((current) => current ? { ...current, ...dynamicScene, summary: dynamicScene.summary } : dynamicScene);
     setScenePlan((current) => current ? { ...current, subject: blueprint.domain, summary: blueprint.summary, assetPlan: blueprint.assetPlan } : {
       sceneTitle: blueprint.sceneTitle,
@@ -161,6 +166,17 @@ export default function Learning3D() {
       practiceMode: { tasks: blueprint.entities.slice(0, 4).map((entity, index) => `Practice ${index + 1}: Interact with ${entity.name}`) },
       syncCues: blueprint.entities.map((entity, index) => ({ cue: `Now look at ${entity.name}.`, target: entity.name, timelineStep: index }))
     });
+    setAnimationPlan(nextAnimationPlan);
+    setCameraMode(autoAnimationState.cameraMode);
+    setHighlightMode(autoAnimationState.highlightMode);
+    setSceneEffects(autoAnimationState.sceneEffects);
+    setAutoRotate(autoAnimationState.autoRotate);
+    setExplodeView(autoAnimationState.exploded);
+    setCrossSection(autoAnimationState.crossSection);
+    setXRay(autoAnimationState.xRay);
+    setMotionSpeed(autoAnimationState.motionSpeed);
+    setShowLabels(autoAnimationState.showAnimatedLabels);
+    setTransparency(autoAnimationState.transparency);
     setSceneStatus(`Scene engine ready for ${blueprint.domain}`);
   }, [effectiveContent, sourceType]);
 
@@ -194,6 +210,15 @@ export default function Learning3D() {
     if (!syncMode || !currentStep?.target) return;
     setSelectedPart(currentStep.target);
   }, [currentStep, syncMode]);
+
+  useEffect(() => {
+    if (!animationPlan.length) return;
+    const nextStep = animationPlan[activeStepIndex % animationPlan.length] || animationPlan[0];
+    setCameraMode(nextStep.cameraMode || cameraMode);
+    setSceneEffects((value) => [...new Set([...value, ...(nextStep.sceneEffects || [])])]);
+    setMotionSpeed(nextStep.motionSpeed || motionSpeed);
+    setSelectedPart(nextStep.target || selectedPart);
+  }, [activeStepIndex, animationPlan]);
 
   const onObjectSelected = (object) => {
     if (!object) return;
@@ -545,6 +570,9 @@ export default function Learning3D() {
                     />
                   </Suspense>
                   <div className="rounded-[1.2rem] border border-emerald-500/20 bg-emerald-500/10 p-4 text-sm text-emerald-100">{sceneData?.summary || 'Generating scene plan from lesson content...'}</div>
+              <div className="rounded-[1.2rem] border border-cyan-500/20 bg-cyan-500/10 p-4 text-sm text-cyan-100">
+                AI animation plan: {animationPlan.slice(0, 3).map((item) => `${item.cameraMode}:${item.pointerMode}`).join(' • ')}
+              </div>
                   <div className="h-[420px] overflow-hidden rounded-[2rem] border border-white/10 bg-slate-950/70 shadow-2xl shadow-slate-950/40">
                     <Suspense fallback={<div className="grid h-full place-items-center text-sm text-slate-400">Loading 3D viewer...</div>}>
                       <SceneViewer
@@ -564,6 +592,7 @@ export default function Learning3D() {
                         highlightMode={highlightMode}
                         environmentPreset={environmentPreset}
                         sceneEffects={sceneEffects}
+                        transparency={transparency}
                         activeTimelineStep={currentStep}
                         showDynamicLabels={showLabels}
                         lodLevel={lodLevel}

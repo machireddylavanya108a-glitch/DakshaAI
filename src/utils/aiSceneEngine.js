@@ -1,3 +1,5 @@
+import { createAssetManager } from './assetManager.js';
+
 const DOMAIN_KEYWORDS = {
   'Human Anatomy': ['heart', 'anatomy', 'organ', 'bone', 'muscle', 'surgery', 'medical', 'cell', 'brain', 'kidney', 'lung'],
   Biology: ['biology', 'cell', 'dna', 'gene', 'organism', 'ecosystem', 'virus', 'microbe'],
@@ -158,22 +160,28 @@ function chooseEntities(content = '', domain = 'General') {
   return baseEntities;
 }
 
-function buildAssetPlan(domain = 'General', entities = []) {
-  const assets = ASSET_LIBRARY[domain] || ASSET_LIBRARY['Computer Science'] || [];
+function buildAssetPlan(content = '', domain = 'General', entities = []) {
+  const manager = createAssetManager();
+  const assets = manager.buildAssetPlan(content, domain);
   const selected = assets.slice(0, Math.min(3, Math.max(1, entities.length)));
+
   return selected.map((asset, index) => ({
-    assetId: asset.assetId,
-    label: asset.label,
+    assetId: asset.assetId || asset.id,
+    label: asset.label || asset.name,
     category: asset.category,
-    icon: asset.icon,
-    focus: entities[index]?.name || 'core concept'
+    icon: asset.icon || asset.category,
+    focus: entities[index]?.name || 'core concept',
+    lod: asset.lod,
+    compression: asset.compression,
+    lazyLoading: asset.lazyLoading,
+    optimization: asset.optimization
   }));
 }
 
 export function buildSceneBlueprint(content = '', sourceType = 'typed-topic') {
   const domain = detectDomain(content);
   const entities = chooseEntities(content, domain);
-  const assetPlan = buildAssetPlan(domain, entities);
+  const assetPlan = buildAssetPlan(content, domain, entities);
 
   return {
     domain,
@@ -193,6 +201,7 @@ export function buildSceneFromBlueprint(blueprint) {
     label: entity.name,
     category: entity.category,
     asset: assetPlan[index]?.assetId || 'concept-node',
+    assetMeta: assetPlan[index] || null,
     color: ['#34d399', '#60a5fa', '#f59e0b', '#f472b6', '#a78bfa'][index % 5],
     position: [index * 1.2 - (entities.length - 1) * 0.6, 0, 0],
     size: [0.95, 0.95, 0.95],
@@ -216,6 +225,7 @@ export function buildSceneFromBlueprint(blueprint) {
     hotspots: objects.map((item) => ({ label: item.label, category: item.category, details: item.facts })),
     summary,
     assetPlan,
+    reusableAssets: assetPlan.map((item) => item.assetId).filter(Boolean),
     lessonFocus: blueprint?.concepts?.[0] || 'concept',
     domain: blueprint?.domain || 'General'
   };

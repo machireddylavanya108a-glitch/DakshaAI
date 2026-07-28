@@ -1,3 +1,5 @@
+import { createAssetManager } from '../../utils/assetManager.js';
+
 const CATEGORY_COLOR = {
   'Human Anatomy': '#f97316',
   Humans: '#fb7185',
@@ -50,8 +52,9 @@ const ASSET_LIBRARY = {
 };
 
 function chooseAsset(category = 'General Objects') {
-  const entries = ASSET_LIBRARY[category] || ASSET_LIBRARY['General Objects'];
-  return entries[0];
+  const manager = createAssetManager();
+  const asset = manager.getAssetsByCategory(category)[0] || manager.getAssetById('heart-anatomy');
+  return asset?.id || 'heart-anatomy';
 }
 
 function makePosition(index, total) {

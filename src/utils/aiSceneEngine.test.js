@@ -9,6 +9,9 @@ test('buildSceneBlueprint detects supported domains and assets', () => {
   assert.ok(blueprint.entities.length >= 3);
   assert.ok(blueprint.assetPlan.length >= 1);
   assert.ok(blueprint.assetPlan[0].assetId);
+  assert.ok(blueprint.assetPlan[0].lod);
+  assert.ok(blueprint.assetPlan[0].compression);
+  assert.equal(blueprint.assetPlan[0].lazyLoading.enabled, true);
 });
 
 test('buildSceneFromBlueprint returns a complete scene for programming lessons', () => {
