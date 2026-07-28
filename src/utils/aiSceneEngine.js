@@ -1,6 +1,7 @@
 import { createAssetManager } from './assetManager.js';
 import { buildAnimationPlan, buildAutoAnimationState } from './aiAnimationEngine.js';
 import { processSceneJsonPipeline } from '../scene-generator/SceneVersionManager.js';
+import { loadScene } from '../scene-builder/SceneRuntime.js';
 
 const STOP_WORDS = new Set([
   'a', 'an', 'the', 'and', 'or', 'to', 'of', 'for', 'on', 'in', 'with', 'from', 'by', 'at', 'as', 'into', 'about',
@@ -279,9 +280,12 @@ export function buildSceneFromBlueprint(blueprint) {
     fallbackTitle: blueprint?.sceneTitle || 'Safe Scene',
     fallbackSubject: blueprint?.domain || 'General Learning'
   });
+  const runtimeScene = loadScene(processedScene);
 
   return {
     ...processedScene,
+    runtimeSceneGraph: runtimeScene.graph.toJSON(),
+    runtimeDiagnostics: runtimeScene.diagnostics,
     title: blueprint?.sceneTitle || 'AI scene',
     category: blueprint?.domain || 'Custom',
     supports3D: true,
@@ -332,9 +336,12 @@ export function buildAuto3DSceneForLesson(content = '', sourceType = 'typed-topi
       fallbackTitle: 'Safe Scene',
       fallbackSubject: classification.domain || 'General Learning'
     });
+    const runtimeScene = loadScene(processedScene);
 
     return {
       ...processedScene,
+      runtimeSceneGraph: runtimeScene.graph.toJSON(),
+      runtimeDiagnostics: runtimeScene.diagnostics,
       shouldAutoGenerate: true,
       title: `${classification.subDomain} visualization`,
       domain: classification.domain,
@@ -437,9 +444,12 @@ export function buildAuto3DSceneForLesson(content = '', sourceType = 'typed-topi
     fallbackTitle: scene.title || 'Safe Scene',
     fallbackSubject: scene.domain || 'General Learning'
   });
+  const runtimeScene = loadScene(processedScene);
 
   return {
     ...processedScene,
+    runtimeSceneGraph: runtimeScene.graph.toJSON(),
+    runtimeDiagnostics: runtimeScene.diagnostics,
     shouldAutoGenerate: true,
     title: scene.title,
     domain: scene.domain,
