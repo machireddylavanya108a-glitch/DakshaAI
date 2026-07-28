@@ -434,6 +434,30 @@ test('renderer payload is materialized from Runtime Scene Graph', async () => {
   assert.equal(result.rendererPayload.objects.length, objectNodeCount);
 });
 
+test('legacy objects are transformed into educational objects and instances', async () => {
+  const provider = createMockProvider(async () => ({ text: JSON.stringify(buildSceneCandidate()) }));
+  const result = await generateUniversalScene(testInput(), { provider, useCache: false });
+
+  assert.ok(Array.isArray(result.scene.educationalObjects));
+  assert.ok(Array.isArray(result.scene.educationalObjectInstances));
+  assert.equal(result.scene.educationalObjects.length >= 1, true);
+  assert.equal(result.scene.educationalObjectInstances.length >= 1, true);
+  assert.ok(result.scene.objectDiagnostics?.summary);
+});
+
+test('renderer payload remains graph-derived with educational object instances', async () => {
+  const provider = createMockProvider(async () => ({ text: JSON.stringify(buildSceneCandidate()) }));
+  const result = await generateUniversalScene(testInput(), { provider, useCache: false });
+
+  const instanceNodes = result.runtimeGraph.nodes.filter((node) => node?.metadata?.sourceKey === 'educationalObjectInstances');
+  if (instanceNodes.length > 0) {
+    assert.equal(result.rendererPayload.objects.length, instanceNodes.length);
+  } else {
+    const objectNodes = result.runtimeGraph.nodes.filter((node) => node?.metadata?.sourceKey === 'objects');
+    assert.equal(result.rendererPayload.objects.length, objectNodes.length);
+  }
+});
+
 test('new arbitrary topic works without code changes', async () => {
   const provider = createMockProvider(async () => ({ text: JSON.stringify(buildSceneCandidate({ subject: 'Quantum-historic civic bioinformatics' })) }));
   const result = await generateUniversalScene({

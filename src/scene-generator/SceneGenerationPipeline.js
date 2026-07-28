@@ -189,24 +189,41 @@ function normalizeInputFallbackContent(normalizedInput) {
 function materializeRendererPayload(runtimeScene, scene, performanceLimits) {
   const nodes = runtimeScene?.graph?.toJSON?.()?.nodes || [];
   const objectNodes = nodes.filter((node) => String(node?.metadata?.sourceKey || '').toLowerCase() === 'objects');
+  const educationalObjectInstanceNodes = nodes.filter((node) => String(node?.metadata?.sourceKey || '').toLowerCase() === 'educationalobjectinstances');
   const labelNodes = nodes.filter((node) => String(node?.metadata?.sourceKey || '').toLowerCase() === 'labels');
   const interactionNodes = nodes.filter((node) => String(node?.metadata?.sourceKey || '').toLowerCase() === 'interactions');
   const timelineNodes = nodes.filter((node) => String(node?.metadata?.sourceKey || '').toLowerCase() === 'timeline');
+  const preferredObjectNodes = educationalObjectInstanceNodes.length ? educationalObjectInstanceNodes : objectNodes;
 
   const maxObjects = Math.max(1, Number(performanceLimits?.maxObjects || 50));
-  const clippedObjectNodes = objectNodes.slice(0, maxObjects);
+  const clippedObjectNodes = preferredObjectNodes.slice(0, maxObjects);
 
   const objects = clippedObjectNodes.map((node, index) => {
     const raw = node?.properties || {};
+    const representation = raw?.resolvedRepresentation || raw?.representation || {};
+    const spatial = raw?.resolvedState?.spatial || raw?.spatialProperties || {};
+    const accessibility = raw?.resolvedAccessibility || raw?.accessibility || {};
+    const performance = raw?.resolvedPerformance || raw?.performance || {};
     const info = raw?.properties || {};
     return {
       id: node.id,
-      label: raw.name || `Object ${index + 1}`,
-      category: raw.type || raw?.metadata?.category || 'dynamic',
-      position: Array.isArray(raw.position) ? raw.position : [index, 0, 0],
-      size: Array.isArray(raw.scale) ? raw.scale : [1, 1, 1],
+      label: raw.name || raw.objectId || `Object ${index + 1}`,
+      category: raw.type || raw.kind || raw?.runtimeMetadata?.kind || raw?.metadata?.category || 'dynamic',
+      position: Array.isArray(raw.position)
+        ? raw.position
+        : Array.isArray(spatial.relativePosition)
+          ? spatial.relativePosition
+          : [index, 0, 0],
+      size: Array.isArray(raw.scale)
+        ? raw.scale
+        : Array.isArray(spatial.relativeScale)
+          ? spatial.relativeScale
+          : [1, 1, 1],
       color: info.color || '#34d399',
-      facts: Array.isArray(info.facts) ? info.facts.slice(0, 3) : []
+      facts: Array.isArray(info.facts) ? info.facts.slice(0, 3) : [],
+      representationMode: String(representation.mode || 'adaptive'),
+      accessibilityLabel: String(accessibility.screenReaderLabel || raw.name || ''),
+      complexity: Number(performance.complexityScore || 0)
     };
   });
 

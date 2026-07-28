@@ -135,6 +135,19 @@ function normalizeObject(raw, index = 0) {
   };
 }
 
+function normalizeEducationalObjectDescriptor(raw, index = 0) {
+  const source = isObject(raw) ? raw : {};
+  const objectId = pick(source, ['objectId', 'object_id', 'id'], `educational-object-${index + 1}`);
+  return {
+    ...source,
+    objectId,
+    id: objectId,
+    kind: pick(source, ['kind', 'objectType', 'object_type', 'type', 'category'], source.kind || 'generic-educational-object'),
+    semanticRole: pick(source, ['semanticRole', 'semantic_role'], source.semanticRole || 'adaptive-role'),
+    learningPurpose: pick(source, ['learningPurpose', 'learning_purpose'], source.learningPurpose || 'inspect')
+  };
+}
+
 function normalizeTimelineStep(raw, index = 0) {
   const source = isObject(raw) ? raw : {};
   return {
@@ -170,6 +183,9 @@ export function normalizeScene(rawScene, options = {}) {
     ...(isObject(source.sceneCamera) ? source.sceneCamera : {}),
     ...(isObject(source.camera) ? source.camera : {})
   };
+  const educationalObjectsAlias = pick(source, ['educationalObjects', 'educational_objects', 'sceneObjects', 'objectDescriptors'], []);
+  const educationalObjectInstancesAlias = pick(source, ['educationalObjectInstances', 'educational_object_instances', 'objectInstances'], []);
+  const objectDiagnosticsAlias = pick(source, ['objectDiagnostics', 'educationalObjectDiagnostics'], null);
 
   const normalized = {
     ...source,
@@ -182,6 +198,9 @@ export function normalizeScene(rawScene, options = {}) {
     camera: normalizeCamera(mergedCamera),
     timeline: toArray(pick(source, ['timeline', 'steps'], []), []).map((step, index) => normalizeTimelineStep(step, index)),
     objects: toArray(pick(source, ['objects', 'models', 'entities'], []), []).map((objectValue, index) => normalizeObject(objectValue, index)),
+    educationalObjects: toArray(educationalObjectsAlias, []).map((item, index) => normalizeEducationalObjectDescriptor(item, index)),
+    educationalObjectInstances: toArray(educationalObjectInstancesAlias, []),
+    objectDiagnostics: isObject(objectDiagnosticsAlias) ? objectDiagnosticsAlias : { summary: {}, items: [] },
     animations: toArray(pick(source, ['animations'], []), []),
     labels: toArray(pick(source, ['labels'], []), []),
     interactions: toArray(pick(source, ['interactions', 'hotspots'], []), []),

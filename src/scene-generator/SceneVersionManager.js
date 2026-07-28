@@ -7,6 +7,7 @@ import { runSceneIntegrityChecks } from './SceneIntegrity.js';
 import { createSceneDiagnosticsSnapshot } from './SceneDiagnostics.js';
 import { ensureSceneVisualizationCapabilityMetadata } from '../visualization-capabilities/VisualizationCapability.js';
 import { ensureSceneVisualizationTemplateMetadata } from '../visualization-templates/VisualizationTemplate.js';
+import { ensureSceneEducationalObjectMetadata } from '../educational-objects/index.js';
 
 function safeArray(value) {
   return Array.isArray(value) ? value : [];
@@ -74,6 +75,9 @@ export function processSceneJsonPipeline(rawScene, options = {}) {
       visualizationTemplateRegistry: options.visualizationTemplateRegistry,
       minimumTemplateScore: options.minimumTemplateScore,
       maxTemplateResults: options.maxTemplateResults
+    });
+    finalScene = ensureSceneEducationalObjectMetadata(finalScene, {
+      forceFallbackOnInvalid: true
     });
 
     finalScene.diagnostics = {

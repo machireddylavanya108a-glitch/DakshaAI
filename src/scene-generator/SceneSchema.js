@@ -240,6 +240,18 @@ export function createSafeScene(overrides = {}) {
       }
     ],
     animations: [],
+    educationalObjects: [],
+    educationalObjectInstances: [],
+    objectDiagnostics: {
+      summary: {
+        objectCount: 0,
+        instanceCount: 0,
+        warningCount: 0,
+        errorCount: 0,
+        fallbackCount: 0
+      },
+      items: []
+    },
     labels: [],
     interactions: [],
     narration: createDefaultNarration(),
@@ -272,6 +284,14 @@ export function createSafeScene(overrides = {}) {
     narration: {
       ...base.narration,
       ...(overrides.narration || {})
+    },
+    educationalObjects: Array.isArray(overrides.educationalObjects) ? overrides.educationalObjects : base.educationalObjects,
+    educationalObjectInstances: Array.isArray(overrides.educationalObjectInstances)
+      ? overrides.educationalObjectInstances
+      : base.educationalObjectInstances,
+    objectDiagnostics: {
+      ...base.objectDiagnostics,
+      ...(overrides.objectDiagnostics || {})
     },
     audio: {
       ...base.audio,

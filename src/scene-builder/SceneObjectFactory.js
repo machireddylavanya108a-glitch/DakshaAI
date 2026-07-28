@@ -58,14 +58,16 @@ export function createNodeSpecsFromScene(sceneJson = {}) {
       const kind = singularize(key);
       value.forEach((item, index) => {
         const data = isObject(item) ? item : { value: item };
-        const id = String(data.id || `${kind}-${index + 1}`);
+        const id = String(data.id || data.objectId || data.instanceId || `${kind}-${index + 1}`);
         specs.push(createNodeSpec({
           id,
           kind,
           parent: sceneId,
           metadata: {
             sourceKey: key,
-            index
+            index,
+            objectId: data.objectId || null,
+            instanceId: data.instanceId || null
           },
           properties: { ...data },
           runtimeData: {

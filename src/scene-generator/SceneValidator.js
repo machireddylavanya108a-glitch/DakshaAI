@@ -110,6 +110,74 @@ export function validateObjects(objects) {
   return makeResult(errors, warnings, true);
 }
 
+export function validateEducationalObjects(educationalObjects) {
+  const errors = [];
+  const warnings = [];
+
+  if (!Array.isArray(educationalObjects)) {
+    errors.push('Educational objects must be an array.');
+    return makeResult(errors, warnings, true);
+  }
+
+  const seenObjectIds = new Set();
+  educationalObjects.forEach((objectValue, index) => {
+    if (!isObject(objectValue)) {
+      errors.push(`Educational object at index ${index} is invalid.`);
+      return;
+    }
+
+    const objectId = String(objectValue.objectId || objectValue.id || '').trim();
+    if (!objectId) {
+      errors.push(`Educational object ${index} is missing required field objectId.`);
+      return;
+    }
+
+    if (seenObjectIds.has(objectId)) {
+      warnings.push(`Educational object duplicate id detected: ${objectId}`);
+    }
+    seenObjectIds.add(objectId);
+  });
+
+  return makeResult(errors, warnings, true);
+}
+
+export function validateEducationalObjectInstances(instances) {
+  const errors = [];
+  const warnings = [];
+
+  if (!Array.isArray(instances)) {
+    errors.push('Educational object instances must be an array.');
+    return makeResult(errors, warnings, true);
+  }
+
+  instances.forEach((instance, index) => {
+    if (!isObject(instance)) {
+      errors.push(`Educational object instance at index ${index} is invalid.`);
+      return;
+    }
+
+    if (!instance.instanceId) warnings.push(`Educational object instance ${index} is missing instanceId.`);
+    if (!instance.objectId) warnings.push(`Educational object instance ${index} is missing objectId.`);
+  });
+
+  return makeResult(errors, warnings, true);
+}
+
+export function validateObjectDiagnostics(objectDiagnostics) {
+  const errors = [];
+  const warnings = [];
+
+  if (!isObject(objectDiagnostics)) {
+    errors.push('Object diagnostics must be an object.');
+    return makeResult(errors, warnings, true);
+  }
+
+  if (!isObject(objectDiagnostics.summary)) warnings.push('Object diagnostics summary should be an object.');
+  if (!Array.isArray(objectDiagnostics.items)) warnings.push('Object diagnostics items should be an array.');
+
+  return makeResult(errors, warnings, true);
+}
+
 export function validateTimeline(timeline) {
   const errors = [];
   const warnings = [];
@@ -240,7 +308,7 @@ export function validateScene(scene) {
 
   const requiredTopLevel = [
     'sceneId', 'version', 'title', 'subject', 'classification', 'environment', 'camera', 'timeline',
-    'objects', 'animations', 'labels', 'interactions', 'narration', 'audio', 'lighting', 'physics',
+    'objects', 'animations', 'educationalObjects', 'educationalObjectInstances', 'objectDiagnostics', 'labels', 'interactions', 'narration', 'audio', 'lighting', 'physics',
     'metadata', 'statistics', 'settings', 'checkpoints', 'validation', 'diagnostics'
   ];
 
@@ -254,6 +322,9 @@ export function validateScene(scene) {
     validateCamera(scene.camera),
     validateEnvironment(scene.environment),
     validateObjects(scene.objects),
+    validateEducationalObjects(scene.educationalObjects),
+    validateEducationalObjectInstances(scene.educationalObjectInstances),
+    validateObjectDiagnostics(scene.objectDiagnostics),
     validateTimeline(scene.timeline),
     validateAnimations(scene.animations),
     validateInteractions(scene.interactions),

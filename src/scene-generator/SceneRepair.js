@@ -91,6 +91,14 @@ export function repairScene(sceneInput, validationInput = null) {
     },
     timeline: ensureArray(source.timeline),
     objects: ensureArray(source.objects),
+    educationalObjects: ensureArray(source.educationalObjects),
+    educationalObjectInstances: ensureArray(source.educationalObjectInstances),
+    objectDiagnostics: isObject(source.objectDiagnostics)
+      ? {
+          summary: isObject(source.objectDiagnostics.summary) ? source.objectDiagnostics.summary : {},
+          items: ensureArray(source.objectDiagnostics.items)
+        }
+      : { summary: {}, items: [] },
     animations: ensureArray(source.animations),
     labels: ensureArray(source.labels),
     interactions: ensureArray(source.interactions),
@@ -137,6 +145,8 @@ export function repairScene(sceneInput, validationInput = null) {
   if (!source.environment) repairMessages.push('Inserted default environment.');
   if (!source.timeline) repairMessages.push('Inserted empty timeline.');
   if (!source.objects) repairMessages.push('Inserted empty objects list.');
+  if (!source.educationalObjects) repairMessages.push('Inserted empty educationalObjects list.');
+  if (!source.educationalObjectInstances) repairMessages.push('Inserted empty educationalObjectInstances list.');
   if (!source.labels) repairMessages.push('Inserted empty labels list.');
   if (!source.narration) repairMessages.push('Inserted empty narration.');
 

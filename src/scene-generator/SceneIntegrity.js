@@ -43,12 +43,16 @@ export function runSceneIntegrityChecks(scene) {
   const timeline = Array.isArray(working.timeline) ? working.timeline : [];
   const checkpoints = Array.isArray(working.checkpoints) ? working.checkpoints : [];
   const interactions = Array.isArray(working.interactions) ? working.interactions : [];
+  const educationalObjects = Array.isArray(working.educationalObjects) ? working.educationalObjects : [];
+  const educationalObjectInstances = Array.isArray(working.educationalObjectInstances) ? working.educationalObjectInstances : [];
 
   const objectIds = new Set();
   const labelIds = new Set();
   const animationIds = new Set();
   const timelineIds = new Set();
   const interactionIds = new Set();
+  const educationalObjectIds = new Set();
+  const educationalObjectInstanceIds = new Set();
 
   objects.forEach((item, index) => {
     const id = item?.id;
@@ -125,6 +129,40 @@ export function runSceneIntegrityChecks(scene) {
     if (!isNonEmptyString(id)) return;
     if (interactionIds.has(id)) errors.push(`Duplicate interaction id detected: ${id}.`);
     interactionIds.add(id);
+  });
+
+  educationalObjects.forEach((item, index) => {
+    const objectId = String(item?.objectId || item?.id || '').trim();
+    if (!objectId) {
+      errors.push(`Educational object at index ${index} is missing objectId.`);
+      return;
+    }
+
+    if (educationalObjectIds.has(objectId)) {
+      errors.push(`Duplicate educational object id detected: ${objectId}.`);
+    }
+    educationalObjectIds.add(objectId);
+  });
+
+  educationalObjectInstances.forEach((item, index) => {
+    const instanceId = String(item?.instanceId || item?.id || '').trim();
+    const objectId = String(item?.objectId || '').trim();
+
+    if (!instanceId) {
+      warnings.push(`Educational object instance at index ${index} is missing instanceId.`);
+      return;
+    }
+
+    if (educationalObjectInstanceIds.has(instanceId)) {
+      errors.push(`Duplicate educational object instance id detected: ${instanceId}.`);
+    }
+    educationalObjectInstanceIds.add(instanceId);
+
+    if (!objectId) {
+      warnings.push(`Educational object instance ${instanceId} is missing objectId.`);
+    } else if (!educationalObjectIds.has(objectId)) {
+      errors.push(`Educational object instance ${instanceId} references missing objectId ${objectId}.`);
+    }
   });
 
   checkpoints.forEach((checkpoint, index) => {
