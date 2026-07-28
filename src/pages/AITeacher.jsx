@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { BookOpen, BrainCircuit, Sparkles } from 'lucide-react';
+import { buildAuto3DSceneForLesson } from '../utils/aiSceneEngine';
+import { buildTeacherSynchronizationPlan } from '../utils/teacherSynchronizationEngine';
 import ConversationHistory from '../components/aiTeacher/ConversationHistory';
 import LessonController from '../components/aiTeacher/LessonController';
 import LessonNavigator from '../components/aiTeacher/LessonNavigator';
@@ -20,6 +22,7 @@ import {
   saveLessonSession,
   saveVoicePreference
 } from '../services/firestoreService';
+import { persistLearningSession } from '../services/learningSessionOrchestrator';
 
 const LOCAL_KEY = 'daksha:ai-teacher:session';
 const OFFLINE_HISTORY_KEY = 'daksha:ai-teacher:offline-history';
@@ -225,6 +228,8 @@ export default function AITeacher() {
   const [sessionId, setSessionId] = useState(() => `lesson_${Date.now()}`);
   const [replayNonce, setReplayNonce] = useState(0);
   const [whiteboardActions, setWhiteboardActions] = useState([]);
+  const [autoScene, setAutoScene] = useState(null);
+  const [syncPlan, setSyncPlan] = useState(null);
 
   const streamRef = useRef(null);
   const autoAdvanceRef = useRef(null);
@@ -341,6 +346,15 @@ export default function AITeacher() {
   useEffect(() => {
     if (!currentStep) return;
     const text = withMixedLanguage(currentStep.content, teachingMode);
+    const containsVisualContent = /diagram|image|visual|model|anatomy|heart|cross section|x-ray|explode|chart|map|scene/i.test(text);
+    if (containsVisualContent) {
+      const scene = buildAuto3DSceneForLesson(text, 'ai-teacher');
+      setAutoScene(scene);
+      setSyncPlan(buildTeacherSynchronizationPlan({ explanation: text, topic, scene }));
+    } else {
+      setAutoScene(null);
+      setSyncPlan(null);
+    }
 
     if (!window.speechSynthesis || !isPlaying || interrupting) return;
 
@@ -435,6 +449,23 @@ export default function AITeacher() {
         saveConversationHistory(user.uid, sessionId, messages),
         saveVoicePreference(user.uid, voicePreferences)
       ]);
+      await persistLearningSession({
+        user,
+        sourceLabel: topic || 'ai-teacher',
+        sourceContext: 'teacher',
+        sessionData: {
+          title: topic || 'AI Teacher Session',
+          topic: topic || 'AI Teacher Session',
+          summary: `Teacher session at ${progressPercent}% completion.`,
+          difficulty: 'Medium',
+          learningSession: { aiTeacher: { script: topic, style: 'adaptive' } },
+          lessonSuite: { aiTeacher: { script: topic, style: 'adaptive' } },
+          progress: { progressPercent, recommendedNext: 'Continue lesson', status: 'teacher_progress' },
+          teacher: { progressPercent, topic }
+        },
+        assessmentContext: { questionCount: 4 },
+        planContext: { topic: topic || 'AI Teacher Session', focus: 'teaching', strengths: ['conceptual reasoning'], weaknesses: ['explanation'], learningStyle: teachingMode.mode || 'guided', goal: 'mastery' }
+      });
     }, 800);
 
     return () => clearTimeout(timer);
@@ -742,6 +773,52 @@ export default function AITeacher() {
             <TeachingMode value={teachingMode} onChange={setTeachingMode} />
             <VoiceController value={voicePreferences} onChange={setVoicePreferences} onVoiceCommand={handleVoiceCommand} />
             <LessonTimeline chapters={chapters} currentChapterIndex={currentChapterIndex} estimatedMinutesLeft={estimatedMinutesLeft} />
+            {syncPlan && (
+              <section className="rounded-[1.75rem] border border-cyan-500/20 bg-cyan-500/10 p-5 shadow-xl shadow-slate-950/20" aria-label="Teacher synchronization engine">
+                <div className="flex items-center gap-2 text-cyan-300">
+                  <Sparkles className="h-4 w-4" />
+                  <p className="text-xs uppercase tracking-[0.3em]">Teacher Sync</p>
+                </div>
+                <p className="mt-3 text-sm font-semibold text-white">{syncPlan.currentAction.action}</p>
+                <p className="mt-2 text-sm text-slate-300">Target: {syncPlan.target}</p>
+                <div className="mt-3 space-y-2 text-sm text-slate-200">
+                  {syncPlan.steps.map((step) => (
+                    <div key={step.id} className="rounded-xl border border-cyan-500/20 bg-slate-950/70 p-2">
+                      <span className="font-semibold uppercase tracking-[0.2em] text-cyan-300">{step.type}</span>
+                      <span className="ml-2">{step.action}</span>
+                    </div>
+                  ))}
+                </div>
+              </section>
+            )}
+            {autoScene && (
+              <section className="rounded-[1.75rem] border border-cyan-500/20 bg-cyan-500/10 p-5 shadow-xl shadow-slate-950/20" aria-label="Auto 3D scene">
+                <div className="flex items-center gap-2 text-cyan-300">
+                  <Sparkles className="h-4 w-4" />
+                  <p className="text-xs uppercase tracking-[0.3em]">Auto 3D Scene</p>
+                </div>
+                <p className="mt-3 text-sm font-semibold text-white">{autoScene.title}</p>
+                <p className="mt-2 text-sm text-slate-300">{autoScene.summary}</p>
+                <div className="mt-4 grid gap-2 text-sm text-slate-200 sm:grid-cols-2">
+                  <div className="rounded-xl border border-cyan-500/20 bg-slate-950/70 p-3">
+                    <p className="text-xs uppercase tracking-[0.3em] text-slate-400">Models</p>
+                    <p className="mt-1">{autoScene.models.length}</p>
+                  </div>
+                  <div className="rounded-xl border border-cyan-500/20 bg-slate-950/70 p-3">
+                    <p className="text-xs uppercase tracking-[0.3em] text-slate-400">Animations</p>
+                    <p className="mt-1">{autoScene.animations.length}</p>
+                  </div>
+                  <div className="rounded-xl border border-cyan-500/20 bg-slate-950/70 p-3">
+                    <p className="text-xs uppercase tracking-[0.3em] text-slate-400">Hotspots</p>
+                    <p className="mt-1">{autoScene.hotspots.length}</p>
+                  </div>
+                  <div className="rounded-xl border border-cyan-500/20 bg-slate-950/70 p-3">
+                    <p className="text-xs uppercase tracking-[0.3em] text-slate-400">Timeline</p>
+                    <p className="mt-1">{autoScene.timeline.length}</p>
+                  </div>
+                </div>
+              </section>
+            )}
             <LessonProgress
               progressPercent={progressPercent}
               currentChapter={currentChapterTitle}

@@ -5,14 +5,16 @@ import { useAuth } from '../context/AuthContext';
 import { generateQuizEngine } from '../services/aiService';
 import { saveQuizRecord, getUserQuizRecords, deleteQuizRecord } from '../services/firestoreService';
 import { calculateQuizResult, parseQuizPayload } from '../utils/quizUtils';
+import { buildAdaptiveAssessment } from '../utils/adaptiveAssessmentEngine';
+import { persistLearningSession } from '../services/learningSessionOrchestrator';
 import LoadingQuiz from '../components/quiz/LoadingQuiz';
 import QuizHeader from '../components/quiz/QuizHeader';
 import QuizProgress from '../components/quiz/QuizProgress';
 import QuestionCard from '../components/quiz/QuestionCard';
 import QuizResult from '../components/quiz/QuizResult';
 
-const DIFFICULTIES = ['Easy', 'Medium', 'Hard', 'Mixed Difficulty'];
-const QUESTION_COUNTS = [5, 10, 15, 20];
+const DIFFICULTIES = ['Easy', 'Medium', 'Hard', 'Expert'];
+const QUESTION_COUNTS = [5, 8, 10, 12];
 
 export default function Quiz() {
   const { user } = useAuth();
@@ -62,13 +64,38 @@ export default function Quiz() {
     setAnswers([]);
     setCurrentIndex(0);
     try {
+      const adaptivePayload = buildAdaptiveAssessment({
+        topic: topic.trim(),
+        difficulty,
+        questionCount,
+        learnerProfile: {
+          focus: 'general',
+          strengths: ['foundational concepts'],
+          weaknesses: ['core understanding'],
+          learningStyle: 'guided',
+          goal: 'skill growth'
+        }
+      });
+
       const payload = await generateQuizEngine(topic.trim(), difficulty, questionCount);
       const parsed = parseQuizPayload(payload);
-      setQuiz(parsed);
-      setAnswers(Array(parsed.questions.length).fill(''));
+      const merged = {
+        title: adaptivePayload.title,
+        difficulty,
+        questions: adaptivePayload.questions.map((question, index) => ({
+          ...question,
+          question: question.question || parsed.questions?.[index]?.question || `Question ${index + 1}`,
+          options: question.options?.length ? question.options : parsed.questions?.[index]?.options || [],
+          answer: question.answer || parsed.questions?.[index]?.answer || '',
+          explanation: question.explanation || parsed.questions?.[index]?.explanation || 'No explanation provided.',
+          type: question.type || parsed.questions?.[index]?.type || 'MCQ'
+        }))
+      };
+      setQuiz(merged);
+      setAnswers(Array(merged.questions.length).fill(''));
     } catch (err) {
       console.error(err);
-      setError('The quiz engine could not generate a quiz right now. Please try again.');
+      setError('The adaptive assessment engine could not generate questions right now. Please try again.');
       setQuiz(null);
     } finally {
       setLoading(false);
@@ -86,6 +113,23 @@ export default function Quiz() {
     const result = calculateQuizResult(answers, quiz.questions);
     setSubmitted(true);
     await saveQuizRecord(user.uid, topic, difficulty, quiz, result, timeTaken);
+    await persistLearningSession({
+      user,
+      sourceLabel: topic || 'quiz-session',
+      sourceContext: 'quiz',
+      sessionData: {
+        title: quiz.title || topic || 'Quiz Session',
+        topic: topic || quiz.title || 'Quiz Session',
+        summary: `${result.correctAnswers}/${result.total} answered correctly.`,
+        difficulty,
+        learningSession: { quiz: quiz.questions },
+        lessonSuite: { quiz: quiz.questions },
+        progress: { progressPercent: result.percentage, recommendedNext: 'Review weak areas', status: 'quiz_completed' },
+        assessment: { questionCount: quiz.questions.length, score: result.score, percentage: result.percentage }
+      },
+      assessmentContext: { questionCount: quiz.questions.length },
+      planContext: { topic: topic || quiz.title || 'Quiz Session', focus: 'assessment', strengths: ['reasoning'], weaknesses: ['gaps'], learningStyle: 'guided', goal: 'mastery' }
+    });
     const refreshed = await getUserQuizRecords(user.uid);
     setHistory(refreshed);
   };
@@ -115,7 +159,7 @@ export default function Quiz() {
           <div>
             <p className="text-sm uppercase tracking-[0.35em] text-cyan-300">Professional AI Quiz Generator</p>
             <h2 className="mt-2 text-3xl font-semibold text-white">Create expert quizzes for any topic</h2>
-            <p className="mt-2 max-w-2xl text-sm text-slate-400">Generate multiple-choice, true/false, fill-in-the-blank, match, and short-answer questions with explanations and results.</p>
+            <p className="mt-2 max-w-2xl text-sm text-slate-400">Generate adaptive assessments with MCQ, true/false, fill blanks, voice, 3D, drag/drop, coding, math, simulations, and case-based questions tailored to the learner.</p>
           </div>
           <div className="rounded-2xl border border-indigo-400/20 bg-indigo-500/10 px-4 py-3 text-sm text-indigo-200">
             <div className="flex items-center gap-2"><BrainCircuit className="h-4 w-4" /> AI-powered learning</div>

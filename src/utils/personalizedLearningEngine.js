@@ -14,7 +14,7 @@ const DEFAULT_LESSON_TEMPLATE = [
   'Real-world Applications',
   'Why this topic matters',
   'Interactive explanation',
-  'Visual explanation placeholder',
+  'Visual explanation driven by the uploaded material',
   'Practice',
   'Quiz',
   'Assignment',
@@ -72,39 +72,50 @@ function inferLearningMode(profile) {
   return 'Standard';
 }
 
-function getPrerequisiteChain(skill = '') {
+function getPrerequisiteChain(skill = '', profile = {}, sourceSummary = '') {
   const normalized = String(skill || '').toLowerCase();
+  const sourceContext = String(sourceSummary || '').toLowerCase();
   const map = [
     {
       match: ['machine learning', 'ml', 'deep learning'],
-      chain: ['Python Fundamentals', 'Statistics', 'Linear Algebra', 'Data Analysis', 'Machine Learning Core']
+      chain: ['Python workflow setup', 'Statistics for model evaluation', 'Feature engineering and validation', 'Model interpretation', 'Deployment and monitoring']
     },
     {
       match: ['python', 'django', 'flask'],
-      chain: ['Computer Basics', 'Programming Logic', 'Python Syntax', 'Data Structures', 'Real Projects']
+      chain: ['Code structure and modules', 'Data handling and APIs', 'Application architecture', 'Testing and deployment', 'Performance tuning']
     },
     {
       match: ['video editing', 'editing', 'premiere', 'davinci'],
-      chain: ['Storytelling Basics', 'Editing Interface', 'Cutting & Transitions', 'Color & Audio', 'Portfolio Projects']
+      chain: ['Narrative pacing', 'Cutting and transitions', 'Audio and color refinement', 'Delivery formats', 'Portfolio packaging']
     },
     {
       match: ['trading', 'stocks', 'forex', 'crypto'],
-      chain: ['Market Basics', 'Risk Management', 'Technical Analysis', 'Trading Psychology', 'Strategy Building']
+      chain: ['Market structure', 'Risk management', 'Strategy journaling', 'Execution discipline', 'Portfolio review']
     },
     {
       match: ['medical', 'biology', 'anatomy'],
-      chain: ['Biology Foundations', 'Human Systems', 'Clinical Concepts', 'Case Interpretation', 'Applied Practice']
+      chain: ['Anatomy landmarks', 'System relationships', 'Clinical reasoning', 'Case interpretation', 'Patient communication']
     },
     {
       match: ['react', 'frontend', 'web development'],
-      chain: ['HTML/CSS', 'JavaScript Basics', 'React Fundamentals', 'State Management', 'Production Deployment']
+      chain: ['Component architecture', 'State and async flows', 'Performance and rendering', 'Testing and reliability', 'Launch-readiness review']
     }
   ];
 
   const match = map.find((item) => item.match.some((token) => normalized.includes(token)));
   if (match) return match.chain;
 
-  return ['Foundations', 'Core Concepts', 'Guided Practice', 'Applied Projects', sanitizeText(skill, 'Mastery')];
+  if (sourceContext.includes('render') || sourceContext.includes('performance')) {
+    return ['Working memory of the topic', 'Execution strategy', 'Optimization checkpoints', 'Evidence collection', 'Launch review'];
+  }
+
+  return [
+    `${sanitizeText(profile?.currentLevel || 'Current level', 'Current level')} review`,
+    `${sanitizeText(skill, 'Skill')} practice loop`,
+    `${sanitizeText(profile?.learningStyle || 'Learning style', 'Learning style')} drill`,
+    `${sanitizeText(profile?.endGoal || 'Career goal', 'Career goal')} application`,
+    `${sanitizeText(profile?.preferredLanguage || 'Language', 'Language')} recap`
+  ];
 }
 
 function createDifficultyTasks(topic, stage) {
@@ -138,16 +149,19 @@ function createLesson(topic, stage, index, prereqChain) {
   };
 }
 
-function createDailySchedule(profile, prereqChain) {
+function createDailySchedule(profile, prereqChain, skill, sourceLabel) {
   const dailyMinutes = estimateDailyMinutes(profile?.dailyStudyTime);
+  const styleLabel = sanitizeText(profile?.learningStyle, 'Hands-on');
+  const languageLabel = sanitizeText(profile?.preferredLanguage, 'English');
+  const locationLabel = sanitizeText(profile?.location, 'Your region');
   return prereqChain.slice(0, 7).map((topic, index) => ({
     day: `Day ${index + 1}`,
     topic,
     durationMinutes: dailyMinutes,
     tasks: [
-      `Read and understand ${topic}`,
-      `Practice one exercise on ${topic}`,
-      `Write a short recap for ${topic}`
+      `Review ${topic} using ${styleLabel.toLowerCase()} methods and ${languageLabel.toLowerCase()} notes`,
+      `Practice one task derived from ${sanitizeText(sourceLabel, skill)}`,
+      `Capture one insight for ${locationLabel} job or internship relevance`
     ]
   }));
 }
@@ -160,7 +174,7 @@ function createMilestones(prereqChain, unit = 'weekly') {
     output.push({
       title: `${unit === 'weekly' ? 'Week' : 'Month'} ${output.length + 1}`,
       focus: slice,
-      deliverable: `Complete ${slice.join(' + ')} and publish learning proof.`
+      deliverable: `Complete ${slice.join(' + ')} and publish evidence you can reuse in interviews, portfolio reviews, or client discussions.`
     });
   }
   return output;
@@ -168,23 +182,25 @@ function createMilestones(prereqChain, unit = 'weekly') {
 
 function buildCareerLayer(skill, profile) {
   const role = sanitizeText(profile?.endGoal, 'career growth');
+  const careerGoal = sanitizeText(profile?.careerGoal, role);
+  const location = sanitizeText(profile?.location, 'your region');
   return {
-    certifications: [`Top certification path for ${skill}`, `Intermediate certificate for ${skill}`],
-    internshipPreparation: [`Resume aligned to ${skill}`, 'Mock projects for internship interviews', 'Internship outreach script'],
-    jobPreparation: ['Portfolio polish', 'Interview question bank', 'Mock interviews and feedback loop'],
-    freelancingRoadmap: ['Define service niche', 'Create offer stack', 'Pilot client workflow and testimonials'],
-    startupBusinessOpportunities: [`Startup concept using ${skill}`, 'Monetization model sketch', 'Go-to-market first sprint'],
+    certifications: [`Target one credential that strengthens ${skill} for ${careerGoal}`, `Map a second credential to a visible hiring signal`],
+    internshipPreparation: [`Resume aligned to ${skill} and ${careerGoal}`, 'Prepare a concise case study for internship interviews', 'Send tailored outreach messages with evidence from your work'],
+    jobPreparation: ['Polish a compact portfolio narrative', 'Practice interview answers with real examples', 'Create a review loop for weak points'],
+    freelancingRoadmap: ['Define a service niche around your strongest skills', 'Prepare one sample offer and one paid pilot', 'Collect testimonials and public proof'],
+    startupBusinessOpportunities: [`Prototype a niche offer that uses ${skill}`, 'Sketch a monetization path and first customer segment', 'Run a lightweight validation sprint'],
     careerPaths: [`${skill} Specialist`, `${skill} Analyst`, `${skill} Consultant`, `${skill} Builder`],
-    salaryInformation: `Estimated salary varies by location, market cycle, and experience level. Treat all estimates as informational only, not financial advice. Target role: ${role}.`
+    salaryInformation: `Pay ranges vary by ${location}, market demand, and experience. Treat salary estimates as informational only and not financial advice. Target role: ${role}.`
   };
 }
 
-function buildRecommendations(skill, profile, sourceContext) {
+function buildRecommendations(skill, profile, sourceContext, sourceLabel) {
   return [
-    `Prioritize ${skill} fundamentals for the first sprint.`,
-    `Align practice with your goal: ${sanitizeText(profile?.endGoal, 'Master Skill')}.`,
-    `Use ${sanitizeText(profile?.preferredLanguage, 'English')} for faster retention and reviews.`,
-    `Source-aware strategy enabled for ${sanitizeText(sourceContext, 'typed topic')} input.`
+    `Use the uploaded material from ${sanitizeText(sourceLabel, sourceContext)} as the anchor for every study session.`,
+    `Align each sprint with your goal: ${sanitizeText(profile?.endGoal, 'Master Skill')}.`,
+    `Use ${sanitizeText(profile?.preferredLanguage, 'English')} for notes, reviews, and recall drills.`,
+    `Choose ${sanitizeText(profile?.learningStyle, 'hands-on')} exercises so the plan stays practical and memorable.`
   ];
 }
 
@@ -213,7 +229,7 @@ export function buildPersonalizedLearningPlan({
 } = {}) {
   const skill = sanitizeText(interviewAnswers.learnTopic, sanitizeText(skillHint, 'General Learning'));
   const mode = inferLearningMode(interviewAnswers);
-  const prereqChain = getPrerequisiteChain(skill);
+  const prereqChain = getPrerequisiteChain(skill, interviewAnswers, sourceSummary);
   const levelFactor = estimateLevelFactor(interviewAnswers.currentLevel);
   const speedFactor = estimateSpeedFactor(interviewAnswers.learningSpeed, mode);
   const baseHours = Math.max(18, prereqChain.length * 16);
@@ -221,7 +237,7 @@ export function buildPersonalizedLearningPlan({
   const dailyMinutes = estimateDailyMinutes(interviewAnswers.dailyStudyTime);
   const estimatedCompletionDays = Math.max(1, Math.ceil((totalLearningHours * 60) / Math.max(1, dailyMinutes)));
 
-  const dailySchedule = createDailySchedule(interviewAnswers, prereqChain);
+  const dailySchedule = createDailySchedule(interviewAnswers, prereqChain, skill, sourceLabel);
   const weeklyMilestones = createMilestones(prereqChain, 'weekly');
   const monthlyMilestones = createMilestones(prereqChain, 'monthly');
 
@@ -241,10 +257,36 @@ export function buildPersonalizedLearningPlan({
     { cadence: 'Monthly', task: 'One capstone checkpoint and reflection report' }
   ];
 
-  const miniProjects = prereqChain.slice(0, 3).map((item, index) => `${index + 1}. Mini project for ${item}`);
-  const majorProjects = [
-    `Build a production-quality ${skill} portfolio project`,
-    `Create a measurable outcome project aligned to ${sanitizeText(interviewAnswers.endGoal, 'Master Skill')}`
+  const projects = [
+    `Build a focused ${skill} artifact that solves one real task from the uploaded content`,
+    `Create a reusable deliverable that can be shown in interviews or a portfolio`,
+    `Document the outcome with before/after evidence, constraints, and improvement notes`
+  ];
+  const portfolio = [
+    `Publish one polished case study around ${skill}`,
+    `Add measurement, reflection, and implementation notes for recruiter clarity`,
+    `Create a short narrative that ties the work to ${sanitizeText(interviewAnswers.careerGoal, sanitizeText(interviewAnswers.endGoal, 'your next role'))}`
+  ];
+  const career = [
+    `Prepare a role-targeted narrative for ${sanitizeText(interviewAnswers.careerGoal, sanitizeText(interviewAnswers.endGoal, 'career growth'))}`,
+    `Map one credible next step in local hiring, remote work, or freelance opportunities`,
+    `Track relevant openings, communities, and learning proof points`
+  ];
+  const salaryDisclaimer = `salary estimates are informational only and can vary by location, industry demand, and experience. Use them as context, not financial advice.`;
+  const internship = [
+    `Tailor one resume summary for ${skill} and your target internship focus`,
+    `Prepare a short story that explains how your work solves a practical problem`,
+    `Create a concise outreach message for internships or mentorship opportunities`
+  ];
+  const freelancing = [
+    `Identify one niche problem that ${skill} can solve clearly`,
+    `Create an offer, sample output, and pricing framing`,
+    `Pitch one pilot project and collect feedback quickly`
+  ];
+  const business = [
+    `Frame a small offer or service around ${skill}`,
+    `Define a simple client/value proposition and first milestone`,
+    `Plan a lightweight launch experiment around your strongest proof point`
   ];
 
   const lessons = [
@@ -254,7 +296,7 @@ export function buildPersonalizedLearningPlan({
   ];
 
   const careerLayer = buildCareerLayer(skill, interviewAnswers);
-  const recommendations = buildRecommendations(skill, interviewAnswers, sourceContext);
+  const recommendations = buildRecommendations(skill, interviewAnswers, sourceContext, sourceLabel);
   const progress = buildProgressSeed(totalLearningHours, dailyMinutes, dailySchedule);
 
   return {
@@ -293,13 +335,19 @@ export function buildPersonalizedLearningPlan({
       monthlyMilestones,
       ...tools,
       practiceSchedule,
-      miniProjects,
-      majorProjects,
+      projects,
+      portfolio,
+      career,
+      salaryDisclaimer,
+      salary: salaryDisclaimer,
+      internship,
+      freelancing,
+      business,
       portfolioRoadmap: [
-        'Define portfolio theme and evidence strategy',
-        'Publish mini project outcomes weekly',
-        'Publish major project case study with metrics',
-        'Prepare presentation-ready portfolio deck'
+        'Define a portfolio theme that matches your career target',
+        'Publish one evidence-backed artifact every week',
+        'Turn each artifact into a concise case study with metrics',
+        'Prepare a presentation-ready portfolio deck for interviews'
       ],
       ...careerLayer,
       futureTrends: [`AI-assisted workflows in ${skill}`, `Global remote opportunities in ${skill}`, 'High-trust portfolio-first hiring'],

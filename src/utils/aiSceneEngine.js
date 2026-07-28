@@ -1,4 +1,5 @@
 import { createAssetManager } from './assetManager.js';
+import { buildAnimationPlan, buildAutoAnimationState } from './aiAnimationEngine.js';
 
 const DOMAIN_KEYWORDS = {
   'Human Anatomy': ['heart', 'anatomy', 'organ', 'bone', 'muscle', 'surgery', 'medical', 'cell', 'brain', 'kidney', 'lung'],
@@ -174,7 +175,9 @@ function buildAssetPlan(content = '', domain = 'General', entities = []) {
     lod: asset.lod,
     compression: asset.compression,
     lazyLoading: asset.lazyLoading,
-    optimization: asset.optimization
+    optimization: asset.optimization,
+    compositePlan: asset.compositePlan || null,
+    rankScore: asset.rankScore || 0
   }));
 }
 
@@ -228,5 +231,79 @@ export function buildSceneFromBlueprint(blueprint) {
     reusableAssets: assetPlan.map((item) => item.assetId).filter(Boolean),
     lessonFocus: blueprint?.concepts?.[0] || 'concept',
     domain: blueprint?.domain || 'General'
+  };
+}
+
+export function buildAuto3DSceneForLesson(content = '', sourceType = 'typed-topic') {
+  const blueprint = buildSceneBlueprint(content, sourceType);
+  const scene = buildSceneFromBlueprint(blueprint);
+  const animationPlan = buildAnimationPlan(content, scene.objects);
+  const autoAnimationState = buildAutoAnimationState(content);
+
+  const models = scene.objects.map((object, index) => ({
+    id: `model-${index + 1}`,
+    label: object.label,
+    assetId: object.asset,
+    category: object.category,
+    position: object.position,
+    size: object.size,
+    color: object.color
+  }));
+
+  const labels = models.map((model) => ({ id: model.id, text: model.label, position: model.position }));
+  const hotspots = scene.hotspots.map((hotspot, index) => ({
+    id: `hotspot-${index + 1}`,
+    label: hotspot.label,
+    details: hotspot.details,
+    position: models[index]?.position || [0, 0, 0]
+  }));
+  const measurements = models.map((model, index) => ({
+    id: `measurement-${index + 1}`,
+    target: model.id,
+    value: `${index + 1} unit`,
+    unit: 'u'
+  }));
+  const crossSections = /cross|section|anatomy|heart|medical/.test(String(content || '').toLowerCase())
+    ? [{ id: 'cross-section-1', label: 'Cross Section', target: models[0]?.id || 'model-1' }]
+    : [];
+  const xRay = /x-ray|xray|anatomy|medical|heart/.test(String(content || '').toLowerCase())
+    ? [{ id: 'xray-1', label: 'X-Ray View', target: models[0]?.id || 'model-1' }]
+    : [];
+  const explodedView = /explode|assembly|robot|mechanical|engineering|cross section|x-ray|heart|anatomy/.test(String(content || '').toLowerCase())
+    ? [{ id: 'explode-1', label: 'Exploded View', target: models[0]?.id || 'model-1' }]
+    : [];
+  const timeline = animationPlan.map((step, index) => ({
+    id: step.id,
+    title: step.title,
+    cameraMode: step.cameraMode,
+    durationMs: step.durationMs,
+    replay: step.replay
+  }));
+
+  return {
+    shouldAutoGenerate: true,
+    title: scene.title,
+    domain: scene.domain,
+    models,
+    labels,
+    animations: animationPlan,
+    hotspots,
+    measurements,
+    crossSections,
+    xRay,
+    explodedView,
+    timeline,
+    replay: true,
+    autoAnimationState,
+    summary: scene.summary,
+    assetPlan: scene.assetPlan,
+    reusableAssets: scene.reusableAssets,
+    assetIntelligence: {
+      strategy: scene.assetPlan?.[0]?.compositePlan?.strategy || 'single-asset',
+      requiresComposition: Boolean(scene.assetPlan?.[0]?.compositePlan?.secondary || scene.assetPlan?.[0]?.rankScore < 2),
+      compositePlan: scene.assetPlan?.[0]?.compositePlan || null,
+      diagramFallback: Boolean(/diagram|flow|map|process|network|system|anatomy|heart|medical/.test(String(content || '').toLowerCase())),
+      animationFallback: Boolean(/animate|motion|flow|blood|orbit|rotate|explode|walk/.test(String(content || '').toLowerCase()))
+    }
   };
 }

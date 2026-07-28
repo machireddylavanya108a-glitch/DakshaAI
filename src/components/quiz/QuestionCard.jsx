@@ -12,7 +12,7 @@ export default function QuestionCard({ question, currentAnswer, onSelect, index,
       </div>
       <h3 className="text-xl font-semibold text-white">{question?.question || 'Question'}</h3>
 
-      {questionType === 'true-false' ? (
+      {questionType === 'true/false' || questionType === 'true-false' ? (
         <div className="mt-6 grid gap-3 md:grid-cols-2">
           {['True', 'False'].map((option) => (
             <button
@@ -24,13 +24,23 @@ export default function QuestionCard({ question, currentAnswer, onSelect, index,
             </button>
           ))}
         </div>
-      ) : questionType === 'fill-in-the-blank' ? (
+      ) : questionType === 'fill-blanks' || questionType === 'fill-in-the-blank' ? (
         <div className="mt-6">
           <input
             value={currentAnswer || ''}
             onChange={(event) => onSelect(event.target.value)}
             placeholder="Type your answer"
             className="w-full rounded-2xl border border-slate-700 bg-slate-800/80 px-4 py-3 text-white outline-none ring-0"
+          />
+        </div>
+      ) : questionType === 'drag drop' || questionType === 'arrange steps' || questionType === 'identify objects' ? (
+        <div className="mt-6 rounded-2xl border border-slate-700 bg-slate-800/70 p-4 text-sm text-slate-300">
+          <p className="mb-3">Select or arrange the best answer from the available options.</p>
+          <textarea
+            value={currentAnswer || ''}
+            onChange={(event) => onSelect(event.target.value)}
+            placeholder="Describe your selection or ordering"
+            className="min-h-24 w-full rounded-2xl border border-slate-700 bg-slate-900/70 px-4 py-3 text-white outline-none"
           />
         </div>
       ) : questionType === 'match-the-following' ? (
@@ -40,6 +50,26 @@ export default function QuestionCard({ question, currentAnswer, onSelect, index,
             value={currentAnswer || ''}
             onChange={(event) => onSelect(event.target.value)}
             placeholder="Example: A -> 1, B -> 2"
+            className="min-h-24 w-full rounded-2xl border border-slate-700 bg-slate-900/70 px-4 py-3 text-white outline-none"
+          />
+        </div>
+      ) : questionType === 'voice' ? (
+        <div className="mt-6 rounded-2xl border border-slate-700 bg-slate-800/70 p-4 text-sm text-slate-300">
+          <p className="mb-3">Record a short spoken explanation for the prompt.</p>
+          <textarea
+            value={currentAnswer || ''}
+            onChange={(event) => onSelect(event.target.value)}
+            placeholder="Type your spoken explanation here"
+            className="min-h-24 w-full rounded-2xl border border-slate-700 bg-slate-900/70 px-4 py-3 text-white outline-none"
+          />
+        </div>
+      ) : questionType === 'coding' || questionType === 'math' ? (
+        <div className="mt-6 rounded-2xl border border-slate-700 bg-slate-800/70 p-4 text-sm text-slate-300">
+          <p className="mb-3">Write the solution or calculation steps.</p>
+          <textarea
+            value={currentAnswer || ''}
+            onChange={(event) => onSelect(event.target.value)}
+            placeholder="Enter your solution"
             className="min-h-24 w-full rounded-2xl border border-slate-700 bg-slate-900/70 px-4 py-3 text-white outline-none"
           />
         </div>

@@ -64,6 +64,36 @@ function createBaseAssetProfile(asset) {
   };
 }
 
+function scoreAsset(asset, query = '', category = '') {
+  const normalizedQuery = String(query || '').toLowerCase();
+  const normalizedCategory = String(category || '').toLowerCase();
+  const searchable = [asset.name, asset.category, asset.description, ...asset.tags].join(' ').toLowerCase();
+  let score = 0;
+
+  if (normalizedCategory && searchable.includes(normalizedCategory)) score += 5;
+  if (searchable.includes(normalizedQuery)) score += 8;
+  if (normalizedQuery.split(/\s+/).every((term) => searchable.includes(term))) score += 3;
+  if (asset.tags.some((tag) => normalizedQuery.includes(String(tag).toLowerCase()))) score += 3;
+  if (asset.id === 'heart-anatomy' && normalizedQuery.includes('heart')) score += 2;
+  if (asset.id === 'robot-arm' && normalizedQuery.includes('robot')) score += 2;
+  return score;
+}
+
+function buildCompositeAssetPlan(query = '', category = '') {
+  const manager = createAssetManager();
+  const ranked = manager.rankAssets(query, category);
+  const preferred = ranked.slice(0, 2);
+  const fallback = ranked.slice(2, 4);
+
+  return {
+    primary: preferred[0] || null,
+    secondary: preferred[1] || null,
+    fallbackAssets: fallback,
+    strategy: preferred.length > 1 ? 'compose' : 'single-asset',
+    generatedFrom: String(query || category || 'lesson').trim() || 'lesson context'
+  };
+}
+
 export function createAssetManager() {
   const assets = assetCatalog.map((asset) => createBaseAssetProfile(asset));
   const categoryIndex = new Map();
@@ -74,7 +104,7 @@ export function createAssetManager() {
     categoryIndex.set(asset.category, bucket);
   });
 
-  return {
+  const manager = {
     getAllAssets: () => assets,
     getAssetsByCategory: (category) => {
       const exact = (categoryIndex.get(category) || []).slice();
@@ -93,10 +123,48 @@ export function createAssetManager() {
       return unique.slice();
     },
     getAssetById: (id) => assets.find((asset) => asset.id === id) || null,
+    rankAssets: (query = '', category = '') => {
+      const ranked = assets
+        .map((asset) => ({ asset, score: scoreAsset(asset, query, category) }))
+        .sort((left, right) => right.score - left.score || left.asset.name.localeCompare(right.asset.name))
+        .filter((entry) => entry.score > 0 || !String(query || '').trim())
+        .map((entry) => ({
+          ...entry.asset,
+          assetId: entry.asset.id,
+          label: entry.asset.name,
+          icon: entry.asset.category,
+          rankScore: entry.score,
+          lod: entry.asset.lod,
+          compression: entry.asset.compression,
+          lazyLoading: entry.asset.lazyLoading,
+          optimization: entry.asset.optimization
+        }));
+      return ranked;
+    },
+    matchAsset: (query = '', category = '') => {
+      const ranked = assets
+        .map((asset) => ({ asset, score: scoreAsset(asset, query, category) }))
+        .sort((left, right) => right.score - left.score || left.asset.name.localeCompare(right.asset.name));
+      return ranked[0] ? {
+        ...ranked[0].asset,
+        assetId: ranked[0].asset.id,
+        label: ranked[0].asset.name,
+        rankScore: ranked[0].score,
+        lod: ranked[0].asset.lod,
+        compression: ranked[0].asset.compression,
+        lazyLoading: ranked[0].asset.lazyLoading,
+        optimization: ranked[0].asset.optimization
+      } : null;
+    },
+    recommendAssets: (query = '', category = '') => {
+      const ranked = manager.rankAssets(query, category);
+      return ranked.slice(0, 4);
+    },
     buildAssetPlan: (content = '', category = 'General') => {
       const query = String(content || '').toLowerCase();
-      const matches = assets.filter((asset) => asset.category === category || asset.tags.some((tag) => query.includes(tag)) || asset.name.toLowerCase().includes(query));
-      const selected = matches.slice(0, Math.max(2, Math.min(5, matches.length)));
+      const ranked = manager.rankAssets(query, category);
+      const selected = ranked.slice(0, Math.max(2, Math.min(5, ranked.length)));
+      const composite = buildCompositeAssetPlan(query, category);
       return selected.map((asset) => ({
         ...asset,
         assetId: asset.id,
@@ -106,10 +174,13 @@ export function createAssetManager() {
         lod: asset.lod,
         compression: asset.compression,
         lazyLoading: asset.lazyLoading,
-        optimization: asset.optimization
+        optimization: asset.optimization,
+        compositePlan: composite
       }));
     }
   };
+
+  return manager;
 }
 
 export function searchAssets(query = '') {
@@ -142,6 +213,21 @@ export function readAssetCache(key) {
 export function writeAssetCache(key, payload) {
   if (!key || !payload) return;
   assetCache.set(key, payload);
+  return payload;
+}
+
+export function getAssetRecommendation(query = '', category = '') {
+  const manager = createAssetManager();
+  const match = manager.matchAsset(query, category);
+  const ranked = manager.rankAssets(query, category);
+  const composite = buildCompositeAssetPlan(query, category);
+  return {
+    match,
+    ranked: ranked.slice(0, 4),
+    composite,
+    cacheKey: getAssetCacheKey(query),
+    requiresComposition: !match || ranked.length < 2
+  };
 }
 
 export function optimizeAsset(asset) {

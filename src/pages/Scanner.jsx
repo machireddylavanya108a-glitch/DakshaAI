@@ -8,6 +8,7 @@ import { useAuth } from '../context/AuthContext';
 import LearningInterviewModal from '../components/common/LearningInterviewModal';
 import PersonalizedLearningDashboard from '../components/common/PersonalizedLearningDashboard';
 import { buildPersonalizedLearningPlan } from '../utils/personalizedLearningEngine';
+import { persistLearningSession } from '../services/learningSessionOrchestrator';
 
 const tabs = ['Overview', 'Summary', 'Topics', 'Keywords', 'Quiz', 'Flashcards'];
 
@@ -114,6 +115,7 @@ export default function Scanner() {
       sourceName
     });
     const suite = buildUniversalLearningArtifacts(result);
+    const intelligenceProfile = result.intelligenceProfile || result.sourceMeta?.intelligenceProfile || null;
 
     const analysis = {
       overview: suite.learningSession?.summary || result.sourceModel?.overview || '',
@@ -137,6 +139,11 @@ export default function Scanner() {
       flashcards: suite.flashcards
     };
 
+    if (intelligenceProfile?.followUpPrompt && !result.sourceModel?.extractedText) {
+      setSaveStatus(intelligenceProfile.followUpPrompt);
+      setLessonStatus(intelligenceProfile.followUpPrompt);
+    }
+
     setAnalysisResult(analysis);
     setLessonPackage(suite);
     setFilePreview((result.sourceModel?.extractedText || result.sourceModel?.overview || '').slice(0, 1200));
@@ -155,23 +162,45 @@ export default function Scanner() {
     });
     setLearningPlan(plan);
     if (user) {
-      await savePersonalizedLearningPlan(user.uid, plan, 'scanner');
-      await saveMemoryBrain(user.uid, {
-        topic: sourceName,
-        summary: suite.learningSession?.summary || '',
-        concepts: suite.memoryEntry?.concepts || [],
-        source: sourceHint
-      });
-      await saveProgressSnapshot(user.uid, {
-        topic: sourceName,
-        progressPercent: suite.progressEntry?.progressPercent || 12,
-        recommendedNext: suite.progressEntry?.recommendedNext || 'Continue studying',
-        status: suite.progressEntry?.status || 'ready_to_start'
+      await persistLearningSession({
+        user,
+        sourceLabel: sourceName,
+        sourceContext,
+        sessionData: {
+          title: sourceName,
+          topic: sourceName,
+          summary: suite.learningSession?.summary || '',
+          difficulty: result.sourceMeta?.difficulty || 'Medium',
+          sourceMeta: result.sourceMeta,
+          learningSession: suite.learningSession,
+          lessonSuite: suite,
+          plan,
+          memory: suite.memoryEntry,
+          progress: suite.progressEntry,
+          assessment: { questionCount: 6 },
+          interview: interviewAnswers || {},
+          teacher: suite.aiTeacher,
+          roadmap: { topic: sourceName, plan },
+          graph: suite.knowledgeGraph
+        },
+        assessmentContext: { questionCount: 6 },
+        planContext: {
+          topic: sourceName,
+          interviewAnswers: interviewAnswers || {},
+          focus: sourceContext,
+          strengths: ['foundational concepts'],
+          weaknesses: ['key gaps'],
+          learningStyle: 'guided',
+          goal: 'skill growth'
+        }
       });
     }
 
-    setSaveStatus('Universal scanner completed.');
-    setLessonStatus('Learning suite generated.');
+    const finalStatus = intelligenceProfile?.followUpPrompt
+      ? intelligenceProfile.followUpPrompt
+      : 'Universal scanner completed.';
+    setSaveStatus(finalStatus);
+    setLessonStatus(intelligenceProfile?.followUpPrompt ? 'Need more context to finish the lesson map.' : 'Learning suite generated.');
   };
 
   const processTextSource = async (text, sourceName, sourceType = 'text/plain', interviewAnswers = {}, sourceContext = 'text') => {
@@ -295,6 +324,15 @@ export default function Scanner() {
           text: aiResponse,
           sourceHint: 'image',
           sourceContext: 'image'
+        };
+      }
+
+      if (!descriptor.text && sourceHint !== 'image') {
+        descriptor = {
+          ...descriptor,
+          text: '',
+          sourceHint,
+          sourceContext: sourceHint
         };
       }
 

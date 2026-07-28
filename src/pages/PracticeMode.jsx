@@ -24,6 +24,7 @@ import {
   savePracticeSession,
   saveQuestionBankEntry
 } from '../services/firestoreService';
+import { persistLearningSession } from '../services/learningSessionOrchestrator';
 
 function extractLessonSnapshot() {
   try {
@@ -267,6 +268,26 @@ export default function PracticeMode() {
             ...finalScore
           })
         ]);
+
+        if (user?.uid) {
+          await persistLearningSession({
+            user,
+            sourceLabel: topic || 'practice-session',
+            sourceContext: 'practice',
+            sessionData: {
+              title: topic || 'Practice Session',
+              topic: topic || 'Practice Session',
+              summary: `Practice completed with ${finalScore.accuracy}% accuracy.`,
+              difficulty: nextDifficulty,
+              learningSession: { practice: { questions: practiceSet.questions } },
+              lessonSuite: { practiceQuestions: practiceSet.questions },
+              progress: { progressPercent: finalScore.accuracy, recommendedNext: 'Review weak topics', status: 'practice_completed' },
+              assessment: { questionCount: practiceSet.questions.length, score: finalScore.accuracy, percentage: finalScore.accuracy }
+            },
+            assessmentContext: { questionCount: practiceSet.questions.length },
+            planContext: { topic: topic || 'Practice Session', focus: 'practice', strengths: finalScore.strongTopics || ['practice'], weaknesses: finalScore.weakTopics || ['review'], learningStyle: profile.learningSpeed || 'guided', goal: 'mastery' }
+          });
+        }
       } catch (error) {
         console.error('Unable to save practice session:', error);
         setOffline(true);

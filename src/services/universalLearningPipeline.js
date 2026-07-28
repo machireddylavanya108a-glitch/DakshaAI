@@ -1,4 +1,6 @@
 import { getDakshaLessonPackage } from './aiService.js';
+import { buildContentIntelligenceProfile } from '../utils/contentIntelligenceEngine.js';
+import { buildKnowledgeGraph } from '../utils/knowledgeGraphEngine.js';
 
 const SOURCE_TYPE_MAP = {
   pdf: 'pdf',
@@ -255,9 +257,10 @@ function detectElements(text = '', sourceType = 'text') {
   };
 }
 
-function buildSourceModel({ sourceName, sourceType, extractedText, slides }) {
+function buildSourceModel({ sourceName, sourceType, extractedText, slides, intelligenceProfile }) {
   const text = safeString(extractedText);
   const lines = text.split(/\n+/).map((line) => line.trim()).filter(Boolean);
+  const intelligenceTitle = intelligenceProfile?.title || sourceName;
   const detections = detectElements(text, sourceType);
   const sections = detections.headings.length ? detections.headings : lines.slice(0, 10);
 
@@ -268,7 +271,7 @@ function buildSourceModel({ sourceName, sourceType, extractedText, slides }) {
   }));
 
   return {
-    title: sourceName,
+    title: intelligenceTitle,
     url: sourceType === 'website' || sourceType === 'youtube' ? sourceName : '',
     overview: text.slice(0, 2800) || `No extracted text for ${sourceType}.`,
     content: text,
@@ -306,7 +309,7 @@ function buildSourceModel({ sourceName, sourceType, extractedText, slides }) {
   };
 }
 
-function buildLessonSession(packageData, sourceModel, detections, metadata) {
+function buildLessonSession(packageData, sourceModel, detections, metadata, intelligenceProfile) {
   const summary = safeString(packageData.summary || packageData.completeCourse || packageData.beginnerExplanation).slice(0, 3000);
   const beginnerLesson = safeString(packageData.beginnerLesson || packageData.beginnerExplanation || summary);
   const intermediateLesson = safeString(packageData.intermediateLesson || packageData.intermediateExplanation || beginnerLesson);
@@ -322,12 +325,12 @@ function buildLessonSession(packageData, sourceModel, detections, metadata) {
   const practiceQuestions = Array.isArray(packageData.practiceQuestions) ? packageData.practiceQuestions : quiz.map((item) => item.question).filter(Boolean);
 
   return {
-    title: sourceModel.title || metadata.sourceName,
+    title: intelligenceProfile?.title || sourceModel.title || metadata.sourceName,
     summary,
     beginnerLesson,
     intermediateLesson,
     advancedLesson,
-    keyConcepts,
+    keyConcepts: intelligenceProfile?.keyConcepts || keyConcepts,
     importantDefinitions,
     examples,
     realWorldApplications,
@@ -343,7 +346,7 @@ function buildLessonSession(packageData, sourceModel, detections, metadata) {
       style: 'adaptive'
     },
     lesson3d: {
-      topic: metadata.subject,
+      topic: intelligenceProfile?.subject || metadata.subject,
       highlightObjects: keyConcepts.slice(0, 4),
       practicalMode: detections.practicalSkills.length > 0
     },
@@ -388,6 +391,16 @@ export function buildUniversalLearningArtifacts({ sourceMeta, sourceModel, learn
     style: learningSession?.aiTeacher?.style || 'adaptive'
   };
 
+  const knowledgeGraph = buildKnowledgeGraph({
+    topic: sourceMeta?.subject || learningSession?.title || 'Universal lesson',
+    prereqs: Array.isArray(sourceMeta?.topics) ? sourceMeta.topics.slice(0, 3) : [],
+    relatedTopics: Array.isArray(sourceMeta?.topics) ? sourceMeta.topics.slice(0, 3) : [],
+    advancedTopics: Array.isArray(sourceMeta?.subtopics) ? sourceMeta.subtopics.slice(0, 3) : [],
+    similarTopics: Array.isArray(sourceMeta?.chapters) ? sourceMeta.chapters.slice(0, 3) : [],
+    revisions: Array.isArray(learningSession?.revisionNotes) ? learningSession.revisionNotes.slice(0, 3) : [],
+    sourceText: sourceModel?.extractedText || learningSession?.summary || ''
+  });
+
   const lessonSuite = {
     completeCourse: learningSession?.summary || sourceModel?.overview || '',
     beginnerExplanation: learningSession?.beginnerLesson || '',
@@ -406,6 +419,7 @@ export function buildUniversalLearningArtifacts({ sourceMeta, sourceModel, learn
     keyConcepts,
     importantDefinitions: definitions,
     learningSession,
+    knowledgeGraph,
     sourceModel,
     sourceMeta,
     detections,
@@ -470,11 +484,19 @@ export async function runUniversalLearningPipeline({
     extracted.extractedText = `${sourceType === 'youtube' ? 'YouTube' : 'Website'} learning source: ${url}`;
   }
 
+  const intelligenceProfile = buildContentIntelligenceProfile({
+    sourceText: extracted.extractedText,
+    sourceName: normalizedName,
+    sourceType,
+    visionSummary: extracted.visionSummary || ''
+  });
+
   const sourceModel = buildSourceModel({
     sourceName: normalizedName,
     sourceType,
     extractedText: extracted.extractedText,
-    slides: extracted.slides
+    slides: extracted.slides,
+    intelligenceProfile
   });
 
   const detections = detectElements(sourceModel.extractedText, sourceType);
@@ -498,13 +520,29 @@ export async function runUniversalLearningPipeline({
     metadata.sourceName
   );
 
-  const learningSession = buildLessonSession(packagePayload || {}, sourceModel, detections, metadata);
+  const learningSession = buildLessonSession(packagePayload || {}, sourceModel, detections, metadata, intelligenceProfile);
 
   return {
-    sourceMeta: metadata,
+    sourceMeta: {
+      ...metadata,
+      title: intelligenceProfile?.title || metadata.sourceName,
+      subject: intelligenceProfile?.subject || metadata.subject,
+      chapters: intelligenceProfile?.chapters || [],
+      topics: intelligenceProfile?.topics || [],
+      subtopics: intelligenceProfile?.subtopics || [],
+      difficulty: intelligenceProfile?.difficulty || metadata.difficulty,
+      learningObjectives: intelligenceProfile?.learningObjectives || [],
+      keyConcepts: intelligenceProfile?.keyConcepts || [],
+      skills: intelligenceProfile?.skills || [],
+      entities: intelligenceProfile?.entities || [],
+      relationships: intelligenceProfile?.relationships || [],
+      intelligenceProfile,
+      followUpPrompt: intelligenceProfile?.followUpPrompt || ''
+    },
     detections,
     sourceModel,
     learningSession,
-    packagePayload
+    packagePayload,
+    intelligenceProfile
   };
 }
