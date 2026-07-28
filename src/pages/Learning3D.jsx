@@ -1,6 +1,6 @@
 import { Suspense, lazy, useDeferredValue, useEffect, useMemo, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { Search, Sparkles, BookOpen, Layers3, BrainCircuit, Target, Focus, PlayCircle, Film, Camera, Monitor, Save } from 'lucide-react';
 import AnnotationLabel from '../components/3d/AnnotationLabel';
 import SceneTimeline from '../components/3d/SceneTimeline';
@@ -86,6 +86,7 @@ function captureCanvasScreenshot() {
 export default function Learning3D() {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const [topic, setTopic] = useState('Heart Surgery');
   const [sourceType, setSourceType] = useState('typed-topic');
   const [sourceContent, setSourceContent] = useState('Explain heart surgery procedure with organs, doctor, and medical tools.');
@@ -128,6 +129,17 @@ export default function Learning3D() {
   const [bookmarks, setBookmarks] = useState([]);
   const [sceneCameraPosition, setSceneCameraPosition] = useState([0, 0, 0]);
   const [animationPlan, setAnimationPlan] = useState([]);
+
+  useEffect(() => {
+    const params = new URLSearchParams(location.search || '');
+    const queryTopic = params.get('topic');
+    const queryContent = params.get('content');
+    const querySourceType = params.get('sourceType');
+
+    if (queryTopic) setTopic(queryTopic);
+    if (queryContent) setSourceContent(queryContent);
+    if (querySourceType) setSourceType(querySourceType);
+  }, [location.search]);
 
   const effectiveContent = useMemo(() => {
     const direct = `${topic}\n${sourceContent}`.trim();

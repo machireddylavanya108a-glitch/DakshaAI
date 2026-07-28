@@ -8,6 +8,7 @@ import SkillHeader from '../components/academy/SkillHeader';
 import LoadingAcademy from '../components/academy/LoadingAcademy';
 import LearningInterviewModal from '../components/common/LearningInterviewModal';
 import PersonalizedLearningDashboard from '../components/common/PersonalizedLearningDashboard';
+import Interactive3DLessonRuntime from '../components/academy/Interactive3DLessonRuntime';
 import { buildPersonalizedLearningPlan } from '../utils/personalizedLearningEngine';
 import { buildSkillAcademyMentorPlan } from '../utils/skillAcademyMentorEngine';
 import { buildKnowledgeGraph } from '../utils/knowledgeGraphEngine';
@@ -195,6 +196,16 @@ export default function Academy() {
     setErrorMessage('');
   };
 
+  const openFull3DStudio = () => {
+    if (!learningPlan?.topic) return;
+    const params = new URLSearchParams({
+      topic: learningPlan.topic,
+      content: learningPlan?.mentor?.aiTeacherPlan || learningPlan?.mentorProfile?.interviewSummary || learningPlan.topic,
+      sourceType: 'ai-teacher-lesson'
+    });
+    navigate(`/3d-learning?${params.toString()}`);
+  };
+
   return (
     <div className="min-h-[calc(100vh-4rem)] bg-slate-950 text-white">
       <div className="mx-auto flex max-w-7xl flex-col gap-8 px-4 py-6 sm:px-6 lg:px-8">
@@ -294,11 +305,16 @@ export default function Academy() {
                 <p className="text-xs uppercase tracking-[0.3em] text-cyan-300">AI Teacher Plan</p>
                 <p className="mt-3 text-sm text-slate-300">{learningPlan?.mentor?.aiTeacherPlan}</p>
               </div>
-              <div className="rounded-[2rem] border border-white/10 bg-slate-900/80 p-6 shadow-2xl shadow-slate-950/40">
-                <p className="text-xs uppercase tracking-[0.3em] text-cyan-300">3D Demo Plan</p>
-                <p className="mt-3 text-sm text-slate-300">{learningPlan?.mentor?.threeDPlan}</p>
-              </div>
             </div>
+
+            <Interactive3DLessonRuntime
+              topic={learningPlan?.topic}
+              sourceContent={learningPlan?.mentor?.aiTeacherPlan || learningPlan?.mentorProfile?.interviewSummary || ''}
+              sourceType="ai-teacher-lesson"
+              userId={user?.uid}
+              aiTeacherPlan={learningPlan?.mentor?.aiTeacherPlan || ''}
+              onOpenStudio={openFull3DStudio}
+            />
           </div>
         )}
 
