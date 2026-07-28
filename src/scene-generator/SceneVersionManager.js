@@ -70,7 +70,10 @@ export function processSceneJsonPipeline(rawScene, options = {}) {
       performanceProfile: finalScene?.settings?.quality || 'balanced'
     });
     finalScene = ensureSceneVisualizationTemplateMetadata(finalScene, {
-      performanceProfile: finalScene?.settings?.quality || 'balanced'
+      performanceProfile: finalScene?.settings?.quality || 'balanced',
+      visualizationTemplateRegistry: options.visualizationTemplateRegistry,
+      minimumTemplateScore: options.minimumTemplateScore,
+      maxTemplateResults: options.maxTemplateResults
     });
 
     finalScene.diagnostics = {

@@ -25,8 +25,7 @@ import {
 import { SceneGenerationError, toSceneGenerationError } from './SceneGenerationError.js';
 import { resolveVisualizationCapabilities } from '../visualization-capabilities/index.js';
 import {
-  createTemplateFromCapabilityContext,
-  instantiateVisualizationTemplate
+  selectVisualizationTemplate
 } from '../visualization-templates/index.js';
 
 function stableHash(input = '') {
@@ -329,6 +328,31 @@ function minimalWarnings(list = []) {
   return list.filter(Boolean).map((item) => String(item)).slice(0, 12);
 }
 
+function summarizeTemplateSelection(selection = {}) {
+  return {
+    status: selection.status || 'failed',
+    fallbackUsed: selection.fallbackUsed === true,
+    selectedTemplateId: selection.selectedTemplate?.templateId || null,
+    selectedTemplateVersion: selection.selectedTemplate?.version || null,
+    selectedTemplateInstanceId: selection.selectedTemplateInstance?.instanceId || null,
+    compositionId: selection.templateComposition?.compositionId || null,
+    confidence: Number(selection.confidence || 0),
+    warnings: minimalWarnings(selection.warnings || []),
+    diagnostics: {
+      selectedScore: Number(selection.diagnostics?.selectedScore || 0),
+      selectionConfidence: Number(selection.diagnostics?.selectionConfidence || 0),
+      capabilityCoverage: Number(selection.diagnostics?.capabilityCoverage || 0),
+      requirementCoverage: Number(selection.diagnostics?.requirementCoverage || 0),
+      accessibilityCoverage: Number(selection.diagnostics?.accessibilityCoverage || 0),
+      performanceCompatibility: Number(selection.diagnostics?.performanceCompatibility || 0),
+      conflictCount: Number(selection.diagnostics?.conflictCount || 0),
+      missingDependencyCount: Number(selection.diagnostics?.missingDependencyCount || 0),
+      unboundRequiredSlotCount: Number(selection.diagnostics?.unboundRequiredSlotCount || 0),
+      unboundOptionalSlotCount: Number(selection.diagnostics?.unboundOptionalSlotCount || 0)
+    }
+  };
+}
+
 function attachVisualizationCapabilityMetadata(scene, normalizedInput, config, options = {}) {
   if (!scene || typeof scene !== 'object') return scene;
 
@@ -373,9 +397,10 @@ function attachVisualizationCapabilityMetadata(scene, normalizedInput, config, o
     metadata: scene.metadata || {}
   };
 
-  const templateDefinition = createTemplateFromCapabilityContext(templateContext);
-  const templateInstantiation = instantiateVisualizationTemplate(templateDefinition, templateContext, {
-    forceFallbackOnInvalid: true
+  const selection = selectVisualizationTemplate(templateContext, {
+    registry: options.visualizationTemplateRegistry,
+    minimumScore: options.minimumTemplateScore ?? 0.2,
+    maxResults: options.maxTemplateResults ?? 8
   });
 
   return {
@@ -388,9 +413,17 @@ function attachVisualizationCapabilityMetadata(scene, normalizedInput, config, o
         capabilityComposition: resolved.capabilityComposition,
         diagnostics: resolved.diagnostics
       },
-      visualizationTemplate: templateInstantiation.sourceTemplate,
-      visualizationTemplateInstance: templateInstantiation.instance,
-      templateDiagnostics: templateInstantiation.diagnostics
+      visualizationRequirements: resolved.visualizationRequirements,
+      selectedCapabilities: resolved.selectedCapabilities,
+      capabilityComposition: resolved.capabilityComposition,
+      templateSelection: summarizeTemplateSelection(selection),
+      selectedTemplate: selection.selectedTemplate,
+      selectedTemplateInstance: selection.selectedTemplateInstance,
+      templateComposition: selection.templateComposition,
+      templateBindings: selection.bindings,
+      visualizationTemplate: selection.selectedTemplate,
+      visualizationTemplateInstance: selection.selectedTemplateInstance,
+      templateDiagnostics: selection.diagnostics
     }
   };
 }

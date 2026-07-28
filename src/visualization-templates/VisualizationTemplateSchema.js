@@ -1,9 +1,5 @@
 import { VISUALIZATION_TEMPLATE_DEFAULTS, VISUALIZATION_TEMPLATE_LATEST_VERSION } from './VisualizationTemplateConfig.js';
 
-function makeId(prefix = 'template') {
-  return `${prefix}-${Date.now()}-${Math.random().toString(16).slice(2, 10)}`;
-}
-
 export function createDefaultTemplateAccessibility() {
   return {
     textDescription: 'Adaptive educational visualization template.',
@@ -56,7 +52,7 @@ export function createDefaultTemplateLayout() {
 }
 
 export function createAdaptiveFallbackTemplate(overrides = {}) {
-  const templateId = overrides.templateId || makeId('adaptive-universal-template');
+  const templateId = overrides.templateId || 'adaptive-universal-template';
   const primaryRegionId = 'primary-region';
   const primarySlotId = 'primary-slot';
   const supportSlotId = 'support-slot';

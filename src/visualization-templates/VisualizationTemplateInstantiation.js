@@ -5,8 +5,23 @@ function deepClone(value) {
   return JSON.parse(JSON.stringify(value));
 }
 
-function stableInstanceId(templateId = 'template', sceneId = 'scene') {
-  return `template-instance-${templateId}-${sceneId}-${Math.random().toString(16).slice(2, 8)}`;
+function stableHash(input = '') {
+  const text = String(input || '');
+  let hash = 0;
+  for (let index = 0; index < text.length; index += 1) {
+    hash = ((hash << 5) - hash + text.charCodeAt(index)) | 0;
+  }
+  return Math.abs(hash).toString(16);
+}
+
+function stableInstanceId(templateId = 'template', sceneId = 'scene', context = {}) {
+  const fingerprint = stableHash(JSON.stringify({
+    templateId,
+    sceneId,
+    lessonId: context.lessonId || null,
+    performanceProfile: context.performanceProfile || 'balanced'
+  }));
+  return `template-instance-${templateId}-${sceneId}-${fingerprint}`;
 }
 
 function resolveVariables(template, context) {
@@ -56,7 +71,7 @@ export function instantiateVisualizationTemplate(template, context = {}, options
 
   const sourceTemplate = deepClone(processed.template);
   const sceneId = context.sceneId || 'scene';
-  const instanceId = stableInstanceId(sourceTemplate.templateId, sceneId);
+  const instanceId = stableInstanceId(sourceTemplate.templateId, sceneId, context);
   const resolvedVariables = resolveVariables(sourceTemplate, context);
   const capabilityBindings = bindCapabilities(sourceTemplate, context);
 
