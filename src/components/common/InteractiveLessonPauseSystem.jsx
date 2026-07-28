@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Bot, Pause, Play, SkipBack, SkipForward, Repeat, FastForward, Mic } from 'lucide-react';
 import { getDakshaResponse } from '../../services/aiService';
+import { buildInteractiveLessonPrompt, parseInteractiveLessonResponse } from '../../utils/interactiveLessonEngine.js';
 import {
   saveAiConversation,
   saveLearningState,
@@ -121,24 +122,33 @@ export default function InteractiveLessonPauseSystem({
     setLoading(true);
     try {
       const stateContext = snapshot ? JSON.stringify(snapshot).slice(0, 1800) : 'No state captured';
-      const prompt = [
-        'You are an interactive classroom AI assistant.',
-        `Lesson topic: ${topic || 'General Lesson'}`,
-        `Learner question: ${text}`,
-        `Preferred explanation style: ${preferredStyle}`,
-        `Difficulty level: ${difficultyLevel}`,
-        `Current lesson state: ${stateContext}`,
-        'Answer clearly and briefly. Include why, example, and where used when relevant.'
-      ].join('\n');
+      const prompt = buildInteractiveLessonPrompt({
+        topic: topic || 'General Lesson',
+        question: text,
+        snapshot: snapshot || { stateContext },
+        conversation,
+        language,
+        preferredStyle
+      });
 
       const answer = await getDakshaResponse(prompt, language);
-      const visualSupport = buildVisualSupport(answer, text);
+      const parsed = parseInteractiveLessonResponse(answer);
+      const richAnswer = [
+        parsed.voice || answer,
+        parsed.threeD ? `\n\n3D: ${parsed.threeD}` : '',
+        parsed.diagram ? `\n\nDiagram: ${parsed.diagram}` : '',
+        parsed.animation ? `\n\nAnimation: ${parsed.animation}` : '',
+        parsed.whiteboard ? `\n\nWhiteboard: ${parsed.whiteboard}` : '',
+        parsed.example ? `\n\nExample: ${parsed.example}` : '',
+        parsed.resume ? `\n\nResume: ${parsed.resume}` : ''
+      ].join('').trim();
+      const visualSupport = buildVisualSupport(richAnswer, text);
 
       const nextConversation = [
         ...conversation,
         {
           question: text,
-          answer,
+          answer: richAnswer,
           language,
           preferredStyle,
           difficultyLevel,
@@ -162,7 +172,7 @@ export default function InteractiveLessonPauseSystem({
 
       if (window.speechSynthesis) {
         window.speechSynthesis.cancel();
-        const utterance = new SpeechSynthesisUtterance(answer);
+        const utterance = new SpeechSynthesisUtterance(richAnswer);
         utterance.lang = language === 'Hindi' ? 'hi-IN' : language === 'Telugu' ? 'te-IN' : 'en-US';
         window.speechSynthesis.speak(utterance);
       }
@@ -173,7 +183,7 @@ export default function InteractiveLessonPauseSystem({
             lessonType,
             topic,
             question: text,
-            answer,
+            answer: richAnswer,
             language,
             explanationStyle: preferredStyle
           }),
