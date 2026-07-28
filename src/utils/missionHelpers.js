@@ -1,0 +1,30 @@
+export function getCoreLearningModules() {
+  return [
+    { name: 'Universal Scanner', category: 'Core' },
+    { name: 'Universal Knowledge Engine', category: 'Core' },
+    { name: 'AI Teacher', category: 'Core' },
+    { name: 'Skill Academy', category: 'Core' },
+    { name: 'Lesson Generator', category: 'Core' },
+    { name: 'Quiz Engine', category: 'Core' },
+    { name: 'Flashcards', category: 'Core' },
+    { name: 'Notes', category: 'Core' },
+    { name: 'Mind Maps', category: 'Core' },
+    { name: 'Whiteboard', category: 'Core' },
+    { name: 'AI Tutor', category: 'Core' },
+    { name: 'Practice Mode', category: 'Core' },
+    { name: 'Memory Brain', category: 'Core' },
+    { name: 'Dashboard', category: 'Core' },
+    { name: 'Universal Knowledge Library', category: 'Core' },
+    { name: 'Voice AI', category: 'Core' },
+    { name: 'OCR', category: 'Core' },
+    { name: 'Camera AI', category: 'Core' },
+    { name: '3D Engine', category: 'Core' },
+    { name: 'Animation Engine', category: 'Core' },
+    { name: 'Virtual Labs', category: 'Core' },
+    { name: 'Exams', category: 'Core' },
+    { name: 'Certificates', category: 'Core' },
+    { name: 'Security', category: 'Core' },
+    { name: 'Mobile Apps', category: 'Core' },
+    { name: 'Production Platform', category: 'Core' }
+  ];
+}

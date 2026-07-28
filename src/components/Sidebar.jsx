@@ -1,6 +1,6 @@
 import { memo, useMemo } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { Brain, Home, Search, GraduationCap, MessageSquare, Box, User, LogOut, ShieldCheck, NotebookPen, BookOpen, FileText, FileStack, Presentation, Youtube, Globe2, Camera, Mic, BrainCircuit, FlaskConical, Target, Award, GitBranch, PanelsTopLeft, Smartphone, LayoutGrid, PlugZap } from 'lucide-react';
+import { Brain, Home, Search, GraduationCap, User, LogOut, ShieldCheck, BookOpen, BrainCircuit, Settings, LayoutGrid } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
 const Sidebar = memo(function Sidebar({ closeSidebar }) {
@@ -11,31 +11,12 @@ const Sidebar = memo(function Sidebar({ closeSidebar }) {
 
   const navItems = useMemo(() => [
     { name: 'Dashboard', path: '/dashboard', icon: Home },
-    { name: 'Universal Scanner', path: '/scanner', icon: Search },
+    { name: 'Learn', path: '/learn', icon: Search },
     { name: 'Skill Academy', path: '/academy', icon: GraduationCap },
-    { name: 'AI Quiz Generator', path: '/quiz', icon: NotebookPen },
-    { name: 'AI Flashcards', path: '/flashcards', icon: BookOpen },
-    { name: 'PDF Learning Engine', path: '/pdf-learning', icon: FileText },
-    { name: 'DOCX Learning Engine', path: '/docx-learning', icon: FileStack },
-    { name: 'PPT Learning Engine', path: '/ppt-learning', icon: Presentation },
-    { name: 'YouTube Learning Engine', path: '/youtube-learning', icon: Youtube },
-    { name: 'Website Learning Engine', path: '/website-learning', icon: Globe2 },
-    { name: 'Camera OCR Learning', path: '/camera-learning', icon: Camera },
-    { name: 'AI Voice Teacher', path: '/voice-teacher', icon: Mic },
-    { name: 'Memory Brain', path: '/memory-dashboard', icon: BrainCircuit },
-    { name: 'AI Teacher', path: '/app/teacher', icon: MessageSquare },
-    { name: '3D Learning', path: '/3d-learning', icon: Box },
-    { name: 'Virtual Labs', path: '/virtual-labs', icon: FlaskConical },
-    { name: 'AI Tutor', path: '/ai-tutor', icon: Brain },
-    { name: 'Practice Engine', path: '/practice', icon: Target },
-    { name: 'Examinations', path: '/examinations', icon: NotebookPen },
-    { name: 'Certificates', path: '/certificates', icon: Award },
-    { name: 'AI Notes', path: '/ai-notes', icon: NotebookPen },
-    { name: 'AI Mind Maps', path: '/mind-maps', icon: GitBranch },
-    { name: 'AI Whiteboard', path: '/whiteboard', icon: PanelsTopLeft },
     { name: 'Knowledge Library', path: '/knowledge-library', icon: BookOpen },
-    { name: 'Mobile Optimization', path: '/mobile-optimization', icon: Smartphone },
-    { name: 'Integrations Hub', path: '/integrations', icon: PlugZap },
+    { name: 'Memory Brain', path: '/memory-dashboard', icon: BrainCircuit },
+    { name: 'Profile', path: '/profile', icon: User },
+    { name: 'Settings', path: '/settings', icon: Settings },
   ], []);
 
   const isActive = (path) => location.pathname === path;

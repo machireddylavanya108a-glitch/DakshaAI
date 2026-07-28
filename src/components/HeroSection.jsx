@@ -1,4 +1,3 @@
-import { useEffect, useMemo, useState } from 'react'
 import { motion } from 'framer-motion'
 import { Play, ChevronDown } from 'lucide-react'
 
@@ -9,26 +8,6 @@ const stats = [
 ]
 
 export default function HeroSection() {
-  const [pointer, setPointer] = useState({ x: 0.5, y: 0.5 })
-
-  useEffect(() => {
-    const handleMove = (event) => {
-      setPointer({ x: event.clientX / window.innerWidth, y: event.clientY / window.innerHeight })
-    }
-
-    window.addEventListener('mousemove', handleMove)
-    return () => window.removeEventListener('mousemove', handleMove)
-  }, [])
-
-  const transformStyles = useMemo(() => {
-    const x = (pointer.x - 0.5) * 12
-    const y = (pointer.y - 0.5) * 10
-
-    return {
-      transform: `perspective(1200px) translateZ(0px) rotateY(${x}deg) rotateX(${y}deg)`,
-    }
-  }, [pointer])
-
   return (
     <section className="relative overflow-hidden bg-[#020617] text-white">
       <video
@@ -36,15 +15,16 @@ export default function HeroSection() {
         loop
         muted
         playsInline
-        className="absolute inset-0 w-full h-full object-cover"
+        preload="metadata"
+        className="pointer-events-none absolute inset-0 w-full h-full object-cover"
       >
         <source src="/videos/hero2.mp4" type="video/mp4" />
       </video>
 
-      <div className="absolute inset-0 bg-black/70" />
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,_rgba(56,189,248,0.24),_transparent_16%),radial-gradient(circle_at_bottom_right,_rgba(168,85,247,0.24),_transparent_18%)]" />
-      <div className="absolute inset-x-0 top-0 h-44 bg-[radial-gradient(circle_at_top,_rgba(56,189,248,0.18),_transparent_28%)]" />
-      <div className="absolute inset-x-0 bottom-0 h-48 bg-[radial-gradient(circle_at_bottom,_rgba(168,85,247,0.18),_transparent_34%)]" />
+      <div className="pointer-events-none absolute inset-0 bg-black/70" />
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,_rgba(56,189,248,0.24),_transparent_16%),radial-gradient(circle_at_bottom_right,_rgba(168,85,247,0.24),_transparent_18%)]" />
+      <div className="pointer-events-none absolute inset-x-0 top-0 h-44 bg-[radial-gradient(circle_at_top,_rgba(56,189,248,0.18),_transparent_28%)]" />
+      <div className="pointer-events-none absolute inset-x-0 bottom-0 h-48 bg-[radial-gradient(circle_at_bottom,_rgba(168,85,247,0.18),_transparent_34%)]" />
       <div className="absolute inset-0 pointer-events-none bg-[linear-gradient(135deg,_rgba(255,255,255,0.08),_transparent_32%)]" />
       <div className="absolute inset-0 pointer-events-none bg-[radial-gradient(circle_at_20%_20%,_rgba(96,165,250,0.08),_transparent_20%),radial-gradient(circle_at_80%_15%,_rgba(168,85,247,0.08),_transparent_22%)]" />
 
@@ -105,19 +85,19 @@ export default function HeroSection() {
           </div>
 
           <motion.div
-            style={transformStyles}
             initial={{ opacity: 0, y: 80, scale: 0.96 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             transition={{ duration: 1.3, ease: 'easeOut' }}
             className="relative"
           >
-            <div className="absolute -inset-4 rounded-[2.5rem] bg-gradient-to-r from-cyan-400/20 via-transparent to-violet-400/20 blur-3xl opacity-80" />
+            <div className="pointer-events-none absolute -inset-4 rounded-[2.5rem] bg-gradient-to-r from-cyan-400/20 via-transparent to-violet-400/20 blur-3xl opacity-80" />
             <video 
               autoPlay 
               loop 
               muted 
               playsInline 
-              className="w-full h-full object-cover rounded-2xl border border-slate-800 shadow-2xl shadow-indigo-500/20"
+              preload="metadata"
+              className="pointer-events-none w-full h-full object-cover rounded-2xl border border-slate-800 shadow-2xl shadow-indigo-500/20"
             >
               <source src="/videos/design.mp4" type="video/mp4" />
             </video>

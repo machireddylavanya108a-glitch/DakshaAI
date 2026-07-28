@@ -17,7 +17,7 @@ import LabHistory from '../components/virtualLabs/LabHistory';
 
 export default function VirtualLabs() {
   const { user } = useAuth();
-  const [query, setQuery] = useState('Build a DC Motor');
+  const [searchText, setSearchText] = useState('Build a DC Motor');
   const [lab, setLab] = useState(() => buildVirtualLab('Build a DC Motor'));
   const [loading, setLoading] = useState(true);
   const [offline, setOffline] = useState(false);
@@ -65,10 +65,10 @@ export default function VirtualLabs() {
     return () => clearInterval(interval);
   }, [isPlaying, lab.simulation.steps.length, speed]);
 
-  const recommendations = useMemo(() => buildLabRecommendations(query, history.length), [query, history.length]);
+  const recommendations = useMemo(() => buildLabRecommendations(searchText, history.length), [searchText, history.length]);
 
   const handleGenerateLab = () => {
-    const nextLab = buildVirtualLab(query || 'Universal Experiment');
+    const nextLab = buildVirtualLab(searchText || 'Universal Experiment');
     setLab(nextLab);
     setResults('');
     setScore(0);
@@ -140,7 +140,7 @@ export default function VirtualLabs() {
         <div className="grid gap-6 xl:grid-cols-[1.15fr_0.85fr]">
           <div className="space-y-6">
             <div className="rounded-[2rem] border border-white/10 bg-slate-900/75 p-4 shadow-2xl shadow-slate-950/40 backdrop-blur-xl">
-              <LabSearch value={query} onChange={setQuery} onGenerate={handleGenerateLab} />
+              <LabSearch value={searchText} onChange={setSearchText} onGenerate={handleGenerateLab} />
             </div>
 
             <div className="rounded-[2rem] border border-white/10 bg-slate-900/75 p-4 shadow-2xl shadow-slate-950/40 backdrop-blur-xl">

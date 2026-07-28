@@ -47,8 +47,8 @@ const sections = [
 export default function FeatureFlow() {
   return (
     <section className="relative overflow-hidden bg-[#020617] py-24 text-white">
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(59,130,246,0.12),transparent_18%),radial-gradient(circle_at_bottom_right,_rgba(168,85,247,0.14),transparent_20%)]" />
-      <div className="absolute inset-x-0 top-0 h-72 bg-gradient-to-b from-slate-950/90 to-transparent" />
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(59,130,246,0.12),transparent_18%),radial-gradient(circle_at_bottom_right,_rgba(168,85,247,0.14),transparent_20%)]" />
+      <div className="pointer-events-none absolute inset-x-0 top-0 h-72 bg-gradient-to-b from-slate-950/90 to-transparent" />
       <div className="relative mx-auto max-w-7xl px-6 lg:px-12">
         <motion.div
           initial={{ opacity: 0, y: 36 }}

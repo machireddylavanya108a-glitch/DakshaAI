@@ -1,15 +1,20 @@
 import OpenAI from 'openai';
-import { compressImageDataUrl, getCachedValue, setCachedValue } from '../utils/cache';
-import { sanitizePrompt, rateLimiter } from '../utils/security';
+import { compressImageDataUrl, getCachedValue, setCachedValue } from '../utils/cache.js';
+import { sanitizePrompt, rateLimiter } from '../utils/security.js';
 
-const openai = new OpenAI({
-  apiKey: import.meta.env.VITE_OPENROUTER_API_KEY,
-  baseURL: 'https://openrouter.ai/api/v1',
-  dangerouslyAllowBrowser: true
-});
+const runtimeEnv = typeof import.meta !== 'undefined' && import.meta.env ? import.meta.env : {};
+const openaiApiKey = runtimeEnv.VITE_OPENROUTER_API_KEY || '';
+
+const openai = openaiApiKey
+  ? new OpenAI({
+      apiKey: openaiApiKey,
+      baseURL: 'https://openrouter.ai/api/v1',
+      dangerouslyAllowBrowser: true
+    })
+  : null;
 
 function hasAiCredentials() {
-  return Boolean(import.meta.env.VITE_OPENROUTER_API_KEY);
+  return Boolean(openaiApiKey);
 }
 
 function getMissingAuthMessage() {

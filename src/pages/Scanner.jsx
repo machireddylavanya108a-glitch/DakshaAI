@@ -1,47 +1,33 @@
 import { useRef, useState } from 'react';
 import { validateUploadFile } from '../utils/security';
-import { UploadCloud, FileText, Mic, Sparkles, Loader, Link as LinkIcon, Youtube, Type } from 'lucide-react';
-import { getDakshaImageResponse, getDakshaDocumentAnalysis, getDakshaLessonPackage } from '../services/aiService';
-import { saveDocumentAnalysis, saveLessonPackage, savePersonalizedLearningPlan } from '../services/firestoreService';
+import { UploadCloud, FileText, Mic, Loader, Link as LinkIcon, Youtube, Type } from 'lucide-react';
+import { getDakshaImageResponse } from '../services/aiService';
+import { runUniversalLearningPipeline, buildUniversalLearningArtifacts } from '../services/universalLearningPipeline';
+import { saveDocumentAnalysis, saveLessonPackage, savePersonalizedLearningPlan, saveMemoryBrain, saveProgressSnapshot } from '../services/firestoreService';
 import { useAuth } from '../context/AuthContext';
 import LearningInterviewModal from '../components/common/LearningInterviewModal';
 import PersonalizedLearningDashboard from '../components/common/PersonalizedLearningDashboard';
 import { buildPersonalizedLearningPlan } from '../utils/personalizedLearningEngine';
 
-let pdfJsLoader;
-const loadPdfJs = async () => {
-  if (!pdfJsLoader) {
-    pdfJsLoader = Promise.all([
-      import('pdfjs-dist'),
-      import('pdfjs-dist/build/pdf.worker.min?url')
-    ]).then(([pdfjs, worker]) => {
-      pdfjs.GlobalWorkerOptions.workerSrc = worker.default;
-      return pdfjs;
-    });
-  }
-
-  return pdfJsLoader;
-};
-
-let jsZipLoader;
-const loadJSZip = async () => {
-  if (!jsZipLoader) {
-    jsZipLoader = import('jszip').then((module) => module.default);
-  }
-
-  return jsZipLoader;
-};
-
-let mammothLoader;
-const loadMammoth = async () => {
-  if (!mammothLoader) {
-    mammothLoader = import('mammoth').then((module) => module.default);
-  }
-
-  return mammothLoader;
-};
-
 const tabs = ['Overview', 'Summary', 'Topics', 'Keywords', 'Quiz', 'Flashcards'];
+
+const detectSourceHintFromFile = (file = null) => {
+  const name = (file?.name || '').toLowerCase();
+  if (file?.type?.startsWith('image/')) return 'image';
+  if (/\.pdf$/i.test(name)) return 'pdf';
+  if (/\.docx$/i.test(name)) return 'docx';
+  if (/\.pptx?$/i.test(name)) return 'pptx';
+  if (/\.md$/i.test(name)) return 'markdown';
+  if (/\.html?$/i.test(name)) return 'html';
+  if (/\.txt$/i.test(name)) return 'txt';
+  if (/\.csv$/i.test(name)) return 'txt';
+  if (/\.epub$/i.test(name)) return 'epub';
+  if (/\.mp3|\.wav|\.m4a$/i.test(name)) return 'audio';
+  if (/\.mp4|\.mov|\.avi|\.mkv$/i.test(name)) return 'video';
+  if (file?.type?.startsWith('audio/')) return 'audio';
+  if (file?.type?.startsWith('video/')) return 'video';
+  return 'document';
+};
 
 export default function Scanner() {
   const [files, setFiles] = useState([]);
@@ -68,44 +54,6 @@ export default function Scanner() {
     setInterviewSeedTopic(seedTopic);
     setInterviewSourceLabel(sourceLabel || seedTopic);
     setInterviewOpen(true);
-  };
-
-  const extractPptxText = async (arrayBuffer) => {
-    const JSZip = await loadJSZip();
-    const zip = await JSZip.loadAsync(arrayBuffer);
-    const slideEntries = [];
-    zip.forEach((relativePath, fileEntry) => {
-      if (/ppt\/slides\/slide\d+\.xml$/.test(relativePath)) {
-        slideEntries.push({ path: relativePath, entry: fileEntry });
-      }
-    });
-    slideEntries.sort((a, b) => a.path.localeCompare(b.path, undefined, { numeric: true }));
-    const textParts = [];
-    for (const slide of slideEntries) {
-      const content = await slide.entry.async('text');
-      const matches = content.matchAll(/<a:t[^>]*>([^<]*)<\/a:t>/g);
-      for (const match of matches) {
-        if (match[1]) {
-          textParts.push(match[1]);
-        }
-      }
-    }
-    return textParts.join(' ');
-  };
-
-  const parseHtmlText = (htmlString) => {
-    try {
-      const parser = new DOMParser();
-      const doc = parser.parseFromString(htmlString, 'text/html');
-      return doc.body.innerText.replace(/\s+/g, ' ').trim();
-    } catch (error) {
-      console.error('HTML parse error:', error);
-      return htmlString;
-    }
-  };
-
-  const parseCsvText = (csvString) => {
-    return csvString.replace(/\r?\n/g, ' ').replace(/,+/g, ' ').replace(/\s+/g, ' ').trim();
   };
 
   const saveAnalysisResult = async (result, file) => {
@@ -148,28 +96,82 @@ export default function Scanner() {
     }
   };
 
-  const handleDocumentAnalysis = async (text, file, interviewAnswers = {}, sourceContext = 'document') => {
-    const analysis = await getDakshaDocumentAnalysis(text.substring(0, 50000), file.name, file.type || file.name);
+  const handleDocumentAnalysis = async (descriptor = {}, interviewAnswers = {}, sourceContext = 'document') => {
+    const {
+      file = null,
+      text = '',
+      url = '',
+      sourceName = file?.name || url || 'universal-source',
+      sourceHint = sourceContext,
+      sourceType = file?.type || 'text/plain'
+    } = descriptor;
+
+    const result = await runUniversalLearningPipeline({
+      file,
+      url,
+      text,
+      sourceHint,
+      sourceName
+    });
+    const suite = buildUniversalLearningArtifacts(result);
+
+    const analysis = {
+      overview: suite.learningSession?.summary || result.sourceModel?.overview || '',
+      summary: suite.learningSession?.summary || '',
+      topics: suite.learningSession?.keyConcepts || [],
+      keywords: suite.learningSession?.keyConcepts || [],
+      definitions: suite.learningSession?.importantDefinitions || [],
+      importantPoints: suite.learningSession?.keyConcepts || [],
+      difficulty: result.sourceMeta?.difficulty || 'Medium',
+      detectedElements: {
+        headings: result.sourceModel?.headings || [],
+        chapters: result.sourceModel?.chapters || [],
+        tables: result.sourceModel?.tables?.length || 0,
+        images: (result.sourceModel?.images?.length || 0) + (result.sourceMeta?.detectImages ? 1 : 0),
+        diagrams: result.sourceModel?.diagrams?.length || 0,
+        formulas: result.sourceModel?.formulas || [],
+        codeBlocks: result.sourceModel?.codeBlocks || [],
+        lists: suite.learningSession?.keyConcepts || []
+      },
+      quiz: suite.quiz,
+      flashcards: suite.flashcards
+    };
+
     setAnalysisResult(analysis);
-    await saveAnalysisResult(analysis, file);
-    const lessonPackageResult = await getDakshaLessonPackage(text.substring(0, 50000), 'document', file.name);
-    setLessonPackage(lessonPackageResult);
-    await saveLessonPackageResult(lessonPackageResult, file);
+    setLessonPackage(suite);
+    setFilePreview((result.sourceModel?.extractedText || result.sourceModel?.overview || '').slice(0, 1200));
+    await saveAnalysisResult(analysis, file || { name: sourceName, type: sourceType, size: String(text || '').length });
+    await saveLessonPackageResult(suite, file || { name: sourceName, type: sourceType, size: String(text || '').length });
 
     const plan = buildPersonalizedLearningPlan({
       interviewAnswers: {
         ...(interviewAnswers || {}),
-        learnTopic: interviewAnswers?.learnTopic || file.name
+        learnTopic: interviewAnswers?.learnTopic || sourceName
       },
       sourceContext,
-      sourceLabel: file.name,
-      sourceSummary: text.slice(0, 600),
-      skillHint: file.name
+      sourceLabel: sourceName,
+      sourceSummary: String(text || '').slice(0, 600),
+      skillHint: sourceName
     });
     setLearningPlan(plan);
     if (user) {
       await savePersonalizedLearningPlan(user.uid, plan, 'scanner');
+      await saveMemoryBrain(user.uid, {
+        topic: sourceName,
+        summary: suite.learningSession?.summary || '',
+        concepts: suite.memoryEntry?.concepts || [],
+        source: sourceHint
+      });
+      await saveProgressSnapshot(user.uid, {
+        topic: sourceName,
+        progressPercent: suite.progressEntry?.progressPercent || 12,
+        recommendedNext: suite.progressEntry?.recommendedNext || 'Continue studying',
+        status: suite.progressEntry?.status || 'ready_to_start'
+      });
     }
+
+    setSaveStatus('Universal scanner completed.');
+    setLessonStatus('Learning suite generated.');
   };
 
   const processTextSource = async (text, sourceName, sourceType = 'text/plain', interviewAnswers = {}, sourceContext = 'text') => {
@@ -181,10 +183,16 @@ export default function Scanner() {
     setSaveStatus('');
     setLessonStatus('');
     try {
-      await handleDocumentAnalysis(normalized, {
-        name: sourceName,
-        type: sourceType,
-        size: normalized.length
+      await handleDocumentAnalysis({
+        text: normalized,
+        sourceName,
+        sourceHint: sourceContext,
+        sourceType,
+        file: {
+          name: sourceName,
+          type: sourceType,
+          size: normalized.length
+        }
       }, interviewAnswers, sourceContext);
     } catch (error) {
       console.error('Universal source analysis error:', error);
@@ -198,7 +206,12 @@ export default function Scanner() {
     const url = websiteUrl.trim();
     if (!url) return;
     startInterviewBeforeAnalysis(`I uploaded a website: ${url}`, url, async (interviewAnswers) => {
-      await processTextSource(`Website source: ${url}`, url, 'text/url', interviewAnswers, 'website');
+      await handleDocumentAnalysis({
+        url,
+        sourceName: url,
+        sourceHint: 'website',
+        sourceType: 'text/url'
+      }, interviewAnswers, 'website');
     });
   };
 
@@ -206,7 +219,12 @@ export default function Scanner() {
     const url = youtubeUrl.trim();
     if (!url) return;
     startInterviewBeforeAnalysis(`I uploaded a YouTube lesson: ${url}`, url, async (interviewAnswers) => {
-      await processTextSource(`YouTube source: ${url}`, url, 'text/youtube', interviewAnswers, 'youtube');
+      await handleDocumentAnalysis({
+        url,
+        sourceName: url,
+        sourceHint: 'youtube',
+        sourceType: 'text/youtube'
+      }, interviewAnswers, 'youtube');
     });
   };
 
@@ -254,143 +272,39 @@ export default function Scanner() {
     setLoading(true);
 
     try {
+      const sourceHint = detectSourceHintFromFile(file);
+      let descriptor = {
+        file,
+        sourceName: file.name,
+        sourceHint,
+        sourceType: file.type || file.name,
+        sourceContext: sourceHint
+      };
+
       if (file.type.startsWith('image/')) {
         const reader = new FileReader();
-        reader.onloadend = async () => {
-          const base64data = reader.result.split(',')[1];
-          const aiResponse = await getDakshaImageResponse(base64data, file.type);
-          const imageAnalysis = {
-            overview: aiResponse,
-            summary: aiResponse,
-            topics: [],
-            keywords: [],
-            definitions: [],
-            importantPoints: [],
-            difficulty: 'Unknown',
-            detectedElements: {
-              headings: [],
-              chapters: [],
-              tables: 0,
-              images: 1,
-              diagrams: 0,
-              formulas: [],
-              codeBlocks: [],
-              lists: []
-            },
-            quiz: [],
-            flashcards: []
-          };
-          setAnalysisResult(imageAnalysis);
-          setFilePreview('Image uploaded. Daksha AI analyzed the visual content and provided an overview.');
-          await saveAnalysisResult(imageAnalysis, file);
-          const lessonPackageResult = await getDakshaLessonPackage(aiResponse, 'image', file.name);
-          setLessonPackage(lessonPackageResult);
-          await saveLessonPackageResult(lessonPackageResult, file);
-          const plan = buildPersonalizedLearningPlan({
-            interviewAnswers: {
-              ...(interviewAnswers || {}),
-              learnTopic: interviewAnswers?.learnTopic || file.name
-            },
-            sourceContext: 'image',
-            sourceLabel: file.name,
-            sourceSummary: aiResponse.slice(0, 600),
-            skillHint: file.name
-          });
-          setLearningPlan(plan);
-          if (user) {
-            await savePersonalizedLearningPlan(user.uid, plan, 'scanner');
-          }
-          setLoading(false);
+        const dataUrl = await new Promise((resolve, reject) => {
+          reader.onloadend = () => resolve(reader.result);
+          reader.onerror = reject;
+          reader.readAsDataURL(file);
+        });
+        const base64data = dataUrl.split(',')[1];
+        const aiResponse = await getDakshaImageResponse(base64data, file.type);
+        descriptor = {
+          ...descriptor,
+          text: aiResponse,
+          sourceHint: 'image',
+          sourceContext: 'image'
         };
-        reader.readAsDataURL(file);
-      } else if (file.type === 'application/pdf') {
-        const reader = new FileReader();
-        reader.onloadend = async () => {
-          const arrayBuffer = reader.result;
-          const pdfjsLib = await loadPdfJs();
-          const pdfDoc = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-          let textContent = '';
-          for (let i = 1; i <= pdfDoc.numPages; i++) {
-            const page = await pdfDoc.getPage(i);
-            const text = await page.getTextContent();
-            textContent += text.items.map((item) => item.str).join(' ') + ' ';
-          }
-          setFilePreview(textContent.substring(0, 1200));
-          await handleDocumentAnalysis(textContent, file, interviewAnswers, 'pdf');
-          setLoading(false);
-        };
-        reader.readAsArrayBuffer(file);
-      } else if (file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' || file.name.endsWith('.docx')) {
-        const reader = new FileReader();
-        reader.onloadend = async () => {
-          const arrayBuffer = reader.result;
-          const mammoth = await loadMammoth();
-          const result = await mammoth.extractRawText({ arrayBuffer });
-          const textContent = result.value;
-          setFilePreview(textContent.substring(0, 1200));
-          await handleDocumentAnalysis(textContent, file, interviewAnswers, 'docx');
-          setLoading(false);
-        };
-        reader.readAsArrayBuffer(file);
-      } else if (file.type === 'application/vnd.openxmlformats-officedocument.presentationml.presentation' || file.name.endsWith('.pptx')) {
-        const reader = new FileReader();
-        reader.onloadend = async () => {
-          const arrayBuffer = reader.result;
-          const textContent = await extractPptxText(arrayBuffer);
-          setFilePreview(textContent.substring(0, 1200));
-          await handleDocumentAnalysis(textContent, file, interviewAnswers, 'pptx');
-          setLoading(false);
-        };
-        reader.readAsArrayBuffer(file);
-      } else if (file.type === 'text/html' || file.name.endsWith('.html')) {
-        const reader = new FileReader();
-        reader.onloadend = async () => {
-          const htmlString = reader.result;
-          const textContent = parseHtmlText(htmlString);
-          setFilePreview(textContent.substring(0, 1200));
-          await handleDocumentAnalysis(textContent, file, interviewAnswers, 'html');
-          setLoading(false);
-        };
-        reader.readAsText(file);
-      } else if (file.type === 'text/markdown' || file.name.endsWith('.md')) {
-        const reader = new FileReader();
-        reader.onloadend = async () => {
-          const textContent = reader.result;
-          setFilePreview(textContent.substring(0, 1200));
-          await handleDocumentAnalysis(textContent, file, interviewAnswers, 'markdown');
-          setLoading(false);
-        };
-        reader.readAsText(file);
-      } else if (file.type === 'text/csv' || file.name.endsWith('.csv')) {
-        const reader = new FileReader();
-        reader.onloadend = async () => {
-          const csvString = reader.result;
-          const textContent = parseCsvText(csvString);
-          setFilePreview(textContent.substring(0, 1200));
-          await handleDocumentAnalysis(textContent, file, interviewAnswers, 'csv');
-          setLoading(false);
-        };
-        reader.readAsText(file);
-      } else if (file.type === 'text/plain' || file.name.endsWith('.txt')) {
-        const reader = new FileReader();
-        reader.onloadend = async () => {
-          const textContent = reader.result;
-          setFilePreview(textContent.substring(0, 1200));
-          await handleDocumentAnalysis(textContent, file, interviewAnswers, 'text');
-          setLoading(false);
-        };
-        reader.readAsText(file);
-      } else {
-        setAnalysisResult(null);
-        setFilePreview('Unsupported file type. Please upload PDF, DOCX, TXT, PPTX, MD, CSV, HTML, or an image.');
-        setSaveStatus('Unsupported file type.');
-        setLoading(false);
       }
+
+      await handleDocumentAnalysis(descriptor, interviewAnswers, descriptor.sourceContext);
     } catch (error) {
       console.error('Scanner Error:', error);
       setAnalysisResult(null);
       setFilePreview('An error occurred while reading the file.');
       setSaveStatus('An error occurred while processing the file.');
+    } finally {
       setLoading(false);
     }
   };
@@ -442,7 +356,7 @@ export default function Scanner() {
       <div className="mx-auto max-w-7xl">
         <div className="mb-8">
           <h1 className="mb-2 text-3xl font-bold sm:text-4xl">Universal Learning</h1>
-          <p className="max-w-3xl text-sm text-slate-400 sm:text-base">Upload or paste anything. Daksha AI processes PDFs, DOCX, PPT, images, handwritten notes, website URLs, YouTube URLs, text, and voice through one learning pipeline.</p>
+          <p className="max-w-3xl text-sm text-slate-400 sm:text-base">Upload or paste anything. Daksha AI processes PDFs, DOCX, PPT, images, handwritten notes, books, research papers, camera captures, audio, video, websites, YouTube URLs, GitHub repos, Google Docs, OneDrive, Dropbox, and text through one universal learning pipeline.</p>
         </div>
 
         <div className="mb-6 grid grid-cols-1 gap-4 lg:grid-cols-2">
@@ -471,9 +385,9 @@ export default function Scanner() {
               <div className="flex flex-col items-center justify-center pt-10 pb-10 px-6 text-center">
                 <UploadCloud className="w-14 h-14 text-indigo-500 mb-4" />
                 <p className="mb-2 text-lg font-semibold text-white">Upload a file</p>
-                <p className="text-sm text-slate-400 sm:text-base">PDF, DOCX, TXT, PPTX, MD, CSV, HTML, PNG, JPG</p>
+                <p className="text-sm text-slate-400 sm:text-base">PDF, DOCX, PPT, TXT, MD, CSV, HTML, EPUB, images, audio, video, ZIP, books, research papers, handwritten notes</p>
               </div>
-              <input type="file" accept="image/*,.pdf,.docx,.txt,.pptx,.md,.csv,.html" onChange={handleFileChange} className="hidden" />
+              <input type="file" accept="image/*,.pdf,.docx,.ppt,.pptx,.txt,.md,.csv,.html,.epub,.zip,.mp3,.wav,.m4a,.mp4,.mov,.avi,.mkv,.jpg,.jpeg,.png,.webp" onChange={handleFileChange} className="hidden" />
             </label>
 
             <label className="flex min-h-[8rem] w-full cursor-pointer flex-col items-center justify-center rounded-3xl border border-slate-800 bg-slate-900 p-4 transition-colors hover:border-cyan-500">

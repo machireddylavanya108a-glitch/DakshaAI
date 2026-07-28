@@ -96,3 +96,57 @@ export function filterModels(query = '', selectedCategory = 'All') {
 export function getModelById(modelId) {
   return modelLibrary.find((model) => model.id === modelId) || modelLibrary[0];
 }
+
+export function build3DSceneFromContent(content = '', selectedModelId = null) {
+  const normalized = String(content || '').toLowerCase();
+  const matchedModel = modelLibrary.find((model) => model.keywords.some((keyword) => normalized.includes(keyword)));
+  const modelId = selectedModelId || matchedModel?.id || null;
+  const model = modelId ? getModelById(modelId) : null;
+
+  const labels = modelId === 'heart'
+    ? ['Atria', 'Ventricles', 'Valves']
+    : modelId === 'brain'
+      ? ['Cerebrum', 'Cerebellum', 'Brainstem']
+      : modelId === 'solar-system'
+        ? ['Sun', 'Earth', 'Mars']
+        : modelId === 'electric-motor'
+          ? ['Rotor', 'Stator', 'Coils']
+          : modelId === 'dna'
+            ? ['Base Pairs', 'Sugar Backbone', 'Helix Twist']
+            : modelId === 'atom'
+              ? ['Nucleus', 'Electrons', 'Orbitals']
+              : modelId === 'earth-layers'
+                ? ['Crust', 'Mantle', 'Core']
+                : modelId === 'cell'
+                  ? ['Membrane', 'Nucleus', 'Organelles']
+                  : modelId === 'cpu'
+                    ? ['Core', 'Cache', 'Registers']
+                    : modelId === 'bridge'
+                      ? ['Deck', 'Supports', 'Tension Members']
+                      : ['Concept', 'Structure', 'Connections'];
+
+  const objects = labels.map((label, index) => ({
+    label,
+    color: ['#34d399', '#60a5fa', '#f59e0b', '#f472b6', '#a78bfa'][index % 5],
+    position: [index * 1.1 - (labels.length - 1) * 0.55, 0, 0],
+    size: [0.85, 0.85, 0.85]
+  }));
+
+  const supports3D = Boolean(model);
+  const category = model?.category || 'Concept';
+  const title = model?.name || 'Adaptive concept scene';
+
+  return {
+    title,
+    category,
+    recommendedModel: model?.id || null,
+    supports3D,
+    fallbackType: supports3D ? '3d' : 'diagram',
+    labels,
+    hotspots: labels.map((label) => ({ label })),
+    objects,
+    summary: supports3D
+      ? `Interactive 3D scene tuned for ${title.toLowerCase()}.`
+      : `No exact 3D asset was found, so Daksha is showing an interactive diagram and labeled illustration for ${normalized || 'this topic'}.`
+  };
+}

@@ -64,6 +64,10 @@ export async function getIndexedDBItem(storeName, key) {
     request.onerror = () => resolve(null);
     request.onsuccess = () => {
       const db = request.result;
+      if (!db.objectStoreNames.contains(storeName)) {
+        resolve(null);
+        return;
+      }
       const tx = db.transaction(storeName, 'readonly');
       const store = tx.objectStore(storeName);
       const getReq = store.get(key);
@@ -89,6 +93,10 @@ export async function setIndexedDBItem(storeName, key, value) {
     request.onerror = () => resolve(false);
     request.onsuccess = () => {
       const db = request.result;
+      if (!db.objectStoreNames.contains(storeName)) {
+        resolve(false);
+        return;
+      }
       const tx = db.transaction(storeName, 'readwrite');
       const store = tx.objectStore(storeName);
       store.put(value, key);

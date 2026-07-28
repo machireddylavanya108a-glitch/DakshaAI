@@ -9,17 +9,10 @@ const Home = lazy(() => import('./pages/Home'));
 const Login = lazy(() => import('./pages/Login'));
 const Dashboard = lazy(() => import('./pages/Dashboard'));
 const Chat = lazy(() => import('./pages/Chat'));
-const Scanner = lazy(() => import('./pages/Scanner'));
+const UniversalLearning = lazy(() => import('./pages/Scanner'));
 const Academy = lazy(() => import('./pages/Academy'));
 const Quiz = lazy(() => import('./pages/Quiz'));
 const Flashcards = lazy(() => import('./pages/Flashcards'));
-const PDFLearning = lazy(() => import('./pages/PDFLearning'));
-const DOCXLearning = lazy(() => import('./pages/DOCXLearning'));
-const PPTLearning = lazy(() => import('./pages/PPTLearning'));
-const YouTubeLearning = lazy(() => import('./pages/YouTubeLearning'));
-const WebsiteLearning = lazy(() => import('./pages/WebsiteLearning'));
-const CameraLearning = lazy(() => import('./pages/CameraLearning'));
-const VoiceTeacher = lazy(() => import('./pages/VoiceTeacher'));
 const MemoryDashboard = lazy(() => import('./pages/MemoryDashboard'));
 const Profile = lazy(() => import('./pages/Profile'));
 const NotFound = lazy(() => import('./pages/NotFound'));
@@ -36,8 +29,8 @@ const KnowledgeLibrary = lazy(() => import('./pages/KnowledgeLibrary'));
 const MobileOptimization = lazy(() => import('./pages/MobileOptimization'));
 const Admin = lazy(() => import('./pages/Admin'));
 const AdminPanel = lazy(() => import('./pages/AdminPanel'));
-const Marketplace = lazy(() => import('./pages/marketplace/Marketplace'));
 const Integrations = lazy(() => import('./pages/integrations/Integrations'));
+const SettingsPage = lazy(() => import('./pages/Settings'));
 
 export default function App() {
   return (
@@ -50,17 +43,10 @@ export default function App() {
             <Route element={<RequireAuth><OSLayout /></RequireAuth>}>
               <Route path="/dashboard" element={<Dashboard />} />
               <Route path="/chat" element={<Chat />} />
-              <Route path="/scanner" element={<Scanner />} />
+              <Route path="/learn" element={<UniversalLearning />} />
               <Route path="/academy" element={<Academy />} />
               <Route path="/quiz" element={<Quiz />} />
               <Route path="/flashcards" element={<Flashcards />} />
-              <Route path="/pdf-learning" element={<PDFLearning />} />
-              <Route path="/docx-learning" element={<DOCXLearning />} />
-              <Route path="/ppt-learning" element={<PPTLearning />} />
-              <Route path="/youtube-learning" element={<YouTubeLearning />} />
-              <Route path="/website-learning" element={<WebsiteLearning />} />
-              <Route path="/camera-learning" element={<CameraLearning />} />
-              <Route path="/voice-teacher" element={<VoiceTeacher />} />
               <Route path="/memory-dashboard" element={<MemoryDashboard />} />
               <Route path="/3d-learning" element={<Learn3D />} />
               <Route path="/virtual-labs" element={<VirtualLabs />} />
@@ -74,10 +60,18 @@ export default function App() {
               <Route path="/knowledge-library" element={<KnowledgeLibrary />} />
               <Route path="/mobile-optimization" element={<MobileOptimization />} />
               <Route path="/profile" element={<Profile />} />
-              <Route path="/marketplace" element={<Marketplace />} />
+              <Route path="/settings" element={<SettingsPage />} />
               <Route path="/integrations" element={<Integrations />} />
               <Route path="/admin" element={<AdminRoute><Admin /></AdminRoute>} />
               <Route path="/admin-panel" element={<AdminRoute><AdminPanel /></AdminRoute>} />
+              <Route path="/scanner" element={<Navigate to="/learn" replace />} />
+              <Route path="/pdf-learning" element={<Navigate to="/learn" replace />} />
+              <Route path="/docx-learning" element={<Navigate to="/learn" replace />} />
+              <Route path="/ppt-learning" element={<Navigate to="/learn" replace />} />
+              <Route path="/youtube-learning" element={<Navigate to="/learn" replace />} />
+              <Route path="/website-learning" element={<Navigate to="/learn" replace />} />
+              <Route path="/camera-learning" element={<Navigate to="/learn" replace />} />
+              <Route path="/voice-teacher" element={<Navigate to="/learn" replace />} />
               <Route path="/app/*" element={<Navigate to="/dashboard" replace />} />
             </Route>
             <Route path="*" element={<NotFound />} />

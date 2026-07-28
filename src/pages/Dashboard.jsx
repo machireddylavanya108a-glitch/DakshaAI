@@ -13,14 +13,14 @@ import RecommendationCard from '../components/dashboard/RecommendationCard';
 import LoadingDashboard from '../components/dashboard/LoadingDashboard';
 
 const quickActions = [
-  { label: 'Continue Learning', path: '/academy', icon: BookOpen },
-  { label: 'Scan Document', path: '/scanner', icon: Scan },
-  { label: 'Upload PDF', path: '/pdf-learning', icon: FileText },
-  { label: 'Start Quiz', path: '/quiz', icon: NotebookPen },
-  { label: 'Practice Mode', path: '/flashcards', icon: Layers3 },
-  { label: 'AI Tutor', path: '/chat', icon: MessageSquare },
-  { label: 'Flashcards', path: '/flashcards', icon: BrainCircuit },
-  { label: 'Notes', path: '/memory-dashboard', icon: NotebookPen },
+  { label: 'Continue Learning', path: '/learn', icon: BookOpen },
+  { label: 'Universal Learning', path: '/learn', icon: Scan },
+  { label: 'Skill Academy', path: '/academy', icon: Sparkles },
+  { label: 'Open Lesson Quiz', path: '/quiz', icon: NotebookPen },
+  { label: 'Practice and Flashcards', path: '/flashcards', icon: Layers3 },
+  { label: 'AI Teacher Chat', path: '/chat', icon: MessageSquare },
+  { label: 'Memory Brain', path: '/memory-dashboard', icon: BrainCircuit },
+  { label: 'Knowledge Library', path: '/knowledge-library', icon: FileText },
 ];
 
 export default function Dashboard() {

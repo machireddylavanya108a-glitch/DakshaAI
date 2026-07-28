@@ -1,6 +1,6 @@
-import { db } from '../firebase/firebaseConfig';
+import { db } from '../firebase/firebaseConfig.js';
 import { doc, setDoc, collection, addDoc, query, where, getDocs, serverTimestamp, deleteDoc } from 'firebase/firestore';
-import { getCachedValue, setCachedValue } from '../utils/cache';
+import { getCachedValue, setCachedValue } from '../utils/cache.js';
 
 const FIRESTORE_CACHE_TTL = 1000 * 60 * 3;
 

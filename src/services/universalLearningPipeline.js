@@ -1,4 +1,4 @@
-import { getDakshaLessonPackage } from './aiService';
+import { getDakshaLessonPackage } from './aiService.js';
 
 const SOURCE_TYPE_MAP = {
   pdf: 'pdf',
@@ -48,6 +48,10 @@ function detectSourceType({ file, url, sourceHint }) {
   if (sourceHint) return sourceHint;
   const lowerUrl = safeString(url).toLowerCase();
   if (lowerUrl.includes('youtube.com') || lowerUrl.includes('youtu.be')) return 'youtube';
+  if (lowerUrl.includes('github.com')) return 'github';
+  if (lowerUrl.includes('docs.google.com') || lowerUrl.includes('drive.google.com')) return 'google-docs';
+  if (lowerUrl.includes('onedrive')) return 'onedrive';
+  if (lowerUrl.includes('dropbox')) return 'dropbox';
   if (lowerUrl.startsWith('http://') || lowerUrl.startsWith('https://')) return 'website';
 
   const ext = extensionFromName(file?.name || '');
@@ -367,6 +371,76 @@ function buildLessonSession(packageData, sourceModel, detections, metadata) {
       recommendedNext: keyConcepts[0] || metadata.subject
     }
   };
+}
+
+export function buildUniversalLearningArtifacts({ sourceMeta, sourceModel, learningSession, detections }) {
+  const quiz = Array.isArray(learningSession?.quiz) ? learningSession.quiz : [];
+  const flashcards = Array.isArray(learningSession?.flashcards) ? learningSession.flashcards : [];
+  const keyConcepts = Array.isArray(learningSession?.keyConcepts) ? learningSession.keyConcepts : [];
+  const definitions = Array.isArray(learningSession?.importantDefinitions) ? learningSession.importantDefinitions : [];
+  const roadmap = Array.isArray(learningSession?.learningRoadmap) ? learningSession.learningRoadmap : [];
+  const practiceQuestions = Array.isArray(learningSession?.practice?.questions) ? learningSession.practice.questions : [];
+  const notes = learningSession?.notes || {};
+
+  const aiTeacher = {
+    ...learningSession?.aiTeacher,
+    language: sourceMeta?.language || learningSession?.aiTeacher?.language || 'English',
+    style: learningSession?.aiTeacher?.style || 'adaptive'
+  };
+
+  const lessonSuite = {
+    completeCourse: learningSession?.summary || sourceModel?.overview || '',
+    beginnerExplanation: learningSession?.beginnerLesson || '',
+    intermediateExplanation: learningSession?.intermediateLesson || '',
+    advancedExplanation: learningSession?.advancedLesson || '',
+    summary: learningSession?.summary || '',
+    learningRoadmap: roadmap,
+    cheatSheet: learningSession?.cheatSheet || notes?.full || [],
+    mindMap: learningSession?.mindMap || '',
+    revisionNotes: learningSession?.revisionNotes || notes?.concise || [],
+    realWorldExamples: learningSession?.realWorldApplications || [],
+    interviewQuestions: [],
+    practiceQuestions,
+    quiz,
+    flashcards,
+    keyConcepts,
+    importantDefinitions: definitions,
+    learningSession,
+    sourceModel,
+    sourceMeta,
+    detections,
+    aiTeacher,
+    lesson3d: {
+      topic: sourceMeta?.subject || learningSession?.title || 'Universal lesson',
+      summary: learningSession?.summary || '',
+      highlightObjects: keyConcepts.slice(0, 4),
+      practicalMode: Boolean(detections?.practicalSkills?.length)
+    },
+    roadmap: roadmap.map((item) => ({ title: item })),
+    practice: {
+      questions: practiceQuestions,
+      adaptiveDifficulty: learningSession?.practice?.adaptiveDifficulty || sourceMeta?.difficulty || 'Medium'
+    },
+    notes: {
+      concise: notes?.concise || [],
+      full: notes?.full || []
+    },
+    mindMapEntry: learningSession?.mindMap || '',
+    memoryEntry: {
+      sourceType: sourceMeta?.sourceType || 'universal',
+      topic: sourceMeta?.subject || learningSession?.title || 'Universal lesson',
+      concepts: keyConcepts.slice(0, 8),
+      summary: learningSession?.summary || ''
+    },
+    progressEntry: {
+      topic: sourceMeta?.subject || learningSession?.title || 'Universal lesson',
+      progressPercent: 12,
+      recommendedNext: learningSession?.progressUpdate?.recommendedNext || keyConcepts[0] || 'Start learning',
+      status: 'ready_to_start'
+    }
+  };
+
+  return lessonSuite;
 }
 
 export async function runUniversalLearningPipeline({
