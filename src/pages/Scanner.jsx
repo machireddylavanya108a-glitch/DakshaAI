@@ -134,8 +134,10 @@ export default function Scanner() {
     });
     const suite = buildUniversalLearningArtifacts(result);
     const intelligenceProfile = result.intelligenceProfile || result.sourceMeta?.intelligenceProfile || null;
-    const detectedTopic = intelligenceProfile?.title && intelligenceProfile.title !== 'Topic not detected yet'
-      ? intelligenceProfile.title
+    const detectedTopic = result.sourceMeta?.topicResolution?.title && result.sourceMeta.topicResolution.title !== 'Topic not detected yet'
+      ? result.sourceMeta.topicResolution.title
+      : intelligenceProfile?.title && intelligenceProfile.title !== 'Topic not detected yet'
+        ? intelligenceProfile.title
       : sourceName;
     const keyConcepts = normalizeUniqueList(suite.learningSession?.keyConcepts || []);
     const importantDefinitions = normalizeUniqueList(suite.learningSession?.importantDefinitions || []);
@@ -168,22 +170,25 @@ export default function Scanner() {
     };
 
     const analysis = {
-      overview: safeSuite.learningSession?.summary || result.sourceModel?.overview || '',
+      overview: safeSuite.learningSession?.contentOverview || safeSuite.learningSession?.summary || result.sourceModel?.overview || '',
       summary: safeSuite.learningSession?.summary || '',
-      topics: keyConcepts,
-      keywords: keyConcepts,
+      topics: keyConcepts.length ? keyConcepts : (result.sourceMeta?.topics || []),
+      keywords: keyConcepts.length ? keyConcepts : (result.sourceMeta?.topics || []),
       definitions: importantDefinitions,
-      importantPoints: keyConcepts,
-      difficulty: result.sourceMeta?.difficulty || 'Medium',
+      importantPoints: keyConcepts.length ? keyConcepts : (result.sourceMeta?.topics || []),
+      difficulty: result.sourceMeta?.difficultyEvidence
+        ? `${result.sourceMeta.difficultyEvidence.level} (${result.sourceMeta.difficultyEvidence.score})`
+        : result.sourceMeta?.difficulty || 'Medium',
       detectedElements: {
         headings: result.sourceModel?.headings || [],
         chapters: result.sourceModel?.chapters || [],
-        tables: result.sourceModel?.tables?.length || 0,
-        images: (result.sourceModel?.images?.length || 0) + (result.sourceMeta?.detectImages ? 1 : 0),
-        diagrams: result.sourceModel?.diagrams?.length || 0,
+        tables: result.sourceMeta?.deterministicCounts?.tables?.count ?? (result.sourceModel?.tables?.length || 0),
+        images: result.sourceMeta?.deterministicCounts?.images?.count ?? ((result.sourceModel?.images?.length || 0) + (result.sourceMeta?.detectImages ? 1 : 0)),
+        diagrams: result.sourceMeta?.deterministicCounts?.diagrams?.count ?? (result.sourceModel?.diagrams?.length || 0),
         formulas: result.sourceModel?.formulas || [],
         codeBlocks: result.sourceModel?.codeBlocks || [],
-        lists: keyConcepts
+        lists: keyConcepts,
+        deterministic: result.sourceMeta?.deterministicCounts || {}
       },
       quiz: suite.quiz,
       flashcards: suite.flashcards
@@ -208,7 +213,15 @@ export default function Scanner() {
       sourceContext,
       sourceLabel: detectedTopic,
       sourceSummary: String(text || '').slice(0, 600),
-      skillHint: detectedTopic
+      skillHint: detectedTopic,
+      contentInsights: {
+        estimatedLearning: result.sourceMeta?.estimatedLearning || null,
+        classification: result.sourceMeta?.contentClassification || 'educational material',
+        roadmapSubtopics: result.sourceMeta?.subtopics || [],
+        careerLayer: safeSuite.learningSession?.planSize?.size === 'micro' ? { status: 'not_applicable' } : null,
+        difficulty: result.sourceMeta?.difficultyEvidence || null
+      },
+      flowType: 'content-first'
     });
     setLearningPlan(plan);
     if (user) {
@@ -456,6 +469,28 @@ export default function Scanner() {
     );
   };
 
+  const renderCount = (label, fallbackCount, deterministicEntry = null) => {
+    if (deterministicEntry && deterministicEntry.count === null) {
+      return (
+        <div className="flex justify-between">
+          <span>{label}</span>
+          <span className="text-amber-300">n/a</span>
+        </div>
+      );
+    }
+
+    const value = deterministicEntry && typeof deterministicEntry.count === 'number'
+      ? deterministicEntry.count
+      : fallbackCount;
+
+    return (
+      <div className="flex justify-between">
+        <span>{label}</span>
+        <span>{value ?? 0}</span>
+      </div>
+    );
+  };
+
   const currentAnalysis = analysisResult;
 
   return (
@@ -575,11 +610,11 @@ export default function Scanner() {
                         <div className="rounded-3xl border border-slate-800 bg-slate-950 p-5">
                           <h4 className="text-sm uppercase tracking-[0.2em] text-slate-400">Detected Elements</h4>
                           <div className="mt-3 grid gap-2 text-slate-300 text-sm">
-                            <div className="flex justify-between"><span>Headings</span><span>{currentAnalysis.detectedElements?.headings?.length ?? 0}</span></div>
-                            <div className="flex justify-between"><span>Chapters</span><span>{currentAnalysis.detectedElements?.chapters?.length ?? 0}</span></div>
-                            <div className="flex justify-between"><span>Tables</span><span>{currentAnalysis.detectedElements?.tables ?? 0}</span></div>
-                            <div className="flex justify-between"><span>Images</span><span>{currentAnalysis.detectedElements?.images ?? 0}</span></div>
-                            <div className="flex justify-between"><span>Diagrams</span><span>{currentAnalysis.detectedElements?.diagrams ?? 0}</span></div>
+                            {renderCount('Headings', currentAnalysis.detectedElements?.headings?.length ?? 0, currentAnalysis.detectedElements?.deterministic?.headings)}
+                            {renderCount('Chapters', currentAnalysis.detectedElements?.chapters?.length ?? 0, currentAnalysis.detectedElements?.deterministic?.chapters)}
+                            {renderCount('Tables', currentAnalysis.detectedElements?.tables ?? 0, currentAnalysis.detectedElements?.deterministic?.tables)}
+                            {renderCount('Images', currentAnalysis.detectedElements?.images ?? 0, currentAnalysis.detectedElements?.deterministic?.images)}
+                            {renderCount('Diagrams', currentAnalysis.detectedElements?.diagrams ?? 0, currentAnalysis.detectedElements?.deterministic?.diagrams)}
                           </div>
                         </div>
                       </div>

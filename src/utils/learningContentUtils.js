@@ -1,3 +1,5 @@
+import { resolveLearningTopic as resolveStructuredLearningTopic } from './universalLearningContentQuality.js';
+
 export function deriveLearningTitle(sourceName = '', fallback = 'Adaptive lesson') {
   const normalized = String(sourceName || '').trim();
   const cleaned = normalized.replace(/\.(pdf|docx|pptx?|txt|md|html?|json|csv)$/i, '').replace(/[_-]+/g, ' ').trim();
@@ -67,15 +69,16 @@ export function resolveLearningTopic({
     return { topic: userTopic, confirmed: true, source: 'user-description' };
   }
 
-  if (visionAnalysis && !/^i couldn't|unable to|unclear|image/i.test(String(visionAnalysis).toLowerCase())) {
-    const visionTopic = String(visionAnalysis).split(/\.|\n/).find((segment) => segment.trim().length > 6);
-    if (visionTopic) {
-      return { topic: visionTopic.trim(), confirmed: true, source: 'vision-analysis' };
-    }
-  }
+  const strict = resolveStructuredLearningTopic({
+    sourceName: filename,
+    rawExtractedContent: extractedText || visionAnalysis || textTopic,
+    visualDescription: visionAnalysis,
+    detectedText: extractedText,
+    detectedConcepts: []
+  });
 
-  if (textTopic) {
-    return { topic: textTopic.replace(/^([A-Z][a-z]+\s+){0,3}/, '').slice(0, 120), confirmed: true, source: 'extracted-text' };
+  if (strict?.title && strict.title !== 'Topic not detected yet') {
+    return { topic: strict.title, confirmed: strict.confidence >= 0.5, source: strict.sourceBasis || 'content-intelligence' };
   }
 
   if (cleanedFilename && !/^screenshot|image|file|document|upload/i.test(cleanedFilename.toLowerCase())) {

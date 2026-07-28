@@ -2,6 +2,14 @@ import { getDakshaLessonPackage } from './aiService.js';
 import { buildContentIntelligenceProfile } from '../utils/contentIntelligenceEngine.js';
 import { buildKnowledgeGraph } from '../utils/knowledgeGraphEngine.js';
 import { normalizeInput } from '../utils/inputNormalization.js';
+import {
+  normalizeVisionOutput,
+  deriveDeterministicCounts,
+  estimateLearningPlanSize,
+  buildIndependentLearningAssets,
+  validateLearningOutput,
+  buildReliabilityFallbackMessage
+} from '../utils/universalLearningContentQuality.js';
 
 const SOURCE_TYPE_MAP = {
   pdf: 'pdf',
@@ -320,29 +328,36 @@ function buildSourceModel({ sourceName, sourceType, extractedText, slides, intel
   };
 }
 
-function buildLessonSession(packageData, sourceModel, detections, metadata, intelligenceProfile) {
+function buildLessonSession(packageData, sourceModel, detections, metadata, intelligenceProfile, assets, planSize) {
   const fallbackPackage = packageData && typeof packageData === 'object' ? packageData : {};
-  const summary = safeString(fallbackPackage.summary || fallbackPackage.completeCourse || fallbackPackage.beginnerExplanation || sourceModel.overview || metadata.subject).slice(0, 3000);
+  const summary = safeString(assets?.summary || fallbackPackage.summary || fallbackPackage.completeCourse || fallbackPackage.beginnerExplanation || sourceModel.overview || metadata.subject).slice(0, 3000);
   const beginnerLesson = safeString(fallbackPackage.beginnerLesson || fallbackPackage.beginnerExplanation || summary || `Start with the key ideas from ${metadata.subject || 'this lesson'} and build understanding from the main concepts first.`);
   const intermediateLesson = safeString(packageData.intermediateLesson || packageData.intermediateExplanation || beginnerLesson);
   const advancedLesson = safeString(packageData.advancedLesson || packageData.advancedExplanation || intermediateLesson);
-  const keyConcepts = normalizeList(fallbackPackage.keyConcepts || fallbackPackage.realWorldExamples || sourceModel.sections).slice(0, 10);
+  const keyConcepts = normalizeList(assets?.topics || fallbackPackage.keyConcepts || fallbackPackage.realWorldExamples || sourceModel.sections).slice(0, 10);
   const importantDefinitions = normalizeList(fallbackPackage.importantDefinitions || sourceModel.definitions).slice(0, 10);
   const examples = normalizeList(fallbackPackage.examples || fallbackPackage.realWorldExamples).slice(0, 10);
-  const realWorldApplications = normalizeList(fallbackPackage.realWorldApplications || fallbackPackage.realWorldExamples).slice(0, 8);
-  const revisionNotes = normalizeList(fallbackPackage.revisionNotes || fallbackPackage.revisionNotesText || sourceModel.sections).slice(0, 10);
-  const cheatSheet = normalizeList(fallbackPackage.cheatSheet || sourceModel.sections).slice(0, 10);
-  const flashcards = Array.isArray(fallbackPackage.flashcards) ? fallbackPackage.flashcards : [];
-  const quiz = Array.isArray(fallbackPackage.quiz) ? fallbackPackage.quiz : [];
-  const practiceQuestions = Array.isArray(fallbackPackage.practiceQuestions) ? fallbackPackage.practiceQuestions : quiz.map((item) => item.question).filter(Boolean);
+  const realWorldApplications = normalizeList(assets?.realWorldExamples || fallbackPackage.realWorldApplications || fallbackPackage.realWorldExamples).slice(0, 8);
+  const revisionNotes = normalizeList(assets?.revisionNotes || fallbackPackage.revisionNotes || fallbackPackage.revisionNotesText || sourceModel.sections).slice(0, 10);
+  const cheatSheet = normalizeList(assets?.cheatSheet || fallbackPackage.cheatSheet || sourceModel.sections).slice(0, 10);
+  const flashcards = Array.isArray(assets?.flashcards) && assets.flashcards.length
+    ? assets.flashcards
+    : Array.isArray(fallbackPackage.flashcards) ? fallbackPackage.flashcards : [];
+  const quiz = Array.isArray(assets?.quiz) && assets.quiz.length
+    ? assets.quiz
+    : Array.isArray(fallbackPackage.quiz) ? fallbackPackage.quiz : [];
+  const practiceQuestions = Array.isArray(assets?.practiceQuestions) && assets.practiceQuestions.length
+    ? assets.practiceQuestions
+    : Array.isArray(fallbackPackage.practiceQuestions) ? fallbackPackage.practiceQuestions : quiz.map((item) => item.question).filter(Boolean);
+  const roadmap = normalizeList(assets?.roadmap || packageData.learningRoadmap || packageData.interviewQuestions || sourceModel.sections).slice(0, 12);
 
   return {
-    title: intelligenceProfile?.title || sourceModel.title || metadata.sourceName || 'Adaptive lesson',
+    title: assets?.title || intelligenceProfile?.title || sourceModel.title || metadata.sourceName || 'Adaptive lesson',
     summary,
     beginnerLesson,
     intermediateLesson,
     advancedLesson,
-    keyConcepts: intelligenceProfile?.keyConcepts || keyConcepts,
+    keyConcepts: keyConcepts,
     importantDefinitions,
     examples,
     realWorldApplications,
@@ -350,8 +365,12 @@ function buildLessonSession(packageData, sourceModel, detections, metadata, inte
     cheatSheet,
     flashcards,
     quiz,
-    mindMap: safeString(packageData.mindMap || packageData.learningRoadmap || `${metadata.subject} -> concepts -> practice`),
-    learningRoadmap: normalizeList(packageData.learningRoadmap || packageData.interviewQuestions || sourceModel.sections).slice(0, 12),
+    mindMap: assets?.mindMap || packageData.mindMap || packageData.learningRoadmap || `${metadata.subject} -> concepts -> practice`,
+    learningRoadmap: roadmap,
+    interviewQuestions: Array.isArray(assets?.interviewQuestions) ? assets.interviewQuestions : [],
+    contentOverview: assets?.overview || sourceModel.overview,
+    contentClassification: metadata.contentClassification || 'educational material',
+    planSize: planSize || null,
     aiTeacher: {
       script: beginnerLesson,
       language: metadata.language,
@@ -414,7 +433,7 @@ export function buildUniversalLearningArtifacts({ sourceMeta, sourceModel, learn
   });
 
   const lessonSuite = {
-    completeCourse: learningSession?.summary || sourceModel?.overview || '',
+    completeCourse: learningSession?.summary || learningSession?.contentOverview || sourceModel?.overview || '',
     beginnerExplanation: learningSession?.beginnerLesson || '',
     intermediateExplanation: learningSession?.intermediateLesson || '',
     advancedExplanation: learningSession?.advancedLesson || '',
@@ -424,7 +443,7 @@ export function buildUniversalLearningArtifacts({ sourceMeta, sourceModel, learn
     mindMap: learningSession?.mindMap || '',
     revisionNotes: learningSession?.revisionNotes || notes?.concise || [],
     realWorldExamples: learningSession?.realWorldApplications || [],
-    interviewQuestions: [],
+    interviewQuestions: Array.isArray(learningSession?.interviewQuestions) ? learningSession.interviewQuestions : [],
     practiceQuestions,
     quiz,
     flashcards,
@@ -454,12 +473,12 @@ export function buildUniversalLearningArtifacts({ sourceMeta, sourceModel, learn
     mindMapEntry: learningSession?.mindMap || '',
     memoryEntry: {
       sourceType: sourceMeta?.sourceType || 'universal',
-      topic: sourceMeta?.subject || learningSession?.title || 'Universal lesson',
+      topic: sourceMeta?.topicResolution?.title || sourceMeta?.subject || learningSession?.title || 'Universal lesson',
       concepts: keyConcepts.slice(0, 8),
       summary: learningSession?.summary || ''
     },
     progressEntry: {
-      topic: sourceMeta?.subject || learningSession?.title || 'Universal lesson',
+      topic: sourceMeta?.topicResolution?.title || sourceMeta?.subject || learningSession?.title || 'Universal lesson',
       progressPercent: 12,
       recommendedNext: learningSession?.progressUpdate?.recommendedNext || keyConcepts[0] || 'Start learning',
       status: 'ready_to_start'
@@ -507,28 +526,68 @@ export async function runUniversalLearningPipeline({
     extracted.extractedText = `${sourceType === 'youtube' ? 'YouTube' : 'Website'} learning source: ${url}`;
   }
 
+  const normalizedContent = normalizeVisionOutput({
+    sourceType,
+    sourceName: normalizedName,
+    rawExtractedContent: extracted.extractedText || normalizedText || ocrText,
+    visualDescription: sourceType === 'image' || sourceType === 'camera-ocr' ? (normalizedText || extracted.extractedText) : '',
+    detectedText: ocrText || extracted.extractedText
+  });
+  const deterministicCounts = deriveDeterministicCounts(normalizedContent);
+  const planSize = estimateLearningPlanSize({
+    sourceType,
+    classification: normalizedContent.classification,
+    conceptCount: normalizedContent.detectedConcepts.length,
+    difficulty: normalizedContent.difficulty,
+    textLength: safeString(extracted.extractedText).length
+  });
+  const independentAssets = buildIndependentLearningAssets({
+    topicResolution: normalizedContent.topicResolution,
+    normalizedContent,
+    deterministicCounts,
+    planSize
+  });
+  const outputValidation = validateLearningOutput({
+    topicResolution: normalizedContent.topicResolution,
+    assets: independentAssets,
+    normalizedContent,
+    deterministicCounts,
+    planSize,
+    flowType: 'content-first'
+  });
+
   const intelligenceProfile = buildContentIntelligenceProfile({
-    sourceText: extracted.extractedText,
+    sourceText: normalizedContent.detectedText || extracted.extractedText,
     sourceName: normalizedName,
     sourceType,
-    visionSummary: extracted.visionSummary || ''
+    visionSummary: normalizedContent.visualDescription || extracted.visionSummary || ''
   });
 
   const sourceModel = buildSourceModel({
     sourceName: normalizedName,
     sourceType,
-    extractedText: extracted.extractedText,
+    extractedText: normalizedContent.detectedText || extracted.extractedText,
     slides: extracted.slides,
-    intelligenceProfile
+    intelligenceProfile: {
+      ...intelligenceProfile,
+      title: normalizedContent.topicResolution.title,
+      subject: normalizedContent.topicResolution.subject,
+      topics: normalizedContent.topicResolution.subtopics
+    }
   });
 
   const detections = detectElements(sourceModel.extractedText, sourceType);
   const metadata = {
     sourceType,
     sourceName: normalizedName,
-    language: detectLanguage(sourceModel.extractedText),
-    subject: detectSubject(sourceModel.extractedText),
-    difficulty: detectDifficulty(sourceModel.extractedText),
+    language: normalizedContent.language || detectLanguage(sourceModel.extractedText),
+    subject: normalizedContent.subject || detectSubject(sourceModel.extractedText),
+    difficulty: normalizedContent.difficulty?.level || detectDifficulty(sourceModel.extractedText),
+    difficultyScore: normalizedContent.difficulty?.score || 35,
+    difficultyReason: normalizedContent.difficulty?.reason || '',
+    contentClassification: normalizedContent.classification,
+    contentPurpose: normalizedContent.contentPurpose,
+    topic: normalizedContent.topic,
     detectDiagrams: detections.hasDiagrams,
     detectFormulas: detections.hasFormulas,
     detectTables: detections.hasTables,
@@ -538,7 +597,7 @@ export async function runUniversalLearningPipeline({
   };
 
   let packagePayload = await getDakshaLessonPackage(
-    sourceModel.extractedText || `${metadata.subject} ${metadata.sourceType}`,
+    normalizedContent.detectedText || `${metadata.subject} ${metadata.topic}`,
     metadata.sourceType,
     metadata.sourceName
   );
@@ -547,19 +606,38 @@ export async function runUniversalLearningPipeline({
     packagePayload = {};
   }
 
-  const learningSession = buildLessonSession(packagePayload, sourceModel, detections, metadata, intelligenceProfile);
+  const safeAssets = outputValidation.isValid
+    ? independentAssets
+    : {
+      ...independentAssets,
+      summary: buildReliabilityFallbackMessage(),
+      overview: buildReliabilityFallbackMessage(),
+      topics: independentAssets.topics.slice(0, 3),
+      quiz: independentAssets.quiz.slice(0, 3),
+      flashcards: independentAssets.flashcards.slice(0, 8),
+      practiceQuestions: independentAssets.practiceQuestions.slice(0, 2)
+    };
+
+  const learningSession = buildLessonSession(packagePayload, sourceModel, detections, metadata, intelligenceProfile, safeAssets, planSize);
 
   return {
     sourceMeta: {
       ...metadata,
-      title: intelligenceProfile?.title || metadata.sourceName,
-      subject: intelligenceProfile?.subject || metadata.subject,
+      title: normalizedContent.topicResolution.title || intelligenceProfile?.title || metadata.sourceName,
+      subject: normalizedContent.topicResolution.subject || intelligenceProfile?.subject || metadata.subject,
       chapters: intelligenceProfile?.chapters || [],
-      topics: intelligenceProfile?.topics || [],
-      subtopics: intelligenceProfile?.subtopics || [],
-      difficulty: intelligenceProfile?.difficulty || metadata.difficulty,
+      topics: normalizedContent.topicResolution.subtopics || intelligenceProfile?.topics || [],
+      subtopics: normalizedContent.topicResolution.subtopics || intelligenceProfile?.subtopics || [],
+      difficulty: metadata.difficulty,
+      difficultyEvidence: normalizedContent.difficulty,
+      contentObject: normalizedContent,
+      topicResolution: normalizedContent.topicResolution,
+      deterministicCounts,
+      estimatedLearning: planSize,
+      outputValidation,
+      contentClassification: normalizedContent.classification,
       learningObjectives: intelligenceProfile?.learningObjectives || [],
-      keyConcepts: intelligenceProfile?.keyConcepts || [],
+      keyConcepts: safeAssets.topics || intelligenceProfile?.keyConcepts || [],
       skills: intelligenceProfile?.skills || [],
       entities: intelligenceProfile?.entities || [],
       relationships: intelligenceProfile?.relationships || [],

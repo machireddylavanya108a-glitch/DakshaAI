@@ -85,7 +85,11 @@ function inferLearningMode(profile) {
   return 'Standard';
 }
 
-function getPrerequisiteChain(skill = '', profile = {}, sourceSummary = '') {
+function getPrerequisiteChain(skill = '', profile = {}, sourceSummary = '', roadmapSubtopics = []) {
+  if (Array.isArray(roadmapSubtopics) && roadmapSubtopics.length > 0) {
+    return roadmapSubtopics.slice(0, 7);
+  }
+
   const normalized = String(skill || '').toLowerCase();
   const sourceContext = String(sourceSummary || '').toLowerCase();
   const map = [
@@ -123,11 +127,11 @@ function getPrerequisiteChain(skill = '', profile = {}, sourceSummary = '') {
   }
 
   return [
-    `${sanitizeText(profile?.currentLevel || 'Current level', 'Current level')} review`,
-    `${sanitizeText(skill, 'Skill')} practice loop`,
-    `${sanitizeText(profile?.learningStyle || 'Learning style', 'Learning style')} drill`,
-    `${sanitizeText(profile?.endGoal || 'Career goal', 'Career goal')} application`,
-    `${sanitizeText(profile?.preferredLanguage || 'Language', 'Language')} recap`
+    `Understand ${sanitizeText(skill, 'the main topic')}`,
+    'Break the topic into core concepts',
+    'Practice one short application',
+    'Review and self-check understanding',
+    'Reflect and capture key takeaways'
   ];
 }
 
@@ -193,19 +197,42 @@ function createMilestones(prereqChain, unit = 'weekly') {
   return output;
 }
 
-function buildCareerLayer(skill, profile) {
+function buildCareerLayer(skill, profile, contentInsights = {}) {
+  if (contentInsights?.careerLayer?.status === 'not_applicable') {
+    return {
+      status: 'not_applicable',
+      certifications: [],
+      internshipPreparation: [],
+      jobPreparation: [],
+      freelancingRoadmap: [],
+      startupBusinessOpportunities: [],
+      careerPaths: [],
+      salaryInformation: 'Career guidance is hidden for this source because role relevance is not strong enough yet.'
+    };
+  }
+
   const role = sanitizeText(profile?.endGoal, 'career growth');
   const careerGoal = sanitizeText(profile?.careerGoal, role);
   const location = sanitizeText(profile?.location, 'your region');
   const safeSkill = normalizeSkillTopic(skill);
-  const genericPaths = ['Foundational learning path', 'Applied practice path', 'Project and portfolio path', 'Assessment readiness path'];
+  const map = [
+    { match: /bioinformatics|genomics|computational biology/i, roles: ['Bioinformatics Analyst', 'Computational Biology Researcher', 'Health Data Analyst'] },
+    { match: /react|frontend|ui|web development/i, roles: ['Frontend Developer', 'UI Engineer', 'Web Application Developer'] },
+    { match: /python|software|programming|ai/i, roles: ['Software Developer', 'Machine Learning Engineer', 'Data Engineer'] },
+    { match: /education technology|digital learning|learning design/i, roles: ['Learning Experience Designer', 'Education Technology Specialist', 'Instructional Designer'] }
+  ];
+  const matched = map.find((entry) => entry.match.test(safeSkill));
+  const careerPaths = matched ? matched.roles : [];
+  const status = careerPaths.length >= 2 ? 'supported' : 'not_applicable';
+
   return {
+    status,
     certifications: [`Target one credential that strengthens ${safeSkill} for ${careerGoal}`, `Map a second credential to a visible hiring signal`],
     internshipPreparation: [`Resume aligned to ${safeSkill} and ${careerGoal}`, 'Prepare a concise case study for internship interviews', 'Send tailored outreach messages with evidence from your work'],
     jobPreparation: ['Polish a compact portfolio narrative', 'Practice interview answers with real examples', 'Create a review loop for weak points'],
     freelancingRoadmap: ['Define a service niche around your strongest skills', 'Prepare one sample offer and one paid pilot', 'Collect testimonials and public proof'],
     startupBusinessOpportunities: [`Prototype a niche offer that uses ${safeSkill}`, 'Sketch a monetization path and first customer segment', 'Run a lightweight validation sprint'],
-    careerPaths: safeSkill === 'Topic not detected yet' ? genericPaths : [`${safeSkill} Practitioner`, `${safeSkill} Analyst`, `${safeSkill} Engineer`, `${safeSkill} Lead`],
+    careerPaths,
     salaryInformation: `Pay ranges vary by ${location}, market demand, and experience. Treat salary estimates as informational only and not financial advice. Target role: ${role}.`
   };
 }
@@ -219,9 +246,14 @@ function buildRecommendations(skill, profile, sourceContext, sourceLabel) {
   ];
 }
 
-function buildProgressSeed(totalHours, dailyMinutes, dailySchedule) {
+function buildProgressSeed(totalHours, dailyMinutes, dailySchedule, options = {}) {
   const days = Math.max(1, Math.ceil((totalHours * 60) / Math.max(1, dailyMinutes)));
   const estimateDate = new Date(Date.now() + days * 24 * 60 * 60 * 1000);
+  const isContentFirst = options.flowType === 'content-first' || String(options.sourceContext || '').toLowerCase() !== 'academy';
+  const achievementBadges = isContentFirst
+    ? ['Content Uploaded', 'First Lesson Generated', 'Quiz Ready', 'Learning Session Started']
+    : ['Plan Initialized'];
+
   return {
     completionPercent: 0,
     dailyStreak: 0,
@@ -229,7 +261,7 @@ function buildProgressSeed(totalHours, dailyMinutes, dailySchedule) {
     skillsMastered: [],
     weakConcepts: [],
     strongConcepts: [],
-    achievementBadges: ['Interview Completed', 'Plan Initialized'],
+    achievementBadges,
     estimatedCompletionDate: estimateDate.toISOString(),
     upcomingLessons: dailySchedule.slice(0, 3).map((item) => item.topic)
   };
@@ -240,21 +272,28 @@ export function buildPersonalizedLearningPlan({
   sourceContext = 'typed-topic',
   sourceLabel = '',
   sourceSummary = '',
-  skillHint = ''
+  skillHint = '',
+  contentInsights = null,
+  flowType = 'skill-first'
 } = {}) {
   const skill = normalizeSkillTopic(interviewAnswers.learnTopic || skillHint, 'Topic not detected yet');
   const mode = inferLearningMode(interviewAnswers);
-  const prereqChain = getPrerequisiteChain(skill, interviewAnswers, sourceSummary);
+  const prereqChain = getPrerequisiteChain(skill, interviewAnswers, sourceSummary, contentInsights?.roadmapSubtopics || []);
   const levelFactor = estimateLevelFactor(interviewAnswers.currentLevel);
   const speedFactor = estimateSpeedFactor(interviewAnswers.learningSpeed, mode);
-  const baseHours = Math.max(18, prereqChain.length * 16);
-  const totalLearningHours = Math.round(baseHours * levelFactor * speedFactor);
+  const estimatedMinutesFromContent = Number(contentInsights?.estimatedLearning?.estimatedMinutes || 0);
+  const baseHours = estimatedMinutesFromContent > 0
+    ? estimatedMinutesFromContent / 60
+    : Math.max(18, prereqChain.length * 16);
+  const totalLearningHours = Math.max(0.25, Math.round(baseHours * levelFactor * speedFactor * 100) / 100);
   const dailyMinutes = estimateDailyMinutes(interviewAnswers.dailyStudyTime);
   const estimatedCompletionDays = Math.max(1, Math.ceil((totalLearningHours * 60) / Math.max(1, dailyMinutes)));
+  const planSize = contentInsights?.estimatedLearning?.size
+    || (totalLearningHours < 1 ? 'micro' : totalLearningHours < 5 ? 'short' : totalLearningHours < 30 ? 'course' : 'long');
 
   const dailySchedule = createDailySchedule(interviewAnswers, prereqChain, skill, sourceLabel);
-  const weeklyMilestones = createMilestones(prereqChain, 'weekly');
-  const monthlyMilestones = createMilestones(prereqChain, 'monthly');
+  const weeklyMilestones = planSize === 'course' || planSize === 'long' ? createMilestones(prereqChain, 'weekly') : [];
+  const monthlyMilestones = planSize === 'long' ? createMilestones(prereqChain, 'monthly') : [];
 
   const tools = {
     requiredTools: ['Structured note-taking system', 'Practice tracker', 'Weekly review checklist'],
@@ -310,9 +349,15 @@ export function buildPersonalizedLearningPlan({
     createLesson(skill, 'Advanced Outcomes', 2, prereqChain)
   ];
 
-  const careerLayer = buildCareerLayer(skill, interviewAnswers);
+  const careerLayer = buildCareerLayer(skill, interviewAnswers, contentInsights || {});
   const recommendations = buildRecommendations(skill, interviewAnswers, sourceContext, sourceLabel);
-  const progress = buildProgressSeed(totalLearningHours, dailyMinutes, dailySchedule);
+  const progress = buildProgressSeed(totalLearningHours, dailyMinutes, dailySchedule, { flowType, sourceContext });
+
+  const estimatedCompletionTime = planSize === 'micro'
+    ? `${Math.max(15, Math.round(totalLearningHours * 60))} minutes`
+    : totalLearningHours < 5
+      ? `${Math.round(totalLearningHours * 60)} minutes`
+      : `${estimatedCompletionDays} days`;
 
   return {
     id: `plan_${Date.now()}`,
@@ -340,9 +385,10 @@ export function buildPersonalizedLearningPlan({
       endGoal: sanitizeText(interviewAnswers.endGoal, 'Master Skill')
     },
     estimatedCompletion: {
-      estimatedCompletionTime: `${estimatedCompletionDays} days`,
+      estimatedCompletionTime,
       totalLearningHours,
-      estimatedCompletionDays
+      estimatedCompletionDays,
+      planSize
     },
     plan: {
       dailySchedule,
