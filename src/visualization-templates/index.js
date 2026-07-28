@@ -58,6 +58,38 @@ export { resolveTemplateDependencies } from './VisualizationTemplateDependencyRe
 export { composeVisualizationTemplates } from './VisualizationTemplateComposer.js';
 export { bindTemplateSlots, bindTemplateRegions, resolveTemplateVariables } from './VisualizationTemplateBinding.js';
 export { selectVisualizationTemplate, invalidateTemplateSelectionCache } from './VisualizationTemplateSelection.js';
+export {
+  VISUALIZATION_TEMPLATE_GENERATOR_VERSION,
+  VISUALIZATION_TEMPLATE_GENERATION_DEFAULTS,
+  VISUALIZATION_TEMPLATE_PROFILE_LIMITS,
+  resolveGenerationConfig,
+  normalizeProfile,
+  stableHash as stableTemplateGenerationHash
+} from './VisualizationTemplateGenerationConfig.js';
+export {
+  createTemplateGenerationDiagnostics,
+  beginGenerationStage,
+  endGenerationStage,
+  finalizeTemplateGenerationDiagnostics
+} from './VisualizationTemplateGenerationDiagnostics.js';
+export {
+  createTemplateGenerationCacheKey,
+  getCachedGeneratedTemplate,
+  setCachedGeneratedTemplate,
+  invalidateGeneratedTemplateCache,
+  clearGeneratedTemplateCache
+} from './VisualizationTemplateGenerationCache.js';
+export { createVisualizationTemplateBlueprint } from './VisualizationTemplateBlueprint.js';
+export { generateTemplateLayout } from './VisualizationTemplateLayoutGenerator.js';
+export { generateTemplateSlots } from './VisualizationTemplateSlotGenerator.js';
+export { generateTemplateRegions } from './VisualizationTemplateRegionGenerator.js';
+export { generateTemplateRelationships } from './VisualizationTemplateRelationshipGenerator.js';
+export { simplifyVisualizationTemplate } from './VisualizationTemplateSimplifier.js';
+export { refineVisualizationTemplate } from './VisualizationTemplateRefiner.js';
+export { salvageVisualizationTemplate } from './VisualizationTemplateSalvager.js';
+export { applyTemplateGenerationFallback } from './VisualizationTemplateFallback.js';
+export { evaluateVisualizationTemplateQuality } from './VisualizationTemplateQuality.js';
+export { generateVisualizationTemplate } from './VisualizationTemplateGenerator.js';
 export { VisualizationTemplateError, toVisualizationTemplateError } from './VisualizationTemplateError.js';
 export {
   VISUALIZATION_TEMPLATE_LATEST_VERSION,

@@ -25,6 +25,7 @@ import {
 import { SceneGenerationError, toSceneGenerationError } from './SceneGenerationError.js';
 import { resolveVisualizationCapabilities } from '../visualization-capabilities/index.js';
 import {
+  generateVisualizationTemplate,
   selectVisualizationTemplate
 } from '../visualization-templates/index.js';
 
@@ -353,7 +354,59 @@ function summarizeTemplateSelection(selection = {}) {
   };
 }
 
-function attachVisualizationCapabilityMetadata(scene, normalizedInput, config, options = {}) {
+function shouldGenerateTemplateFromSelection(selection = {}, options = {}) {
+  if (options.forceTemplateGeneration === true) {
+    return { generate: true, reason: 'force-template-generation' };
+  }
+
+  if (selection?.status === 'fallback') {
+    return { generate: true, reason: selection?.diagnostics?.fallbackReason || 'selection-fallback' };
+  }
+
+  const diagnostics = selection?.diagnostics || {};
+  if (Number(diagnostics.selectedScore || 0) < Number(options.minimumTemplateScore ?? 0.2)) {
+    return { generate: true, reason: 'score-below-threshold' };
+  }
+
+  if (Number(diagnostics.capabilityCoverage || 0) < 0.75) {
+    return { generate: true, reason: 'capability-coverage-gap' };
+  }
+
+  if (Number(diagnostics.accessibilityCoverage || 0) < 0.75) {
+    return { generate: true, reason: 'accessibility-coverage-gap' };
+  }
+
+  if (Number(diagnostics.performanceCompatibility || 0) < 0.75) {
+    return { generate: true, reason: 'performance-compatibility-gap' };
+  }
+
+  return { generate: false, reason: 'selection-suitable' };
+}
+
+function summarizeTemplateGeneration(generation = {}) {
+  return {
+    status: generation.status || 'failed',
+    source: generation.source || 'procedural',
+    templateId: generation.template?.templateId || null,
+    templateVersion: generation.template?.version || null,
+    templateInstanceId: generation.templateInstance?.instanceId || null,
+    fallbackLevel: Number(generation.fallbackLevel || 0),
+    fallbackUsed: generation.fallbackUsed === true,
+    qualityScore: Number(generation.quality?.score || 0),
+    qualityPassed: generation.quality?.passed === true,
+    cacheHit: generation.cacheHit === true,
+    registered: generation.registered === true,
+    diagnostics: {
+      generationFingerprint: generation.diagnostics?.generationFingerprint || null,
+      generatedSlotCount: Number(generation.diagnostics?.generatedSlotCount || 0),
+      generatedRegionCount: Number(generation.diagnostics?.generatedRegionCount || 0),
+      generatedRelationshipCount: Number(generation.diagnostics?.generatedRelationshipCount || 0),
+      refinementPasses: Number(generation.diagnostics?.refinementPasses || 0)
+    }
+  };
+}
+
+async function attachVisualizationCapabilityMetadata(scene, normalizedInput, config, options = {}) {
   if (!scene || typeof scene !== 'object') return scene;
 
   const resolved = resolveVisualizationCapabilities({
@@ -403,6 +456,41 @@ function attachVisualizationCapabilityMetadata(scene, normalizedInput, config, o
     maxResults: options.maxTemplateResults ?? 8
   });
 
+  const generationDecision = shouldGenerateTemplateFromSelection(selection, options);
+  let generated = null;
+
+  if (generationDecision.generate) {
+    generated = await generateVisualizationTemplate({
+      ...templateContext,
+      preferredTemplate: selection.selectedTemplate,
+      failedTemplateSelection: selection,
+      metadata: {
+        ...(templateContext.metadata || {}),
+        confidence: Number(selection.confidence || 0.6)
+      }
+    }, {
+      signal: options.signal,
+      forceGenerate: options.forceTemplateGeneration === true,
+      useCache: options.useTemplateGenerationCache !== false,
+      registerGeneratedTemplate: options.registerGeneratedTemplate !== false,
+      qualityThreshold: options.minimumTemplateQuality ?? 65,
+      refinementPasses: options.templateRefinementPasses ?? 2,
+      performanceProfile: config.performanceProfile,
+      maximumSlots: options.maximumTemplateSlots,
+      maximumRegions: options.maximumTemplateRegions,
+      maximumRelationships: options.maximumTemplateRelationships,
+      deterministicSeed: normalizedInput.id || normalizedInput.topic || scene.sceneId,
+      fallbackEnabled: options.templateFallbackEnabled !== false,
+      registry: options.visualizationTemplateRegistry
+    });
+  }
+
+  const selectedTemplate = generated?.template || selection.selectedTemplate;
+  const selectedTemplateInstance = generated?.templateInstance || selection.selectedTemplateInstance;
+  const selectedBindings = generated?.bindings || selection.bindings;
+  const selectedDiagnostics = generated?.diagnostics || selection.diagnostics;
+  const selectedComposition = selection.templateComposition;
+
   return {
     ...scene,
     metadata: {
@@ -417,13 +505,14 @@ function attachVisualizationCapabilityMetadata(scene, normalizedInput, config, o
       selectedCapabilities: resolved.selectedCapabilities,
       capabilityComposition: resolved.capabilityComposition,
       templateSelection: summarizeTemplateSelection(selection),
-      selectedTemplate: selection.selectedTemplate,
-      selectedTemplateInstance: selection.selectedTemplateInstance,
-      templateComposition: selection.templateComposition,
-      templateBindings: selection.bindings,
-      visualizationTemplate: selection.selectedTemplate,
-      visualizationTemplateInstance: selection.selectedTemplateInstance,
-      templateDiagnostics: selection.diagnostics
+      templateGeneration: generated ? summarizeTemplateGeneration(generated) : null,
+      selectedTemplate: selectedTemplate,
+      selectedTemplateInstance: selectedTemplateInstance,
+      templateComposition: selectedComposition,
+      templateBindings: selectedBindings,
+      visualizationTemplate: selectedTemplate,
+      visualizationTemplateInstance: selectedTemplateInstance,
+      templateDiagnostics: selectedDiagnostics
     }
   };
 }
@@ -477,7 +566,7 @@ export async function generateUniversalScene(input = {}, options = {}) {
         const cachedEntry = sceneGenerationCache.validateCachedScene(sceneGenerationCache.get(cacheKey));
         markSceneGenerationTiming(diagnostics, 'normalizationDuration', endTimedStage(stage));
         if (cachedEntry?.scene) {
-          const sceneWithCapabilities = attachVisualizationCapabilityMetadata(cachedEntry.scene, normalizedInput, config, options);
+          const sceneWithCapabilities = await attachVisualizationCapabilityMetadata(cachedEntry.scene, normalizedInput, config, options);
           const artifacts = await buildSceneArtifacts(sceneWithCapabilities, performanceLimits, diagnostics);
           diagnostics.cacheHit = true;
           addSceneGenerationEvent(diagnostics, 'scene_cache_hit', { cacheKey });
@@ -509,7 +598,7 @@ export async function generateUniversalScene(input = {}, options = {}) {
           level: 3,
           reason: 'ai-disabled'
         });
-        const fallbackWithCapabilities = attachVisualizationCapabilityMetadata(fallbackScene, normalizedInput, config, options);
+        const fallbackWithCapabilities = await attachVisualizationCapabilityMetadata(fallbackScene, normalizedInput, config, options);
         const artifacts = await buildSceneArtifacts(fallbackWithCapabilities, performanceLimits, diagnostics);
         diagnostics.fallbackLevel = 3;
         diagnostics.fallbackReason = 'ai-disabled';
@@ -614,7 +703,7 @@ export async function generateUniversalScene(input = {}, options = {}) {
         diagnostics.fallbackReason = 'validation-fallback';
       }
 
-      const sceneWithCapabilities = attachVisualizationCapabilityMetadata(scene, normalizedInput, config, options);
+      const sceneWithCapabilities = await attachVisualizationCapabilityMetadata(scene, normalizedInput, config, options);
       const artifacts = await buildSceneArtifacts(sceneWithCapabilities, performanceLimits, diagnostics);
 
       if (config.useCache && options.useCache !== false && !fallbackUsed) {
@@ -705,7 +794,7 @@ export async function generateUniversalScene(input = {}, options = {}) {
         level: fallbackLevel,
         reason: normalizedError.code
       });
-      const fallbackWithCapabilities = attachVisualizationCapabilityMetadata(fallbackScene, normalizedInput, config, options);
+      const fallbackWithCapabilities = await attachVisualizationCapabilityMetadata(fallbackScene, normalizedInput, config, options);
       const artifacts = await buildSceneArtifacts(fallbackWithCapabilities, performanceLimits, diagnostics);
       diagnostics.fallbackLevel = fallbackLevel;
       diagnostics.fallbackReason = normalizedError.code;
