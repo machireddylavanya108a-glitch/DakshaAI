@@ -1,28 +1,12 @@
 import { initializeApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
+import { resolveRuntimeEnv, validateRuntimeConfig as validateGroupedRuntimeConfig } from '../utils/runtimeConfigValidation.js';
 
-const runtimeEnv = typeof import.meta !== 'undefined' && import.meta.env ? import.meta.env : {};
+const runtimeEnv = resolveRuntimeEnv();
 
-export function validateRuntimeConfig() {
-  const requiredKeys = [
-    'VITE_FIREBASE_API_KEY',
-    'VITE_FIREBASE_AUTH_DOMAIN',
-    'VITE_FIREBASE_PROJECT_ID',
-    'VITE_FIREBASE_STORAGE_BUCKET',
-    'VITE_FIREBASE_MESSAGING_SENDER_ID',
-    'VITE_FIREBASE_APP_ID',
-    'VITE_OPENROUTER_API_KEY',
-    'VITE_OPENROUTER_TEXT_MODEL',
-    'VITE_OPENROUTER_VISION_MODEL'
-  ];
-
-  const missing = requiredKeys.filter((key) => !runtimeEnv[key]);
-  if (missing.length > 0) {
-    console.warn(`[Firebase] Missing runtime config values: ${missing.join(', ')}`);
-  }
-
-  return { valid: missing.length === 0, missing };
+export function validateRuntimeConfig(env = runtimeEnv, logger = console) {
+  return validateGroupedRuntimeConfig(env, logger);
 }
 
 const configCheck = validateRuntimeConfig();
@@ -35,10 +19,6 @@ const firebaseConfig = {
   messagingSenderId: runtimeEnv.VITE_FIREBASE_MESSAGING_SENDER_ID || '000000000000',
   appId: runtimeEnv.VITE_FIREBASE_APP_ID || '1:000000000000:web:demo'
 };
-
-if (!configCheck.valid) {
-  console.error('[Firebase] Authentication may fail until the required configuration values are provided.');
-}
 
 const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
