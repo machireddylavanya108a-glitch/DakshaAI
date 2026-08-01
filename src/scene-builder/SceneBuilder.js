@@ -223,6 +223,44 @@ function resolveAssetRegistryMetadata(scene = {}) {
   };
 }
 
+function resolveAssetDiscoveryMetadata(scene = {}) {
+  const source = scene?.metadata?.assetDiscovery || scene?.assetDiscovery || {};
+  const selectedAssets = Array.isArray(source?.decision?.selectedAssets)
+    ? source.decision.selectedAssets
+    : [];
+  const rankedCandidates = Array.isArray(source?.decision?.rankedCandidates)
+    ? source.decision.rankedCandidates
+    : [];
+
+  return {
+    profile: {
+      schemaVersion: String(source?.schemaVersion || 'v1'),
+      status: String(source?.status || 'resolved'),
+      mode: String(source?.mode || 'registry'),
+      confidenceScore: Number(source?.confidenceScore || 0),
+      decision: {
+        primaryAsset: source?.decision?.primaryAsset || null,
+        selectedAssets,
+        rankedCandidates,
+        proceduralFallback: source?.decision?.proceduralFallback || {
+          enabled: false,
+          placeholderAsset: null
+        }
+      },
+      diagnostics: source?.diagnostics || {},
+      metadata: source?.metadata || {}
+    },
+    summary: {
+      schemaVersion: String(source?.schemaVersion || 'v1'),
+      mode: String(source?.mode || 'registry'),
+      confidenceScore: Number(source?.confidenceScore || 0),
+      selectedAssetCount: selectedAssets.length,
+      rankedCandidateCount: rankedCandidates.length,
+      proceduralFallbackEnabled: source?.decision?.proceduralFallback?.enabled === true
+    }
+  };
+}
+
 function normalizeInteractionType(input = 'custom') {
   const normalized = toKebab(input || 'custom');
 
@@ -858,6 +896,7 @@ export function buildRuntimeSceneGraph(validatedSceneJson = {}) {
   const capabilityTemplateRecommendationMetadata = resolveCapabilityTemplateRecommendationMetadata(validatedSceneJson);
   const confidenceConflictFallbackMetadata = resolveConfidenceConflictFallbackMetadata(validatedSceneJson);
   const assetRegistryMetadata = resolveAssetRegistryMetadata(validatedSceneJson);
+  const assetDiscoveryMetadata = resolveAssetDiscoveryMetadata(validatedSceneJson);
   const rootNode = graph.getNode(validatedSceneJson.sceneId);
   if (rootNode) {
     rootNode.runtimeData = {
@@ -921,6 +960,14 @@ export function buildRuntimeSceneGraph(validatedSceneJson = {}) {
         unresolvedAssetCount: assetRegistryMetadata.summary.unresolvedAssetCount,
         registryVersion: assetRegistryMetadata.summary.registryVersion,
         contractCount: assetRegistryMetadata.summary.contractCount
+      },
+      assetDiscovery: {
+        schemaVersion: assetDiscoveryMetadata.summary.schemaVersion,
+        mode: assetDiscoveryMetadata.summary.mode,
+        confidenceScore: assetDiscoveryMetadata.summary.confidenceScore,
+        selectedAssetCount: assetDiscoveryMetadata.summary.selectedAssetCount,
+        rankedCandidateCount: assetDiscoveryMetadata.summary.rankedCandidateCount,
+        proceduralFallbackEnabled: assetDiscoveryMetadata.summary.proceduralFallbackEnabled
       }
     };
     registry.update(rootNode.id, rootNode);
@@ -940,6 +987,7 @@ export function buildRuntimeSceneGraph(validatedSceneJson = {}) {
       capabilityTemplateRecommendation: capabilityTemplateRecommendationMetadata.recommendation,
       confidenceConflictFallback: confidenceConflictFallbackMetadata.profile,
       assetRegistry: assetRegistryMetadata.profile,
+      assetDiscovery: assetDiscoveryMetadata.profile,
       timeline: timelineMetadata,
       timelineData: runtimeTimeline.timelineData,
       narration: narrationMetadata,
@@ -998,7 +1046,8 @@ export function buildRuntimeSceneGraph(validatedSceneJson = {}) {
         visualizationStrategyState: visualizationStrategyMetadata.profile,
         capabilityTemplateRecommendationState: capabilityTemplateRecommendationMetadata.recommendation,
         confidenceConflictFallbackState: confidenceConflictFallbackMetadata.profile,
-        assetRegistryState: assetRegistryMetadata.profile
+        assetRegistryState: assetRegistryMetadata.profile,
+        assetDiscoveryState: assetDiscoveryMetadata.profile
       },
       interactionEngine: {
         timelineState: {
@@ -1059,7 +1108,8 @@ export function buildRuntimeSceneGraph(validatedSceneJson = {}) {
         visualizationStrategyState: visualizationStrategyMetadata.profile,
         capabilityTemplateRecommendationState: capabilityTemplateRecommendationMetadata.recommendation,
         confidenceConflictFallbackState: confidenceConflictFallbackMetadata.profile,
-        assetRegistryState: assetRegistryMetadata.profile
+        assetRegistryState: assetRegistryMetadata.profile,
+        assetDiscoveryState: assetDiscoveryMetadata.profile
       },
       speechPlayback: {
         playbackState: 'Ready',
@@ -1500,7 +1550,8 @@ export function buildRuntimeSceneGraph(validatedSceneJson = {}) {
         visualizationStrategyState: visualizationStrategyMetadata.profile,
         capabilityTemplateRecommendationState: capabilityTemplateRecommendationMetadata.recommendation,
         confidenceConflictFallbackState: confidenceConflictFallbackMetadata.profile,
-        assetRegistryState: assetRegistryMetadata.profile
+        assetRegistryState: assetRegistryMetadata.profile,
+        assetDiscoveryState: assetDiscoveryMetadata.profile
       }
     }
   };

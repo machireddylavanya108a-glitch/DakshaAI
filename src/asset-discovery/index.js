@@ -1,0 +1,7 @@
+export {
+  UniversalAssetDiscoveryMatchingResolutionEngine,
+  createUniversalAssetDiscoveryMatchingResolutionEngine,
+  analyzeUniversalAssetDiscoveryMatchingResolution,
+  normalizeAssetDiscoveryMatchingResolutionProfile,
+  migrateAssetDiscoveryMatchingResolutionProfile
+} from './UniversalAssetDiscoveryMatchingResolutionEngine.js';

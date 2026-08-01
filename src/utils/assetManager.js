@@ -1,4 +1,5 @@
 import { getDefaultUniversalAssetRegistry } from '../asset-registry/index.js';
+import { analyzeUniversalAssetDiscoveryMatchingResolution } from '../asset-discovery/index.js';
 
 export const assetCatalog = [
   { id: 'heart-anatomy', name: 'Heart Anatomy', category: 'Human Anatomy', tags: ['heart', 'circulation', 'organ', 'surgery'], description: 'Detailed heart anatomy for medical lessons.', price: 0, enabled: true },
@@ -240,6 +241,61 @@ function getRegistryBackedAssets(registry) {
   return contracts.map((contract) => normalizeRegistryContractToAssetProfile(contract));
 }
 
+function toDiscoveryContext(input = {}, category = '') {
+  const source = isObjectLike(input) ? input : {};
+  const query = safeString(source.query || source.content || source.lesson || source.learningIntent || '');
+  const sceneMetadata = isObjectLike(source.sceneMetadata) ? source.sceneMetadata : {};
+  const objectMetadata = Array.isArray(source.objectMetadata) ? source.objectMetadata : [];
+  const learningIntent = isObjectLike(source.learningIntent)
+    ? source.learningIntent
+    : {
+      learningIntent: query,
+      educationalStrategy: safeString(source.educationalStrategy || ''),
+      reasoningStyle: safeString(source.reasoningStyle || ''),
+      confidenceScore: clamp(source.confidenceScore, 0, 1)
+    };
+
+  return {
+    learningIntent,
+    visualizationStrategy: source.visualizationStrategy || {},
+    capabilityRecommendation: source.capabilityRecommendation || {},
+    sceneMetadata: {
+      ...sceneMetadata,
+      categoryHint: safeString(category || source.category || ''),
+      query
+    },
+    objectMetadata,
+    sceneGraph: source.sceneGraph || {},
+    runtimeGraph: source.runtimeGraph || {},
+    performanceProfile: safeString(source.performanceProfile || 'balanced') || 'balanced'
+  };
+}
+
+function isObjectLike(value) {
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+}
+
+function normalizeCandidateRanking(candidate = {}, byId = new Map()) {
+  const asset = byId.get(candidate.assetId);
+  if (!asset) return null;
+
+  return {
+    ...asset,
+    assetId: asset.id,
+    label: asset.name,
+    icon: asset.category,
+    // Keep rank score on legacy-compatible scale used by existing scene heuristics.
+    rankScore: clamp(candidate.rankScore, 0, 1) * 10,
+    lod: safeString(candidate.lodLevel || asset.lod || 'medium') || 'medium',
+    qualityLevel: safeString(candidate.qualityLevel || 'medium') || 'medium',
+    compression: asset.compression,
+    lazyLoading: asset.lazyLoading,
+    optimization: asset.optimization,
+    source: candidate.source || asset.source,
+    discoveryReason: candidate.reason || 'registry-rank'
+  };
+}
+
 function buildCompositeAssetPlan(query = '', category = '') {
   const manager = createAssetManager();
   const ranked = manager.rankAssets(query, category);
@@ -258,6 +314,7 @@ function buildCompositeAssetPlan(query = '', category = '') {
 export function createAssetManager() {
   const registry = ensureDefaultRegistrySeeded(getDefaultUniversalAssetRegistry());
   const assets = getRegistryBackedAssets(registry);
+  const assetsById = new Map(assets.map((entry) => [entry.id, entry]));
   const categoryIndex = new Map();
 
   assets.forEach((asset) => {
@@ -269,6 +326,27 @@ export function createAssetManager() {
   const manager = {
     getRegistry: () => registry,
     getRegistryState: () => registry.exportSnapshot(),
+    discoverAssets: (input = {}, options = {}) => {
+      const context = toDiscoveryContext(input, input?.category || '');
+      const profile = analyzeUniversalAssetDiscoveryMatchingResolution(context, {
+        ...options,
+        performanceProfile: options.performanceProfile || context.performanceProfile,
+        registry
+      });
+
+      const selectedAssets = (profile?.decision?.selectedAssets || [])
+        .map((candidate) => normalizeCandidateRanking(candidate, assetsById))
+        .filter(Boolean);
+
+      return {
+        profile,
+        selectedAssets,
+        rankedCandidates: (profile?.decision?.rankedCandidates || [])
+          .map((candidate) => normalizeCandidateRanking(candidate, assetsById))
+          .filter(Boolean),
+        proceduralFallback: profile?.decision?.proceduralFallback || { enabled: false, placeholderAsset: null }
+      };
+    },
     getAllAssets: () => assets,
     getAssetsByCategory: (category) => {
       const exact = (categoryIndex.get(category) || []).slice();
@@ -292,6 +370,13 @@ export function createAssetManager() {
       return assets.find((asset) => asset.id === id) || null;
     },
     rankAssets: (query = '', category = '') => {
+      if (String(query || '').trim() || String(category || '').trim()) {
+        const discovered = manager.discoverAssets({ query, category });
+        if (discovered.rankedCandidates.length && Number(discovered.rankedCandidates[0]?.rankScore || 0) >= 2) {
+          return discovered.rankedCandidates;
+        }
+      }
+
       const ranked = assets
         .map((asset) => ({ asset, score: scoreAsset(asset, query, category) }))
         .sort((left, right) => right.score - left.score || left.asset.name.localeCompare(right.asset.name))
@@ -387,13 +472,15 @@ export function writeAssetCache(key, payload) {
 
 export function getAssetRecommendation(query = '', category = '') {
   const manager = createAssetManager();
+  const discovered = manager.discoverAssets({ query, category });
   const match = manager.matchAsset(query, category);
   const ranked = manager.rankAssets(query, category);
   const composite = buildCompositeAssetPlan(query, category);
   return {
-    match,
+    match: discovered.selectedAssets[0] || match,
     ranked: ranked.slice(0, 4),
     composite,
+    discoveryProfile: discovered.profile,
     cacheKey: getAssetCacheKey(query),
     requiresComposition: !match || ranked.length < 2
   };
@@ -416,6 +503,11 @@ export function resolveAssetFromRegistry(id = '', version = 'latest') {
   const match = registry.lookup(id, version);
   if (!match) return null;
   return normalizeRegistryContractToAssetProfile(match);
+}
+
+export function discoverUniversalAssets(input = {}, options = {}) {
+  const manager = createAssetManager();
+  return manager.discoverAssets(input, options);
 }
 
 export function optimizeAsset(asset) {

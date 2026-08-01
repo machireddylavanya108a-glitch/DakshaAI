@@ -319,7 +319,23 @@ function chooseEntities(content = '', domain = 'General') {
 
 function buildAssetPlan(content = '', domain = 'General', entities = []) {
   const manager = createAssetManager();
-  const assets = manager.buildAssetPlan(content, domain);
+  const discovered = manager.discoverAssets({
+    query: content,
+    category: domain,
+    sceneMetadata: {
+      domain,
+      entityCount: entities.length
+    },
+    objectMetadata: entities.map((entity, index) => ({
+      id: `entity-${index + 1}`,
+      name: entity.name,
+      category: entity.category,
+      tags: [entity.role, entity.concept].filter(Boolean)
+    }))
+  });
+  const assets = discovered.selectedAssets.length
+    ? discovered.selectedAssets
+    : manager.buildAssetPlan(content, domain);
   const selected = assets.slice(0, Math.min(3, Math.max(1, entities.length)));
 
   return selected.map((asset, index) => ({
@@ -566,28 +582,48 @@ export function buildAuto3DSceneForLesson(content = '', sourceType = 'typed-topi
   const animationPlan = buildAnimationPlan(content, scene.objects);
   const autoAnimationState = buildAutoAnimationState(content);
 
-  const models = scene.rendererPayload?.models || scene.objects.map((object, index) => ({
-    id: `model-${index + 1}`,
-    label: object.label,
-    assetId: object.asset,
-    category: object.category,
-    position: object.position,
-    size: object.size,
-    color: object.color
-  }));
-  const labels = (scene.rendererPayload?.labels || models.map((model) => ({ id: model.id, text: model.label, position: model.position })))
+  const models = (scene.rendererPayload?.models && scene.rendererPayload.models.length
+    ? scene.rendererPayload.models
+    : scene.objects.map((object, index) => ({
+      id: `model-${index + 1}`,
+      label: object.label,
+      assetId: object.asset,
+      category: object.category,
+      position: object.position,
+      size: object.size,
+      color: object.color
+    }))) || [];
+
+  const safeModels = models.length
+    ? models
+    : [{
+      id: 'model-1',
+      label: scene?.objects?.[0]?.label || 'Core Model',
+      assetId: scene?.objects?.[0]?.asset || 'procedural-core-model',
+      category: scene?.objects?.[0]?.category || 'Dynamic',
+      position: scene?.objects?.[0]?.position || [0, 0, 0],
+      size: scene?.objects?.[0]?.size || [1, 1, 1],
+      color: scene?.objects?.[0]?.color || '#34d399',
+      assetRef: {
+        registryAssetId: scene?.objects?.[0]?.asset || 'procedural-core-model',
+        registryVersion: 'generated-v1',
+        source: 'procedural-generator'
+      }
+    }];
+
+  const labels = (scene.rendererPayload?.labels || safeModels.map((model) => ({ id: model.id, text: model.label, position: model.position })))
     .map((label, index) => ({
-      id: models[index]?.id || label.id,
+      id: safeModels[index]?.id || label.id,
       text: label.text,
-      position: models[index]?.position || label.position || [0, 0, 0]
+      position: safeModels[index]?.position || label.position || [0, 0, 0]
     }));
   const hotspots = (scene.rendererPayload?.hotspots || []).map((hotspot, index) => ({
     id: hotspot.id || `hotspot-${index + 1}`,
     label: hotspot.label,
     details: hotspot.details,
-    position: models[index]?.position || hotspot.position || [0, 0, 0]
+    position: safeModels[index]?.position || hotspot.position || [0, 0, 0]
   }));
-  const measurements = models.map((model, index) => ({
+  const measurements = safeModels.map((model, index) => ({
     id: `measurement-${index + 1}`,
     target: model.id,
     value: `${index + 1} unit`,
@@ -595,13 +631,13 @@ export function buildAuto3DSceneForLesson(content = '', sourceType = 'typed-topi
   }));
   const interactionHint = String(scene?.classification?.interactionCategory || '').toLowerCase();
   const crossSections = /(cross\s*section|inside view|slice)/.test(normalizedContent) || /interaction/.test(interactionHint)
-    ? [{ id: 'cross-section-1', label: 'Cross Section', target: models[0]?.id || 'model-1' }]
+    ? [{ id: 'cross-section-1', label: 'Cross Section', target: safeModels[0]?.id || 'model-1' }]
     : [];
   const xRay = /(x-ray|xray|transparent view)/.test(normalizedContent)
-    ? [{ id: 'xray-1', label: 'X-Ray View', target: models[0]?.id || 'model-1' }]
+    ? [{ id: 'xray-1', label: 'X-Ray View', target: safeModels[0]?.id || 'model-1' }]
     : [];
   const explodedView = /(explode|breakdown|layers|assembly|cross\s*section|x-ray|xray)/.test(normalizedContent)
-    ? [{ id: 'explode-1', label: 'Exploded View', target: models[0]?.id || 'model-1' }]
+    ? [{ id: 'explode-1', label: 'Exploded View', target: safeModels[0]?.id || 'model-1' }]
     : [];
   const timeline = animationPlan.map((step, index) => ({
     id: step.id,
@@ -649,7 +685,7 @@ export function buildAuto3DSceneForLesson(content = '', sourceType = 'typed-topi
     subDomain: scene.subDomain,
     classification: scene.classification,
     rendererPayload,
-    models: rendererPayload.models,
+    models: rendererPayload.models?.length ? rendererPayload.models : safeModels,
     labels: rendererPayload.labels,
     animations: animationPlan,
     hotspots: rendererPayload.hotspots,

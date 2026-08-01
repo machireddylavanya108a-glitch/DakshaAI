@@ -37,6 +37,7 @@ import {
   createEducationalObjectBehaviorRuntime
 } from '../educational-objects/index.js';
 import { getUniversalAssetRegistryState, resolveAssetFromRegistry } from '../utils/assetManager.js';
+import { analyzeUniversalAssetDiscoveryMatchingResolution } from '../asset-discovery/index.js';
 
 function stableHash(input = '') {
   const text = String(input || '');
@@ -598,6 +599,39 @@ function buildAssetRegistrySceneMetadata(scene = {}, objectGeneration = {}) {
   };
 }
 
+function toAssetPlanFromDiscovery(profile = {}) {
+  const selected = Array.isArray(profile?.decision?.selectedAssets) ? profile.decision.selectedAssets : [];
+  if (!selected.length) return [];
+
+  return selected.map((entry, index) => ({
+    assetId: String(entry?.assetId || `procedural-${index + 1}`),
+    assetRef: {
+      registryAssetId: String(entry?.assetId || `procedural-${index + 1}`),
+      registryVersion: String(entry?.version || 'latest')
+    },
+    label: String(entry?.metadata?.name || entry?.assetId || `Asset ${index + 1}`),
+    category: String(entry?.category || 'General'),
+    icon: String(entry?.category || 'General'),
+    focus: String(entry?.reason || 'adaptive-match'),
+    lod: String(entry?.lodLevel || 'medium'),
+    qualityLevel: String(entry?.qualityLevel || 'medium'),
+    compression: {
+      enabled: true,
+      level: String(entry?.qualityLevel || 'medium') === 'high' ? 'balanced' : 'aggressive'
+    },
+    lazyLoading: {
+      enabled: true,
+      preloadDistance: String(entry?.lodLevel || 'medium') === 'high' ? 6 : 3
+    },
+    optimization: {
+      culling: true,
+      instancing: String(entry?.lodLevel || 'medium') !== 'high',
+      batchSize: String(entry?.lodLevel || 'medium') === 'high' ? 24 : 12
+    },
+    rankScore: Number(entry?.rankScore || 0)
+  }));
+}
+
 function applyAdaptiveFallbackActions(scene = {}, profile = {}) {
   const actions = new Set(Array.isArray(profile?.fallbackPlan?.actions) ? profile.fallbackPlan.actions : []);
   const next = {
@@ -880,10 +914,51 @@ async function attachVisualizationCapabilityMetadata(scene, normalizedInput, con
     minimumConfidenceThreshold: options.minimumConfidenceThreshold ?? 0.45
   });
 
+  const assetDiscoveryProfile = analyzeUniversalAssetDiscoveryMatchingResolution({
+    learningIntent: normalizedInput.classification?.intentProfile || normalizedInput.metadata?.intentProfile || {
+      learningIntent: normalizedInput.title,
+      educationalStrategy: normalizedInput.classification?.educationalStrategy,
+      reasoningStyle: normalizedInput.classification?.reasoningStyle,
+      confidenceScore: normalizedInput.classification?.confidence
+    },
+    visualizationStrategy: normalizedInput.visualizationStrategy,
+    capabilityRecommendation: recommendation,
+    sceneGraph: {
+      nodeCount: Array.isArray(adaptedScene.objects) ? adaptedScene.objects.length : 0,
+      relationshipCount: Array.isArray(adaptedScene.relationships) ? adaptedScene.relationships.length : 0,
+      metadata: {
+        sceneId: adaptedScene.sceneId,
+        title: adaptedScene.title
+      }
+    },
+    runtimeGraph: {
+      nodeCount: Array.isArray(adaptedScene.objects) ? adaptedScene.objects.length : 0,
+      relationshipCount: Array.isArray(adaptedScene.relationships) ? adaptedScene.relationships.length : 0
+    },
+    sceneMetadata: adaptedScene.metadata || {},
+    objectMetadata: (adaptedScene.objects || []).map((object) => ({
+      id: object.id,
+      name: object.name || object.label,
+      category: object.type || object.category,
+      tags: object.tags || [],
+      metadata: object.metadata || {}
+    })),
+    performanceProfile: config.performanceProfile
+  }, {
+    performanceProfile: config.performanceProfile
+  });
+
+  const discoveredAssetPlan = toAssetPlanFromDiscovery(assetDiscoveryProfile);
+  const hasSceneAssetPlan = Array.isArray(adaptedScene.assetPlan) && adaptedScene.assetPlan.length > 0;
+  const mergedAssetPlan = hasSceneAssetPlan ? adaptedScene.assetPlan : discoveredAssetPlan;
+  const mergedReusableAssets = mergedAssetPlan.map((entry) => entry?.assetId).filter(Boolean);
+
   const assetRegistryMetadata = buildAssetRegistrySceneMetadata(adaptedScene, objectGeneration);
 
   return {
     ...adaptedScene,
+    assetPlan: mergedAssetPlan,
+    reusableAssets: mergedReusableAssets,
     educationalObjects: objectGeneration.objects || scene.educationalObjects || [],
     educationalObjectInstances: objectGeneration.objectInstances || scene.educationalObjectInstances || [],
     metadata: {
@@ -909,6 +984,7 @@ async function attachVisualizationCapabilityMetadata(scene, normalizedInput, con
       visualizationTemplate: selectedTemplate,
       visualizationTemplateInstance: selectedTemplateInstance,
       templateDiagnostics: selectedDiagnostics,
+      assetDiscovery: assetDiscoveryProfile,
       assetRegistry: assetRegistryMetadata,
       recommendationDrivenDecision: {
         ...generationDecision,

@@ -190,6 +190,7 @@ export class TimelineSynchronizationRuntime {
     const capabilityTemplateRecommendationState = this.runtime?.metadata?.capabilityTemplateRecommendation || null;
     const confidenceConflictFallbackState = this.runtime?.metadata?.confidenceConflictFallback || null;
     const assetRegistryState = this.runtime?.metadata?.assetRegistry || null;
+    const assetDiscoveryState = this.runtime?.metadata?.assetDiscovery || null;
     const previousSession = this.sharedState?.session || {
       persistenceKey: this.persistenceKey,
       recovered: false,
@@ -220,6 +221,7 @@ export class TimelineSynchronizationRuntime {
       capabilityTemplateRecommendation: capabilityTemplateRecommendationState,
       confidenceConflictFallback: confidenceConflictFallbackState,
       assetRegistry: assetRegistryState,
+      assetDiscovery: assetDiscoveryState,
       playback,
       sceneGraph: {
         nodeCount: graphSummary.nodeCount,
@@ -249,6 +251,7 @@ export class TimelineSynchronizationRuntime {
           capabilityTemplateRecommendationState,
           confidenceConflictFallbackState,
           assetRegistryState,
+          assetDiscoveryState,
           updatedAt: Date.now()
         },
         rendererAdapter: {
@@ -269,6 +272,7 @@ export class TimelineSynchronizationRuntime {
           capabilityTemplateRecommendationState,
           confidenceConflictFallbackState,
           assetRegistryState,
+          assetDiscoveryState,
           updatedAt: Date.now()
         },
         interactionEngine: {
@@ -288,6 +292,7 @@ export class TimelineSynchronizationRuntime {
           capabilityTemplateRecommendationState,
           confidenceConflictFallbackState,
           assetRegistryState,
+          assetDiscoveryState,
           updatedAt: Date.now()
         }
       },
@@ -478,7 +483,8 @@ export class TimelineSynchronizationRuntime {
         visualizationStrategyState: this.sharedState.visualizationStrategy,
         capabilityTemplateRecommendationState: this.sharedState.capabilityTemplateRecommendation,
         confidenceConflictFallbackState: this.sharedState.confidenceConflictFallback,
-        assetRegistryState: this.sharedState.assetRegistry
+        assetRegistryState: this.sharedState.assetRegistry,
+        assetDiscoveryState: this.sharedState.assetDiscovery
       },
       interactionContract: {
         ...(this.runtime.metadata?.interactionContract || {}),
@@ -503,6 +509,8 @@ export class TimelineSynchronizationRuntime {
         this.sharedState.confidenceConflictFallback || this.runtime.metadata?.confidenceConflictFallback || null,
       assetRegistry:
         this.sharedState.assetRegistry || this.runtime.metadata?.assetRegistry || null,
+      assetDiscovery:
+        this.sharedState.assetDiscovery || this.runtime.metadata?.assetDiscovery || null,
       rendererAdapter: {
         ...(this.runtime.metadata?.rendererAdapter || {}),
         timelineState: this.sharedState.adapters.rendererAdapter,
@@ -512,7 +520,8 @@ export class TimelineSynchronizationRuntime {
         visualizationStrategyState: this.sharedState.visualizationStrategy,
         capabilityTemplateRecommendationState: this.sharedState.capabilityTemplateRecommendation,
         confidenceConflictFallbackState: this.sharedState.confidenceConflictFallback,
-        assetRegistryState: this.sharedState.assetRegistry
+        assetRegistryState: this.sharedState.assetRegistry,
+        assetDiscoveryState: this.sharedState.assetDiscovery
       },
       aiTeacherAdapter: {
         ...(this.runtime.metadata?.aiTeacherAdapter || {}),
@@ -523,7 +532,8 @@ export class TimelineSynchronizationRuntime {
         visualizationStrategyState: this.sharedState.visualizationStrategy,
         capabilityTemplateRecommendationState: this.sharedState.capabilityTemplateRecommendation,
         confidenceConflictFallbackState: this.sharedState.confidenceConflictFallback,
-        assetRegistryState: this.sharedState.assetRegistry
+        assetRegistryState: this.sharedState.assetRegistry,
+        assetDiscoveryState: this.sharedState.assetDiscovery
       }
     };
 
