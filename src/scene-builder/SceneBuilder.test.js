@@ -411,6 +411,7 @@ test('scene runtime attaches timeline synchronization runtime', () => {
   assert.ok(runtime.inputCameraControlRuntime);
   assert.ok(runtime.educationalInspectionRuntime);
   assert.ok(runtime.accessibilityStateRecoveryRuntime);
+  assert.ok(runtime.assetLoadingRuntime);
   assert.equal(typeof runtime.interactionContractRuntime.emitInteractionEvent, 'function');
   assert.equal(typeof runtime.inputCameraControlRuntime.processInputEvent, 'function');
   assert.equal(typeof runtime.educationalInspectionRuntime.inspectObject, 'function');
@@ -418,6 +419,7 @@ test('scene runtime attaches timeline synchronization runtime', () => {
   assert.equal(typeof runtime.adaptiveTeachingRuntime.evaluate, 'function');
   assert.equal(typeof runtime.speechPlaybackRuntime.play, 'function');
   assert.equal(typeof runtime.narrationSynchronizationRuntime.synchronize, 'function');
+  assert.equal(typeof runtime.assetLoadingRuntime.load, 'function');
   assert.equal(typeof runtime.timelineSynchronizationRuntime.seekByTime, 'function');
   assert.ok(getActiveTimelineSynchronizationRuntime());
   assert.ok(getActiveSharedRuntimeState());
@@ -433,6 +435,10 @@ test('scene runtime attaches timeline synchronization runtime', () => {
   assert.ok(runtime.metadata.rendererAdapter.visualizationStrategyState);
   assert.ok(runtime.metadata.rendererAdapter.capabilityTemplateRecommendationState);
   assert.ok(runtime.metadata.rendererAdapter.confidenceConflictFallbackState);
+  assert.ok(runtime.metadata.assetLoading);
+  assert.ok(runtime.metadata.rendererAdapter.assetLoadingState);
+  assert.ok(runtime.metadata.aiTeacherAdapter.assetLoadingState);
+  assert.ok(runtime.metadata.interactionEngine.assetLoadingState);
   assert.ok(runtime.metadata.interactionEngine.visualizationStrategyState);
   assert.ok(runtime.metadata.interactionEngine.capabilityTemplateRecommendationState);
   assert.ok(runtime.metadata.interactionEngine.confidenceConflictFallbackState);
@@ -454,15 +460,18 @@ test('scene runtime attaches timeline synchronization runtime', () => {
   assert.ok(shared.visualizationStrategy);
   assert.ok(shared.capabilityTemplateRecommendation);
   assert.ok(shared.confidenceConflictFallback);
+  assert.ok(shared.assetLoading);
   assert.ok(shared.adapters.aiTeacher.visualizationStrategyState);
   assert.ok(shared.adapters.aiTeacher.capabilityTemplateRecommendationState);
   assert.ok(shared.adapters.aiTeacher.confidenceConflictFallbackState);
   assert.ok(shared.adapters.rendererAdapter.visualizationStrategyState);
   assert.ok(shared.adapters.rendererAdapter.capabilityTemplateRecommendationState);
   assert.ok(shared.adapters.rendererAdapter.confidenceConflictFallbackState);
+  assert.ok(shared.adapters.rendererAdapter.assetLoadingState);
   assert.ok(shared.adapters.interactionEngine.visualizationStrategyState);
   assert.ok(shared.adapters.interactionEngine.capabilityTemplateRecommendationState);
   assert.ok(shared.adapters.interactionEngine.confidenceConflictFallbackState);
+  assert.ok(shared.adapters.interactionEngine.assetLoadingState);
   assert.equal(shared.narration.segmentCount >= 1, true);
   assert.ok(shared.narration.synchronization);
   assert.equal(typeof shared.speechPlayback.playbackState, 'string');

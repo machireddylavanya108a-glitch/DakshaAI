@@ -261,6 +261,80 @@ function resolveAssetDiscoveryMetadata(scene = {}) {
   };
 }
 
+function resolveAssetLoadingMetadata(scene = {}) {
+  const source = scene?.metadata?.assetLoading || scene?.assetLoading || {};
+  const discoverySource = scene?.metadata?.assetDiscovery || scene?.assetDiscovery || {};
+
+  const selectedAssets = Array.isArray(discoverySource?.decision?.selectedAssets)
+    ? discoverySource.decision.selectedAssets
+    : [];
+
+  const defaultRequests = selectedAssets.map((asset, index) => ({
+    requestId: `asset-load-${index + 1}`,
+    mode: index === 0 ? 'lazy' : 'background',
+    priority: index === 0 ? 'high' : 'normal',
+    progressive: index === 0,
+    streaming: String(asset?.type || '').trim().toLowerCase().includes('video')
+      || String(asset?.type || '').trim().toLowerCase().includes('audio'),
+    preload: index > 0,
+    background: index > 0,
+    loadDependencies: true,
+    candidates: [
+      {
+        assetId: String(asset?.assetId || asset?.id || '').trim(),
+        version: String(asset?.version || 'latest').trim() || 'latest',
+        type: String(asset?.type || 'unknown-asset-type').trim() || 'unknown-asset-type',
+        category: String(asset?.category || 'General').trim() || 'General',
+        source: String(asset?.source || 'registry').trim() || 'registry',
+        rankScore: Number(asset?.rankScore || 0),
+        qualityLevel: String(asset?.qualityLevel || 'medium').trim() || 'medium',
+        lodLevel: String(asset?.lodLevel || 'medium').trim() || 'medium',
+        dependencies: Array.isArray(asset?.dependencies) ? asset.dependencies : [],
+        metadata: asset?.metadata && typeof asset.metadata === 'object' ? asset.metadata : {}
+      }
+    ]
+  })).filter((entry) => entry.candidates[0].assetId);
+
+  const requests = Array.isArray(source?.requests) && source.requests.length
+    ? source.requests
+    : defaultRequests;
+
+  const cachePolicy = {
+    memoryCache: source?.cachePolicy?.memoryCache !== false,
+    runtimeCache: source?.cachePolicy?.runtimeCache !== false,
+    persistentCache: source?.cachePolicy?.persistentCache !== false,
+    diskCache: source?.cachePolicy?.diskCache === true,
+    maxEntries: Number(source?.cachePolicy?.maxEntries || 240),
+    maxMemoryMB: Number(source?.cachePolicy?.maxMemoryMB || 256),
+    ttlMs: Number(source?.cachePolicy?.ttlMs || 20 * 60 * 1000),
+    idleDisposeMs: Number(source?.cachePolicy?.idleDisposeMs || 10 * 60 * 1000)
+  };
+
+  return {
+    profile: {
+      schemaVersion: String(source?.schemaVersion || 'v1'),
+      status: String(source?.status || 'ready'),
+      requests,
+      cachePolicy,
+      diagnostics: source?.diagnostics || {},
+      metadata: {
+        ...(source?.metadata || {}),
+        generatedFromAssetDiscovery: Array.isArray(source?.requests) !== true,
+        supportsUnknownFutureTypes: true,
+        supportsProceduralFallback: true
+      }
+    },
+    summary: {
+      schemaVersion: String(source?.schemaVersion || 'v1'),
+      status: String(source?.status || 'ready'),
+      requestCount: requests.length,
+      primaryAssetId: requests[0]?.candidates?.[0]?.assetId || null,
+      preloadCount: requests.filter((entry) => entry?.preload === true).length,
+      backgroundCount: requests.filter((entry) => entry?.background === true).length
+    }
+  };
+}
+
 function normalizeInteractionType(input = 'custom') {
   const normalized = toKebab(input || 'custom');
 
@@ -897,6 +971,7 @@ export function buildRuntimeSceneGraph(validatedSceneJson = {}) {
   const confidenceConflictFallbackMetadata = resolveConfidenceConflictFallbackMetadata(validatedSceneJson);
   const assetRegistryMetadata = resolveAssetRegistryMetadata(validatedSceneJson);
   const assetDiscoveryMetadata = resolveAssetDiscoveryMetadata(validatedSceneJson);
+  const assetLoadingMetadata = resolveAssetLoadingMetadata(validatedSceneJson);
   const rootNode = graph.getNode(validatedSceneJson.sceneId);
   if (rootNode) {
     rootNode.runtimeData = {
@@ -968,6 +1043,14 @@ export function buildRuntimeSceneGraph(validatedSceneJson = {}) {
         selectedAssetCount: assetDiscoveryMetadata.summary.selectedAssetCount,
         rankedCandidateCount: assetDiscoveryMetadata.summary.rankedCandidateCount,
         proceduralFallbackEnabled: assetDiscoveryMetadata.summary.proceduralFallbackEnabled
+      },
+      assetLoading: {
+        schemaVersion: assetLoadingMetadata.summary.schemaVersion,
+        status: assetLoadingMetadata.summary.status,
+        requestCount: assetLoadingMetadata.summary.requestCount,
+        preloadCount: assetLoadingMetadata.summary.preloadCount,
+        backgroundCount: assetLoadingMetadata.summary.backgroundCount,
+        primaryAssetId: assetLoadingMetadata.summary.primaryAssetId
       }
     };
     registry.update(rootNode.id, rootNode);
@@ -988,6 +1071,7 @@ export function buildRuntimeSceneGraph(validatedSceneJson = {}) {
       confidenceConflictFallback: confidenceConflictFallbackMetadata.profile,
       assetRegistry: assetRegistryMetadata.profile,
       assetDiscovery: assetDiscoveryMetadata.profile,
+      assetLoading: assetLoadingMetadata.profile,
       timeline: timelineMetadata,
       timelineData: runtimeTimeline.timelineData,
       narration: narrationMetadata,
@@ -1047,7 +1131,8 @@ export function buildRuntimeSceneGraph(validatedSceneJson = {}) {
         capabilityTemplateRecommendationState: capabilityTemplateRecommendationMetadata.recommendation,
         confidenceConflictFallbackState: confidenceConflictFallbackMetadata.profile,
         assetRegistryState: assetRegistryMetadata.profile,
-        assetDiscoveryState: assetDiscoveryMetadata.profile
+        assetDiscoveryState: assetDiscoveryMetadata.profile,
+        assetLoadingState: assetLoadingMetadata.profile
       },
       interactionEngine: {
         timelineState: {
@@ -1109,7 +1194,8 @@ export function buildRuntimeSceneGraph(validatedSceneJson = {}) {
         capabilityTemplateRecommendationState: capabilityTemplateRecommendationMetadata.recommendation,
         confidenceConflictFallbackState: confidenceConflictFallbackMetadata.profile,
         assetRegistryState: assetRegistryMetadata.profile,
-        assetDiscoveryState: assetDiscoveryMetadata.profile
+        assetDiscoveryState: assetDiscoveryMetadata.profile,
+        assetLoadingState: assetLoadingMetadata.profile
       },
       speechPlayback: {
         playbackState: 'Ready',

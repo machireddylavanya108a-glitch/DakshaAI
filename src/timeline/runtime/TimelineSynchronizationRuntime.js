@@ -148,6 +148,7 @@ export class TimelineSynchronizationRuntime {
     this.inputCameraControlRuntime = runtime?.inputCameraControlRuntime || null;
     this.educationalInspectionRuntime = runtime?.educationalInspectionRuntime || null;
     this.accessibilityStateRecoveryRuntime = runtime?.accessibilityStateRecoveryRuntime || null;
+    this.assetLoadingRuntime = runtime?.assetLoadingRuntime || null;
     this.interactionEngine = runtime?.behaviorRuntime || null;
     this.persistenceAdapter = this.options.persistenceAdapter || this.scheduler?.persistenceAdapter || createDefaultPersistenceAdapter();
     this.persistenceKey = String(this.options.persistenceKey || this.scheduler?.persistenceKey || 'daksha.timeline.runtime.v1');
@@ -165,6 +166,7 @@ export class TimelineSynchronizationRuntime {
     this.attachInputCameraControlRuntime(this.inputCameraControlRuntime);
     this.attachEducationalInspectionRuntime(this.educationalInspectionRuntime);
     this.attachAccessibilityStateRecoveryRuntime(this.accessibilityStateRecoveryRuntime);
+    this.attachAssetLoadingRuntime(this.assetLoadingRuntime);
     this.attachInteractionEngine(this.interactionEngine);
   }
 
@@ -191,6 +193,7 @@ export class TimelineSynchronizationRuntime {
     const confidenceConflictFallbackState = this.runtime?.metadata?.confidenceConflictFallback || null;
     const assetRegistryState = this.runtime?.metadata?.assetRegistry || null;
     const assetDiscoveryState = this.runtime?.metadata?.assetDiscovery || null;
+    const assetLoadingState = this.assetLoadingRuntime?.snapshot?.() || this.runtime?.metadata?.assetLoading || null;
     const previousSession = this.sharedState?.session || {
       persistenceKey: this.persistenceKey,
       recovered: false,
@@ -222,6 +225,7 @@ export class TimelineSynchronizationRuntime {
       confidenceConflictFallback: confidenceConflictFallbackState,
       assetRegistry: assetRegistryState,
       assetDiscovery: assetDiscoveryState,
+      assetLoading: assetLoadingState,
       playback,
       sceneGraph: {
         nodeCount: graphSummary.nodeCount,
@@ -252,6 +256,7 @@ export class TimelineSynchronizationRuntime {
           confidenceConflictFallbackState,
           assetRegistryState,
           assetDiscoveryState,
+          assetLoadingState,
           updatedAt: Date.now()
         },
         rendererAdapter: {
@@ -273,6 +278,7 @@ export class TimelineSynchronizationRuntime {
           confidenceConflictFallbackState,
           assetRegistryState,
           assetDiscoveryState,
+          assetLoadingState,
           updatedAt: Date.now()
         },
         interactionEngine: {
@@ -293,6 +299,7 @@ export class TimelineSynchronizationRuntime {
           confidenceConflictFallbackState,
           assetRegistryState,
           assetDiscoveryState,
+          assetLoadingState,
           updatedAt: Date.now()
         }
       },
@@ -456,6 +463,19 @@ export class TimelineSynchronizationRuntime {
     this.unsubscribers.push(unsubscribe);
   }
 
+  attachAssetLoadingRuntime(assetLoadingRuntime) {
+    if (!assetLoadingRuntime || typeof assetLoadingRuntime.on !== 'function') return;
+
+    const unsubscribe = assetLoadingRuntime.on('*', ({ channel, payload }) => {
+      this.synchronize('asset-loading-event', {
+        channel: channel || 'asset-loading-event',
+        payload: payload || {}
+      });
+    });
+
+    this.unsubscribers.push(unsubscribe);
+  }
+
   attachInteractionEngine(interactionEngine) {
     if (!interactionEngine || typeof interactionEngine.getDiagnostics !== 'function') return;
     this.synchronize('interaction-engine-attached', {
@@ -484,7 +504,8 @@ export class TimelineSynchronizationRuntime {
         capabilityTemplateRecommendationState: this.sharedState.capabilityTemplateRecommendation,
         confidenceConflictFallbackState: this.sharedState.confidenceConflictFallback,
         assetRegistryState: this.sharedState.assetRegistry,
-        assetDiscoveryState: this.sharedState.assetDiscovery
+        assetDiscoveryState: this.sharedState.assetDiscovery,
+        assetLoadingState: this.sharedState.assetLoading
       },
       interactionContract: {
         ...(this.runtime.metadata?.interactionContract || {}),
@@ -511,6 +532,8 @@ export class TimelineSynchronizationRuntime {
         this.sharedState.assetRegistry || this.runtime.metadata?.assetRegistry || null,
       assetDiscovery:
         this.sharedState.assetDiscovery || this.runtime.metadata?.assetDiscovery || null,
+      assetLoading:
+        this.sharedState.assetLoading || this.runtime.metadata?.assetLoading || null,
       rendererAdapter: {
         ...(this.runtime.metadata?.rendererAdapter || {}),
         timelineState: this.sharedState.adapters.rendererAdapter,
@@ -521,7 +544,8 @@ export class TimelineSynchronizationRuntime {
         capabilityTemplateRecommendationState: this.sharedState.capabilityTemplateRecommendation,
         confidenceConflictFallbackState: this.sharedState.confidenceConflictFallback,
         assetRegistryState: this.sharedState.assetRegistry,
-        assetDiscoveryState: this.sharedState.assetDiscovery
+        assetDiscoveryState: this.sharedState.assetDiscovery,
+        assetLoadingState: this.sharedState.assetLoading
       },
       aiTeacherAdapter: {
         ...(this.runtime.metadata?.aiTeacherAdapter || {}),
@@ -533,7 +557,8 @@ export class TimelineSynchronizationRuntime {
         capabilityTemplateRecommendationState: this.sharedState.capabilityTemplateRecommendation,
         confidenceConflictFallbackState: this.sharedState.confidenceConflictFallback,
         assetRegistryState: this.sharedState.assetRegistry,
-        assetDiscoveryState: this.sharedState.assetDiscovery
+        assetDiscoveryState: this.sharedState.assetDiscovery,
+        assetLoadingState: this.sharedState.assetLoading
       }
     };
 

@@ -9,6 +9,7 @@ import { createUniversalInteractionContractRuntime } from '../interactions/index
 import { createUniversalInputCameraControlRuntime } from '../input-camera/index.js';
 import { createUniversalEducationalInspectionRuntime } from '../inspection/index.js';
 import { createUniversalAccessibilityStateRecoveryRuntime } from '../accessibility/index.js';
+import { createUniversalAssetLoadingRuntime } from '../asset-runtime/index.js';
 
 let activeRuntime = null;
 let educationalObjectLifecycleManager = null;
@@ -238,6 +239,29 @@ function attachAccessibilityStateRecoveryRuntime(runtime) {
   return runtime;
 }
 
+function attachAssetLoadingRuntime(runtime) {
+  if (!runtime || typeof runtime !== 'object') return runtime;
+
+  const assetLoadingRuntime = createUniversalAssetLoadingRuntime(runtime);
+  runtime.assetLoadingRuntime = assetLoadingRuntime;
+
+  const recovered = assetLoadingRuntime.recoverSession();
+  const snapshot = assetLoadingRuntime.synchronize('attach', {
+    recovered
+  });
+
+  runtime.metadata = {
+    ...(runtime.metadata || {}),
+    assetLoading: {
+      ...snapshot,
+      recovered,
+      channels: assetLoadingRuntime.constructor.supportedChannels()
+    }
+  };
+
+  return runtime;
+}
+
 function runLifecycleCleanupForRuntime(runtime) {
   if (!educationalObjectLifecycleManager || typeof educationalObjectLifecycleManager.cleanupScene !== 'function') {
     return;
@@ -264,6 +288,7 @@ function ensureRuntime() {
 
 export function buildScene(validatedSceneJson = {}) {
   activeRuntime = attachTimelineSynchronizationRuntime(
+    attachAssetLoadingRuntime(
     attachAccessibilityStateRecoveryRuntime(
       attachEducationalInspectionRuntime(
         attachInputCameraControlRuntime(
@@ -281,6 +306,7 @@ export function buildScene(validatedSceneJson = {}) {
         )
       )
     )
+    )
   );
   return activeRuntime;
 }
@@ -288,6 +314,7 @@ export function buildScene(validatedSceneJson = {}) {
 export function loadScene(sceneJson = {}) {
   const validatedScene = processSceneJsonPipeline(sceneJson || {}, { sourceType: 'runtime' });
   activeRuntime = attachTimelineSynchronizationRuntime(
+    attachAssetLoadingRuntime(
     attachAccessibilityStateRecoveryRuntime(
       attachEducationalInspectionRuntime(
         attachInputCameraControlRuntime(
@@ -305,6 +332,7 @@ export function loadScene(sceneJson = {}) {
         )
       )
     )
+    )
   );
   activeRuntime.stateManager.setActiveAll();
   return activeRuntime;
@@ -320,6 +348,7 @@ export function destroyScene() {
   runtime.inputCameraControlRuntime?.persistSession?.();
   runtime.educationalInspectionRuntime?.persistSession?.();
   runtime.accessibilityStateRecoveryRuntime?.persistSession?.();
+  runtime.assetLoadingRuntime?.persistSession?.();
   runtime.timelineSynchronizationRuntime?.destroy?.();
   runtime.speechPlaybackRuntime?.destroy?.();
   runtime.adaptiveTeachingRuntime?.destroy?.();
@@ -327,6 +356,7 @@ export function destroyScene() {
   runtime.inputCameraControlRuntime?.destroy?.();
   runtime.educationalInspectionRuntime?.destroy?.();
   runtime.accessibilityStateRecoveryRuntime?.destroy?.();
+  runtime.assetLoadingRuntime?.destroy?.();
   runtime.narrationSynchronizationRuntime?.destroy?.();
   runtime.sceneEventRuntime?.destroy?.();
   runtime.stateManager.destroyAll();
@@ -367,6 +397,7 @@ export function pauseScene() {
   runtime.inputCameraControlRuntime?.handleExternalTimelineMutation?.('pause', { source: 'scene-runtime' });
   runtime.educationalInspectionRuntime?.handleExternalTimelineMutation?.('pause', { source: 'scene-runtime' });
   runtime.accessibilityStateRecoveryRuntime?.handleExternalTimelineMutation?.('pause', { source: 'scene-runtime' });
+  runtime.assetLoadingRuntime?.handleExternalTimelineMutation?.('pause', { source: 'scene-runtime' });
   runtime.narrationSynchronizationRuntime?.pause?.('scene-runtime');
   runtime.stateManager.pauseAll();
   runtime.timelineSynchronizationRuntime?.synchronize?.('pause-scene-state-manager');
@@ -382,6 +413,7 @@ export function resumeScene() {
   runtime.inputCameraControlRuntime?.handleExternalTimelineMutation?.('resume', { source: 'scene-runtime' });
   runtime.educationalInspectionRuntime?.handleExternalTimelineMutation?.('resume', { source: 'scene-runtime' });
   runtime.accessibilityStateRecoveryRuntime?.handleExternalTimelineMutation?.('resume', { source: 'scene-runtime' });
+  runtime.assetLoadingRuntime?.handleExternalTimelineMutation?.('resume', { source: 'scene-runtime' });
   runtime.narrationSynchronizationRuntime?.resume?.('scene-runtime');
   runtime.stateManager.resumeAll();
   runtime.timelineSynchronizationRuntime?.synchronize?.('resume-scene-state-manager');
