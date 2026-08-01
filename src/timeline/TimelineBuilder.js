@@ -1,5 +1,6 @@
 import { isObject, asArray } from './TimelineConfig.js';
 import { processTimelineDataPipeline } from './TimelineVersionManager.js';
+import { buildUniversalNarrationPackage } from '../narration/index.js';
 
 function buildLegacyTimelineFromSceneSteps(steps = []) {
   return asArray(steps).map((step, index) => {
@@ -57,6 +58,36 @@ function sourceTimelineRoot(scene = {}) {
       ? timelineObject.dependencies
       : [];
 
+  const narrationPackage = buildUniversalNarrationPackage({
+    scene: source,
+    timeline: timelineObject,
+    narration: source.narration || timelineObject.narration || {},
+    lesson: source.lesson || source.content || source.explanation || source.teacherScript || ''
+  });
+
+  const derivedTimelineSegments = narrationPackage.segments.map((segment) => ({
+    id: segment.id,
+    type: 'narration-segment',
+    startMs: segment.timestampMs,
+    endMs: segment.timestampMs + segment.durationMs,
+    durationMs: segment.durationMs,
+    learningObjective: segment.learningObjective,
+    difficulty: segment.difficulty,
+    relatedSceneObjectIds: segment.relatedSceneObjectIds,
+    relatedTimeline: segment.relatedTimeline,
+    cueIds: segment.metadata.cueIds,
+    metadata: {
+      wordCount: segment.metadata.wordCount,
+      sentenceCount: segment.metadata.sentenceCount
+    }
+  }));
+
+  const timelineSegments = Array.isArray(source.timelineSegments)
+    ? source.timelineSegments
+    : Array.isArray(timelineObject.segments)
+      ? timelineObject.segments
+      : derivedTimelineSegments;
+
   return {
     timelineId: timelineObject.timelineId || source.timelineId || source.sceneId || source.id,
     version: timelineObject.version || source.version || 'v2',
@@ -69,11 +100,7 @@ function sourceTimelineRoot(scene = {}) {
         ? timelineObject.actions
         : [],
     markers: timelineMarkers,
-    segments: Array.isArray(source.timelineSegments)
-      ? source.timelineSegments
-      : Array.isArray(timelineObject.segments)
-        ? timelineObject.segments
-        : [],
+    segments: timelineSegments,
     groups: Array.isArray(source.timelineGroups)
       ? source.timelineGroups
       : Array.isArray(timelineObject.groups)
@@ -83,6 +110,11 @@ function sourceTimelineRoot(scene = {}) {
     metadata: {
       ...(isObject(source.metadata) ? source.metadata : {}),
       ...(isObject(timelineObject.metadata) ? timelineObject.metadata : {}),
+      narration: {
+        segments: narrationPackage.segments,
+        cues: narrationPackage.cues,
+        summary: narrationPackage.summary
+      },
       sceneId: source.sceneId || null
     }
   };

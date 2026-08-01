@@ -11,6 +11,21 @@ import { buildTimeline } from '../timeline/index.js';
 
 function buildRuntimeTimelineMetadata(scene = {}) {
   const timelineData = buildTimeline(scene);
+  const narrationMetadata = timelineData?.metadata?.narration || {
+    segments: [],
+    cues: {
+      timeline: [],
+      sceneGraph: [],
+      runtimeGraph: [],
+      all: []
+    },
+    summary: {
+      segmentCount: 0,
+      cueCount: 0,
+      totalDurationMs: 0,
+      unknownStructureHandled: true
+    }
+  };
   const interactionIds = Array.isArray(scene?.interactions)
     ? scene.interactions
       .map((interaction, index) => String(interaction?.id || `interaction-${index + 1}`))
@@ -24,6 +39,7 @@ function buildRuntimeTimelineMetadata(scene = {}) {
 
   return {
     timelineData,
+    narrationMetadata,
     metadata: {
       timelineId: timelineData.timelineId,
       version: timelineData.version,
@@ -32,6 +48,8 @@ function buildRuntimeTimelineMetadata(scene = {}) {
       markerIds: (timelineData.markers || []).map((marker) => marker.id),
       eventIds: (timelineData.events || []).map((event) => event.id),
       sceneEventIds,
+      narrationSegmentIds: (narrationMetadata.segments || []).map((segment) => segment.id),
+      narrationCueIds: (narrationMetadata.cues?.all || []).map((cue) => cue.id),
       dependencyMetadata: (timelineData.dependencies || []).map((dependency) => ({
         id: dependency.id,
         type: dependency.type,
@@ -79,6 +97,7 @@ export function buildRuntimeSceneGraph(validatedSceneJson = {}) {
 
   const runtimeTimeline = buildRuntimeTimelineMetadata(validatedSceneJson);
   const timelineMetadata = runtimeTimeline.metadata;
+  const narrationMetadata = runtimeTimeline.narrationMetadata;
   const rootNode = graph.getNode(validatedSceneJson.sceneId);
   if (rootNode) {
     rootNode.runtimeData = {
@@ -100,6 +119,7 @@ export function buildRuntimeSceneGraph(validatedSceneJson = {}) {
       version: validatedSceneJson.version,
       timeline: timelineMetadata,
       timelineData: runtimeTimeline.timelineData,
+      narration: narrationMetadata,
       rendererAdapter: {
         timeline: {
           timelineId: timelineMetadata.timelineId,
@@ -117,6 +137,7 @@ export function buildRuntimeSceneGraph(validatedSceneJson = {}) {
           timeMs: 0,
           speed: 1,
           currentClipId: null,
+          activeNarrationSegmentId: null,
           updatedAt: null
         }
       },
@@ -126,6 +147,7 @@ export function buildRuntimeSceneGraph(validatedSceneJson = {}) {
           timeMs: 0,
           checkpointId: null,
           progress: 0,
+          activeNarrationSegmentId: null,
           updatedAt: null
         }
       },
@@ -134,6 +156,7 @@ export function buildRuntimeSceneGraph(validatedSceneJson = {}) {
           state: 'Ready',
           timeMs: 0,
           currentEventId: null,
+          activeNarrationSegmentId: null,
           updatedAt: null
         }
       }

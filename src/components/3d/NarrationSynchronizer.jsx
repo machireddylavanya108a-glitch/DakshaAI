@@ -1,14 +1,7 @@
-export function buildNarrationSegments(scenePlan = {}, teacherScript = '') {
-  const timeline = scenePlan?.timeline || [];
-  const lines = String(teacherScript || '').split(/[\n\.]+/).map((item) => item.trim()).filter(Boolean);
+import { buildNarrationSegments as buildUniversalNarrationSegments } from '../../narration/index.js';
 
-  return timeline.map((step, index) => ({
-    id: `narration-${index + 1}`,
-    line: lines[index] || `Now focus on ${step.target || 'the concept'}.`,
-    target: step.target || '',
-    durationMs: step.durationMs || 1600,
-    labels: [step.target || 'concept', step.objective || 'key detail']
-  }));
+export function buildNarrationSegments(scenePlan = {}, teacherScript = '') {
+  return buildUniversalNarrationSegments(scenePlan, teacherScript);
 }
 
 export function detectPauseIntent(question = '') {

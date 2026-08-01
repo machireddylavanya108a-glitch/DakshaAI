@@ -309,6 +309,15 @@ test('scene runtime attaches timeline synchronization runtime', () => {
   assert.ok(runtime.metadata.aiTeacherAdapter);
   assert.ok(runtime.metadata.rendererAdapter.timelineState);
   assert.ok(runtime.metadata.interactionEngine.timelineState);
+  assert.ok(runtime.metadata.narration);
+  assert.equal(runtime.metadata.narration.summary.segmentCount >= 1, true);
+  assert.equal(Array.isArray(runtime.metadata.timeline.narrationSegmentIds), true);
+  assert.equal(Array.isArray(runtime.metadata.timeline.narrationCueIds), true);
+
+  const shared = runtime.timelineSynchronizationRuntime.getSharedState();
+  assert.ok(shared.narration);
+  assert.equal(shared.narration.segmentCount >= 1, true);
+  assert.equal(typeof shared.adapters.aiTeacher.activeNarrationSegmentId, 'string');
 });
 
 test('timeline synchronization persists and recovers across runtime reload', () => {

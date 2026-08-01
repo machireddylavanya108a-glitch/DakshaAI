@@ -109,6 +109,28 @@ function getPlaybackSummary(scheduler) {
   };
 }
 
+function resolveActiveNarrationSegment(narration = {}, timeMs = 0) {
+  const segments = Array.isArray(narration?.segments) ? narration.segments : [];
+  const safeTime = Number(timeMs || 0);
+
+  for (const segment of segments) {
+    const start = Number(segment?.timestampMs || 0);
+    const duration = Number(segment?.durationMs || 0);
+    const end = start + Math.max(0, duration);
+    if (safeTime >= start && safeTime <= end) {
+      return segment;
+    }
+  }
+
+  return segments[0] || null;
+}
+
+function resolveActiveNarrationCues(narration = {}, segmentId = null) {
+  const cues = Array.isArray(narration?.cues?.all) ? narration.cues.all : [];
+  if (!segmentId) return [];
+  return cues.filter((cue) => String(cue?.segmentId || '') === String(segmentId));
+}
+
 function createChannelSet() {
   return new Map();
 }
@@ -136,6 +158,13 @@ export class TimelineSynchronizationRuntime {
     const graphSummary = getRuntimeGraphSummary(this.runtime);
     const timelineSummary = getTimelineSummary(this.runtime);
     const playback = getPlaybackSummary(this.scheduler);
+    const narration = this.runtime?.metadata?.narration || {
+      segments: [],
+      cues: { all: [] },
+      summary: { segmentCount: 0, cueCount: 0, totalDurationMs: 0 }
+    };
+    const activeNarrationSegment = resolveActiveNarrationSegment(narration, playback.timeMs);
+    const activeNarrationCues = resolveActiveNarrationCues(narration, activeNarrationSegment?.id || null);
     const previousSession = this.sharedState?.session || {
       persistenceKey: this.persistenceKey,
       recovered: false,
@@ -148,6 +177,13 @@ export class TimelineSynchronizationRuntime {
       updatedAt: Date.now(),
       sceneId: this.runtime?.sceneId || null,
       timeline: timelineSummary,
+      narration: {
+        summary: narration.summary || {},
+        activeSegmentId: activeNarrationSegment?.id || null,
+        activeCueIds: activeNarrationCues.map((cue) => cue.id),
+        segmentCount: Number(narration?.summary?.segmentCount || narration?.segments?.length || 0),
+        cueCount: Number(narration?.summary?.cueCount || narration?.cues?.all?.length || 0)
+      },
       playback,
       sceneGraph: {
         nodeCount: graphSummary.nodeCount,
@@ -164,6 +200,8 @@ export class TimelineSynchronizationRuntime {
           timeMs: playback.timeMs,
           checkpointId: playback.checkpointId,
           progress: playback.progress,
+          activeNarrationSegmentId: activeNarrationSegment?.id || null,
+          activeNarrationCueIds: activeNarrationCues.map((cue) => cue.id),
           updatedAt: Date.now()
         },
         rendererAdapter: {
@@ -171,12 +209,16 @@ export class TimelineSynchronizationRuntime {
           timeMs: playback.timeMs,
           speed: playback.speed,
           currentClipId: playback.currentClipId,
+          activeNarrationSegmentId: activeNarrationSegment?.id || null,
+          activeNarrationCueIds: activeNarrationCues.map((cue) => cue.id),
           updatedAt: Date.now()
         },
         interactionEngine: {
           state: playback.state,
           timeMs: playback.timeMs,
           currentEventId: playback.currentEventId,
+          activeNarrationSegmentId: activeNarrationSegment?.id || null,
+          activeNarrationCueIds: activeNarrationCues.map((cue) => cue.id),
           updatedAt: Date.now()
         }
       },
