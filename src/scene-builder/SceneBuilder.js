@@ -52,6 +52,27 @@ const UNIVERSAL_CAMERA_MODES = new Set([
   'presentation-mode'
 ]);
 
+const UNIVERSAL_EDUCATIONAL_OBJECT_CAPABILITIES = new Set([
+  'inspect',
+  'explain',
+  'highlight',
+  'isolate',
+  'hide',
+  'show',
+  'explode',
+  'assemble',
+  'cross-section',
+  'x-ray',
+  'compare',
+  'annotate',
+  'measure',
+  'rotate',
+  'zoom',
+  'move',
+  'duplicate',
+  'reset'
+]);
+
 function toKebab(value = '') {
   return String(value || '')
     .trim()
@@ -147,6 +168,36 @@ function normalizeCameraMode(input = 'orbit') {
   return {
     mode: normalized,
     knownMode: UNIVERSAL_CAMERA_MODES.has(normalized)
+  };
+}
+
+function normalizeEducationalCapability(input = 'inspect') {
+  const normalized = toKebab(input || 'inspect');
+
+  if (!normalized) {
+    return {
+      capability: 'inspect',
+      knownCapability: true
+    };
+  }
+
+  if (normalized === 'crosssection') {
+    return {
+      capability: 'cross-section',
+      knownCapability: true
+    };
+  }
+
+  if (normalized === 'xray') {
+    return {
+      capability: 'x-ray',
+      knownCapability: true
+    };
+  }
+
+  return {
+    capability: normalized,
+    knownCapability: UNIVERSAL_EDUCATIONAL_OBJECT_CAPABILITIES.has(normalized)
   };
 }
 
@@ -334,6 +385,89 @@ function applyInputCameraRuntimeMetadata(graph, scene = {}) {
   };
 }
 
+function normalizeEducationalInspectionCapabilities(node = {}) {
+  const source = [
+    ...(Array.isArray(node?.runtimeData?.educationalInspection?.capabilities) ? node.runtimeData.educationalInspection.capabilities : []),
+    ...(Array.isArray(node?.runtimeData?.inspectionCapabilities) ? node.runtimeData.inspectionCapabilities : []),
+    ...(Array.isArray(node?.properties?.inspectionCapabilities) ? node.properties.inspectionCapabilities : []),
+    ...(Array.isArray(node?.properties?.manipulationCapabilities) ? node.properties.manipulationCapabilities : []),
+    ...(Array.isArray(node?.properties?.capabilities) ? node.properties.capabilities : [])
+  ];
+
+  const normalized = source
+    .map((entry) => normalizeEducationalCapability(entry))
+    .filter((entry, index, all) => all.findIndex((item) => item.capability === entry.capability) === index);
+
+  const known = normalized.filter((item) => item.knownCapability !== false).map((item) => item.capability);
+  const unknown = normalized.filter((item) => item.knownCapability === false).map((item) => item.capability);
+
+  return {
+    knownCapabilities: [...new Set([...UNIVERSAL_EDUCATIONAL_OBJECT_CAPABILITIES, ...known])],
+    unknownCapabilities: [...new Set(unknown)]
+  };
+}
+
+function applyEducationalInspectionRuntimeMetadata(graph) {
+  const objectIds = [];
+  const unknownCapabilities = new Set();
+  const knownCapabilities = new Set([...UNIVERSAL_EDUCATIONAL_OBJECT_CAPABILITIES]);
+
+  graph.nodes.forEach((node) => {
+    const sourceKey = String(node?.metadata?.sourceKey || '').toLowerCase();
+    const isObjectNode = sourceKey === 'objects' || sourceKey === 'educationalobjects' || sourceKey === 'educationalobjectinstances';
+    if (!isObjectNode) return;
+
+    const capabilities = normalizeEducationalInspectionCapabilities(node);
+    capabilities.knownCapabilities.forEach((entry) => knownCapabilities.add(entry));
+    capabilities.unknownCapabilities.forEach((entry) => unknownCapabilities.add(entry));
+
+    const position = toVector3(node?.properties?.position || [0, 0, 0], [0, 0, 0]);
+
+    node.runtimeData = {
+      ...(node.runtimeData || {}),
+      educationalInspection: {
+        schemaVersion: 'v1',
+        objectId: node.id,
+        capabilities: [...capabilities.knownCapabilities, ...capabilities.unknownCapabilities],
+        knownCapabilities: capabilities.knownCapabilities,
+        unknownCapabilities: capabilities.unknownCapabilities,
+        transform: {
+          rotation: [0, 0, 0],
+          zoom: 1,
+          position
+        },
+        visibility: {
+          visible: true,
+          isolated: false,
+          highlighted: false
+        },
+        manipulation: {
+          exploded: false,
+          assembled: true,
+          crossSection: false,
+          xRay: false
+        },
+        annotations: [],
+        measurements: [],
+        temporaryDuplicates: []
+      }
+    };
+
+    node.properties = {
+      ...(node.properties || {}),
+      educationalInspectionMetadata: node.runtimeData.educationalInspection
+    };
+
+    objectIds.push(node.id);
+  });
+
+  return {
+    objectIds,
+    knownCapabilities: [...knownCapabilities],
+    unknownCapabilities: [...unknownCapabilities]
+  };
+}
+
 function buildRuntimeTimelineMetadata(scene = {}) {
   const timelineData = buildTimeline(scene);
   const narrationMetadata = timelineData?.metadata?.narration || {
@@ -425,6 +559,7 @@ export function buildRuntimeSceneGraph(validatedSceneJson = {}) {
   const narrationMetadata = runtimeTimeline.narrationMetadata;
   const interactionContractMetadata = applyInteractionContractRuntimeMetadata(graph, validatedSceneJson);
   const inputCameraMetadata = applyInputCameraRuntimeMetadata(graph, validatedSceneJson);
+  const educationalInspectionMetadata = applyEducationalInspectionRuntimeMetadata(graph);
   const rootNode = graph.getNode(validatedSceneJson.sceneId);
   if (rootNode) {
     rootNode.runtimeData = {
@@ -444,6 +579,12 @@ export function buildRuntimeSceneGraph(validatedSceneJson = {}) {
         objectFocusCount: inputCameraMetadata.objectFocusIds.length,
         knownModeCount: inputCameraMetadata.knownModes.length,
         unknownModeCount: inputCameraMetadata.unknownModes.length
+      },
+      educationalInspection: {
+        schemaVersion: 'v1',
+        objectCount: educationalInspectionMetadata.objectIds.length,
+        knownCapabilityCount: educationalInspectionMetadata.knownCapabilities.length,
+        unknownCapabilityCount: educationalInspectionMetadata.unknownCapabilities.length
       }
     };
     registry.update(rootNode.id, rootNode);
@@ -528,6 +669,22 @@ export function buildRuntimeSceneGraph(validatedSceneJson = {}) {
           knownMode: inputCameraMetadata.knownMode,
           supportedInputDeviceTypes: inputCameraMetadata.supportedInputDeviceTypes,
           supportedCameraModes: inputCameraMetadata.supportedCameraModes
+        },
+        educationalInspectionState: {
+          schemaVersion: 'v1',
+          timelineTimeMs: 0,
+          metrics: {
+            objectCount: educationalInspectionMetadata.objectIds.length,
+            selectedCount: 0,
+            knownCapabilityCount: educationalInspectionMetadata.knownCapabilities.length,
+            unknownCapabilityCount: educationalInspectionMetadata.unknownCapabilities.length,
+            inspectionCount: 0,
+            manipulationCount: 0,
+            undoCount: 0,
+            redoCount: 0,
+            resetCount: 0,
+            validationErrors: 0
+          }
         }
       },
       speechPlayback: {
@@ -669,6 +826,80 @@ export function buildRuntimeSceneGraph(validatedSceneJson = {}) {
         knownCameraModes: inputCameraMetadata.knownModes,
         unknownCameraModes: inputCameraMetadata.unknownModes
       },
+      educationalInspection: {
+        schemaVersion: 'v1',
+        timelineTimeMs: 0,
+        objects: {
+          byId: educationalInspectionMetadata.objectIds.reduce((acc, objectId) => {
+            const node = graph.getNode(objectId);
+            acc[objectId] = {
+              objectId,
+              selected: false,
+              visible: true,
+              isolated: false,
+              highlighted: false,
+              exploded: false,
+              assembled: true,
+              crossSection: false,
+              xRay: false,
+              temporaryDuplicates: [],
+              transform: {
+                rotation: [0, 0, 0],
+                zoom: 1,
+                position: toVector3(node?.properties?.position || [0, 0, 0], [0, 0, 0])
+              },
+              annotations: [],
+              measurements: [],
+              compareWith: [],
+              metadata: {
+                sourceKey: node?.metadata?.sourceKey || null,
+                kind: node?.kind || null
+              },
+              capabilities: [
+                ...((node?.runtimeData?.educationalInspection?.knownCapabilities) || []),
+                ...((node?.runtimeData?.educationalInspection?.unknownCapabilities) || [])
+              ],
+              knownCapabilities: node?.runtimeData?.educationalInspection?.knownCapabilities || [],
+              unknownCapabilities: node?.runtimeData?.educationalInspection?.unknownCapabilities || []
+            };
+            return acc;
+          }, {}),
+          selectedIds: []
+        },
+        metrics: {
+          objectCount: educationalInspectionMetadata.objectIds.length,
+          selectedCount: 0,
+          knownCapabilityCount: educationalInspectionMetadata.knownCapabilities.length,
+          unknownCapabilityCount: educationalInspectionMetadata.unknownCapabilities.length,
+          inspectionCount: 0,
+          manipulationCount: 0,
+          undoCount: 0,
+          redoCount: 0,
+          resetCount: 0,
+          validationErrors: 0
+        },
+        diagnostics: {
+          synchronizations: 0,
+          persistedSessions: 0,
+          recoveredSessions: 0,
+          warnings: []
+        },
+        history: {
+          undoStack: [],
+          redoStack: []
+        },
+        runtimeEvents: {
+          recent: []
+        },
+        recovery: {
+          interrupted: false,
+          lastCheckpointId: null,
+          resumeTimeMs: 0
+        },
+        supportedCapabilities: [...UNIVERSAL_EDUCATIONAL_OBJECT_CAPABILITIES],
+        knownCapabilities: educationalInspectionMetadata.knownCapabilities,
+        unknownCapabilities: educationalInspectionMetadata.unknownCapabilities
+      },
       aiTeacherAdapter: {
         timelineState: {
           state: 'Ready',
@@ -725,6 +956,22 @@ export function buildRuntimeSceneGraph(validatedSceneJson = {}) {
           knownMode: inputCameraMetadata.knownMode,
           supportedInputDeviceTypes: inputCameraMetadata.supportedInputDeviceTypes,
           supportedCameraModes: inputCameraMetadata.supportedCameraModes
+        },
+        educationalInspectionState: {
+          schemaVersion: 'v1',
+          timelineTimeMs: 0,
+          metrics: {
+            objectCount: educationalInspectionMetadata.objectIds.length,
+            selectedCount: 0,
+            knownCapabilityCount: educationalInspectionMetadata.knownCapabilities.length,
+            unknownCapabilityCount: educationalInspectionMetadata.unknownCapabilities.length,
+            inspectionCount: 0,
+            manipulationCount: 0,
+            undoCount: 0,
+            redoCount: 0,
+            resetCount: 0,
+            validationErrors: 0
+          }
         }
       }
     }

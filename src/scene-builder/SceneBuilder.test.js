@@ -128,6 +128,33 @@ test('every runtime graph object exposes camera control metadata from scene came
   assert.equal(runtime.metadata.inputCameraControl.camera.currentMode, 'presentation-mode');
 });
 
+test('every runtime graph object exposes educational inspection metadata and unknown capabilities', () => {
+  const scene = processSceneJsonPipeline({
+    title: 'Educational Inspection Metadata Scene',
+    objects: [
+      {
+        id: 'obj-1',
+        name: 'A',
+        inspectionCapabilities: ['inspect', 'highlight', 'crosssection']
+      },
+      {
+        id: 'obj-2',
+        name: 'B',
+        manipulationCapabilities: ['inspect', 'compare', 'future-mesh-scan']
+      }
+    ]
+  });
+
+  const runtime = buildRuntimeSceneGraph(scene);
+  const objectNodes = [...runtime.graph.nodes.values()].filter((node) => String(node?.metadata?.sourceKey || '').toLowerCase() === 'objects');
+
+  assert.equal(objectNodes.length >= 2, true);
+  assert.equal(objectNodes.every((node) => typeof node?.runtimeData?.educationalInspection === 'object'), true);
+  assert.equal(objectNodes.some((node) => (node?.runtimeData?.educationalInspection?.unknownCapabilities || []).includes('future-mesh-scan')), true);
+  assert.ok(runtime.metadata.educationalInspection);
+  assert.equal(runtime.metadata.educationalInspection.metrics.objectCount >= 2, true);
+});
+
 test('circular references are detected in diagnostics', () => {
   const scene = processSceneJsonPipeline({
     title: 'Cycle Scene',
@@ -359,8 +386,10 @@ test('scene runtime attaches timeline synchronization runtime', () => {
   assert.ok(runtime.adaptiveTeachingRuntime);
   assert.ok(runtime.interactionContractRuntime);
   assert.ok(runtime.inputCameraControlRuntime);
+  assert.ok(runtime.educationalInspectionRuntime);
   assert.equal(typeof runtime.interactionContractRuntime.emitInteractionEvent, 'function');
   assert.equal(typeof runtime.inputCameraControlRuntime.processInputEvent, 'function');
+  assert.equal(typeof runtime.educationalInspectionRuntime.inspectObject, 'function');
   assert.equal(typeof runtime.adaptiveTeachingRuntime.evaluate, 'function');
   assert.equal(typeof runtime.speechPlaybackRuntime.play, 'function');
   assert.equal(typeof runtime.narrationSynchronizationRuntime.synchronize, 'function');
@@ -382,6 +411,7 @@ test('scene runtime attaches timeline synchronization runtime', () => {
   assert.ok(shared.adaptiveLearning);
   assert.ok(shared.interactionContract);
   assert.ok(shared.inputCameraControl);
+  assert.ok(shared.educationalInspection);
   assert.equal(shared.narration.segmentCount >= 1, true);
   assert.ok(shared.narration.synchronization);
   assert.equal(typeof shared.speechPlayback.playbackState, 'string');
@@ -393,6 +423,7 @@ test('scene runtime attaches timeline synchronization runtime', () => {
   assert.equal(typeof shared.adapters.aiTeacher.adaptiveLearningState.modeProfile.mode, 'string');
   assert.equal(typeof shared.adapters.aiTeacher.interactionContractState.schemaVersion, 'string');
   assert.equal(typeof shared.adapters.aiTeacher.inputCameraControlState.schemaVersion, 'string');
+  assert.equal(typeof shared.adapters.aiTeacher.educationalInspectionState.schemaVersion, 'string');
 });
 
 test('timeline synchronization persists and recovers across runtime reload', () => {
