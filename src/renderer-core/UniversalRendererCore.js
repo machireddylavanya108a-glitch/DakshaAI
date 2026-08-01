@@ -2,6 +2,10 @@ import {
   UniversalRuntimeGraphAdapter,
   migrateAdapterProfile
 } from './UniversalRuntimeGraphAdapter.js';
+import {
+  UniversalRenderManagerRuntime,
+  migrateRuntimeState
+} from './UniversalRenderManagerRuntime.js';
 
 const STORE_KEY = '__daksha_universal_renderer_core_store__';
 const SCHEMA_VERSION = 'v1';
@@ -113,6 +117,7 @@ function normalizeRenderStateProfile(input = {}) {
       recoveries: Math.max(0, toFiniteNumber(source?.diagnostics?.recoveries, 0))
     },
     metadata: {
+      ...(isObject(source?.metadata) ? source.metadata : {}),
       rendererAdapterVersion: safeString(source?.metadata?.rendererAdapterVersion || SCHEMA_VERSION) || SCHEMA_VERSION,
       runtimeGraphVersion: safeString(source?.metadata?.runtimeGraphVersion || 'v1') || 'v1',
       integration: isObject(source?.metadata?.integration) ? source.metadata.integration : {}
@@ -147,6 +152,10 @@ function migrateRenderStateProfile(input = {}) {
   });
 }
 
+function normalizeRenderManagerState(input = {}) {
+  return migrateRuntimeState(isObject(input) ? input : {});
+}
+
 export class UniversalRendererCore {
   constructor(runtime = {}, options = {}) {
     this.runtime = runtime;
@@ -156,6 +165,7 @@ export class UniversalRendererCore {
     this.adapter = this.options.adapter || new UniversalRuntimeGraphAdapter({
       profile: migrateAdapterProfile(this.options.adapterProfile || {})
     });
+    this.renderManagerRuntime = new UniversalRenderManagerRuntime(this.options.renderManagerState || {});
 
     this.listeners = createChannelSet();
     this.state = normalizeRenderStateProfile({
@@ -305,6 +315,15 @@ export class UniversalRendererCore {
     }
 
     this.renderBundle = adapted.renderBundle;
+    const managerBuild = this.renderManagerRuntime.build({
+      renderBundle: this.renderBundle,
+      runtimeMetadata: this.runtime?.metadata || {},
+      deviceCapabilities: input.deviceCapabilities || this.runtime?.metadata?.deviceCapabilities || {}
+    });
+    if (managerBuild.status !== 'built') {
+      asArray(managerBuild.errors).forEach((entry) => this.warn(entry));
+      asArray(managerBuild.warnings).forEach((entry) => this.warn(entry));
+    }
     this.state.queue = this.buildQueueFromBundle(this.renderBundle);
     this.state.lifecycle.built = true;
     this.state.lifecycle.status = 'built';
@@ -321,6 +340,7 @@ export class UniversalRendererCore {
     return {
       status: 'built',
       renderBundle: this.renderBundle,
+      renderSubsystems: this.renderManagerRuntime.snapshot(),
       state: this.snapshot()
     };
   }
@@ -359,6 +379,13 @@ export class UniversalRendererCore {
     this.state.renderState.mode = this.state.lifecycle.paused ? 'paused' : 'rendering';
     this.state.diagnostics.updates += 1;
 
+    this.renderManagerRuntime.update({
+      renderBundle: this.renderBundle,
+      runtimeMetadata: this.runtime?.metadata || {},
+      deviceCapabilities: input.deviceCapabilities || this.runtime?.metadata?.deviceCapabilities || this.renderManagerRuntime.snapshot().deviceCapabilities,
+      commands: drained
+    });
+
     this.emit('renderer-updated', {
       frame: this.state.renderState.frame,
       commandCount: drained.length
@@ -367,6 +394,7 @@ export class UniversalRendererCore {
     return {
       status: 'updated',
       processed: drained.length,
+      renderSubsystems: this.renderManagerRuntime.snapshot(),
       state: this.snapshot()
     };
   }
@@ -408,6 +436,9 @@ export class UniversalRendererCore {
     this.state.renderState.mode = this.state.lifecycle.initialized ? 'initialized' : 'idle';
     this.state.lifecycle.built = false;
     this.state.lifecycle.resetCount += 1;
+    this.renderManagerRuntime = new UniversalRenderManagerRuntime(normalizeRenderManagerState({
+      diagnostics: this.renderManagerRuntime.snapshot().diagnostics
+    }));
 
     this.emit('renderer-reset', {
       resetCount: this.state.lifecycle.resetCount
@@ -471,6 +502,7 @@ export class UniversalRendererCore {
       schemaVersion: SCHEMA_VERSION,
       state: this.state,
       adapter: this.adapter.snapshot(),
+      renderManagerRuntime: this.renderManagerRuntime.snapshot(),
       renderBundle: this.renderBundle,
       persistedAt: Date.now()
     };
@@ -509,6 +541,14 @@ export class UniversalRendererCore {
     this.state.diagnostics.recoveries += 1;
     this.renderBundle = isObject(parsed.renderBundle) ? parsed.renderBundle : null;
     this.adapter.deserialize(parsed.adapter || {});
+    this.renderManagerRuntime = new UniversalRenderManagerRuntime(normalizeRenderManagerState(parsed.renderManagerRuntime || {}));
+    if (this.renderBundle) {
+      this.renderManagerRuntime.build({
+        renderBundle: this.renderBundle,
+        runtimeMetadata: this.runtime?.metadata || {},
+        deviceCapabilities: this.runtime?.metadata?.deviceCapabilities || this.renderManagerRuntime.snapshot().deviceCapabilities
+      });
+    }
 
     return true;
   }
@@ -520,15 +560,18 @@ export class UniversalRendererCore {
       rendererCore: snapshot,
       rendererAdapter: {
         ...(this.runtime.metadata?.rendererAdapter || {}),
-        rendererCoreState: snapshot
+        rendererCoreState: snapshot,
+        renderSubsystems: snapshot.metadata?.renderSubsystems || null
       },
       aiTeacherAdapter: {
         ...(this.runtime.metadata?.aiTeacherAdapter || {}),
-        rendererCoreState: snapshot
+        rendererCoreState: snapshot,
+        renderSubsystems: snapshot.metadata?.renderSubsystems || null
       },
       interactionEngine: {
         ...(this.runtime.metadata?.interactionEngine || {}),
-        rendererCoreState: snapshot
+        rendererCoreState: snapshot,
+        renderSubsystems: snapshot.metadata?.renderSubsystems || null
       }
     };
 
@@ -549,7 +592,8 @@ export class UniversalRendererCore {
           ...(this.state.metadata.integration || {}),
           rendererObjects: Math.max(0, toFiniteNumber(this.renderBundle?.rendererObjects?.length, 0)),
           genericNodeCount: Math.max(0, toFiniteNumber(this.renderBundle?.metadata?.genericNodeCount, 0))
-        }
+        },
+        renderSubsystems: this.renderManagerRuntime.snapshot()
       },
       queue: {
         pending: asArray(this.state.queue.pending),
@@ -580,5 +624,6 @@ export function createUniversalRendererCore(runtime = {}, options = {}) {
 
 export {
   normalizeRenderStateProfile,
-  migrateRenderStateProfile
+  migrateRenderStateProfile,
+  normalizeRenderManagerState
 };

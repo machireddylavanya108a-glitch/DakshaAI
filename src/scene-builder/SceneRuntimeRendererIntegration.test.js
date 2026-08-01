@@ -52,10 +52,16 @@ test('scene runtime attaches universal renderer core and syncs renderer adapter 
   assert.ok(rendererCore);
   assert.equal(typeof runtime.metadata.rendererCore, 'object');
   assert.equal(typeof runtime.metadata.rendererAdapter.rendererCoreState, 'object');
+  assert.equal(typeof runtime.metadata.rendererCore.metadata.renderSubsystems, 'object');
+  assert.equal(Array.isArray(runtime.metadata.rendererCore.metadata.renderSubsystems.camera.entities), true);
+  assert.equal(Array.isArray(runtime.metadata.rendererCore.metadata.renderSubsystems.lighting.entities), true);
+  assert.equal(Array.isArray(runtime.metadata.rendererCore.metadata.renderSubsystems.environment.entities), true);
+  assert.equal(Array.isArray(runtime.metadata.rendererCore.metadata.renderSubsystems.objects.entities), true);
 
   const sharedState = getActiveSharedRuntimeState();
   assert.equal(typeof sharedState?.rendererCore, 'object');
   assert.equal(typeof sharedState?.adapters?.rendererAdapter?.rendererCoreState, 'object');
+  assert.equal(typeof sharedState?.adapters?.rendererAdapter?.rendererCoreState?.metadata?.renderSubsystems, 'object');
 
   destroyScene();
 });

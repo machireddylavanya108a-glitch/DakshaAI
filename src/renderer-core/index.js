@@ -13,3 +13,16 @@ export {
   normalizeRenderStateProfile,
   migrateRenderStateProfile
 } from './UniversalRendererCore.js';
+
+export {
+  UniversalRenderManagerRuntime,
+  UniversalCameraManager,
+  UniversalLightingManager,
+  UniversalEnvironmentManager,
+  UniversalObjectRenderManager,
+  normalizeQualityProfile,
+  normalizeDeviceCapabilities,
+  deriveAdaptiveQualityProfile,
+  normalizeRuntimeState,
+  migrateRuntimeState
+} from './UniversalRenderManagerRuntime.js';
