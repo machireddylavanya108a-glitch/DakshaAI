@@ -409,6 +409,7 @@ test('scene runtime attaches timeline synchronization runtime', () => {
   assert.ok(runtime.adaptiveTeachingRuntime);
   assert.ok(runtime.aiTeacherRuntime);
   assert.ok(runtime.assessmentRuntime);
+  assert.ok(runtime.learningAnalyticsRuntime);
   assert.ok(runtime.interactionContractRuntime);
   assert.ok(runtime.inputCameraControlRuntime);
   assert.ok(runtime.educationalInspectionRuntime);
@@ -421,6 +422,7 @@ test('scene runtime attaches timeline synchronization runtime', () => {
   assert.equal(typeof runtime.adaptiveTeachingRuntime.evaluate, 'function');
   assert.equal(typeof runtime.aiTeacherRuntime.createPlan, 'function');
   assert.equal(typeof runtime.assessmentRuntime.generate, 'function');
+  assert.equal(typeof runtime.learningAnalyticsRuntime.generate, 'function');
   assert.equal(typeof runtime.speechPlaybackRuntime.play, 'function');
   assert.equal(typeof runtime.narrationSynchronizationRuntime.synchronize, 'function');
   assert.equal(typeof runtime.assetLoadingRuntime.load, 'function');
@@ -430,6 +432,7 @@ test('scene runtime attaches timeline synchronization runtime', () => {
   assert.ok(runtime.metadata.timelineSynchronization);
   assert.ok(runtime.metadata.aiTeacherAdapter);
   assert.ok(runtime.metadata.assessmentAdapter);
+  assert.ok(runtime.metadata.learningAnalyticsAdapter);
   assert.ok(runtime.metadata.visualizationStrategy);
   assert.ok(runtime.metadata.visualizationStrategy.primaryStrategy);
   assert.ok(runtime.metadata.capabilityTemplateRecommendation);
@@ -463,6 +466,7 @@ test('scene runtime attaches timeline synchronization runtime', () => {
   assert.ok(shared.adaptiveLearning);
   assert.ok(shared.aiTeacherRuntime);
   assert.ok(shared.assessmentRuntime);
+  assert.ok(shared.learningAnalyticsRuntime);
   assert.ok(shared.interactionContract);
   assert.ok(shared.inputCameraControl);
   assert.ok(shared.educationalInspection);
@@ -476,6 +480,7 @@ test('scene runtime attaches timeline synchronization runtime', () => {
   assert.ok(shared.assetLoading.procedural);
   assert.ok(shared.adapters.aiTeacher.visualizationStrategyState);
   assert.ok(shared.adapters.assessment.visualizationStrategyState);
+  assert.ok(shared.adapters.learningAnalytics.visualizationStrategyState);
   assert.ok(shared.adapters.aiTeacher.capabilityTemplateRecommendationState);
   assert.ok(shared.adapters.aiTeacher.confidenceConflictFallbackState);
   assert.ok(shared.adapters.rendererAdapter.visualizationStrategyState);
@@ -492,6 +497,7 @@ test('scene runtime attaches timeline synchronization runtime', () => {
   assert.equal(typeof shared.adaptiveLearning.modeProfile.mode, 'string');
   assert.equal(typeof shared.aiTeacherRuntime.schemaVersion, 'string');
   assert.equal(typeof shared.assessmentRuntime.schemaVersion, 'string');
+  assert.equal(typeof shared.learningAnalyticsRuntime.schemaVersion, 'string');
   assert.equal(typeof shared.interactionContract.schemaVersion, 'string');
   assert.equal(typeof shared.inputCameraControl.schemaVersion, 'string');
   assert.equal(typeof shared.adapters.aiTeacher.activeNarrationSegmentId, 'string');
