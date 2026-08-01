@@ -5,6 +5,7 @@ import { createSceneEventRuntime } from '../scene-events/index.js';
 import { createNarrationSceneSynchronizationRuntime } from '../narration/index.js';
 import { createSpeechPlaybackRuntimeController } from '../speech/index.js';
 import { createAdaptiveTeachingRecoveryEngine } from '../adaptive-learning/index.js';
+import { createUniversalInteractionContractRuntime } from '../interactions/index.js';
 
 let activeRuntime = null;
 let educationalObjectLifecycleManager = null;
@@ -142,6 +143,29 @@ function attachAdaptiveTeachingRuntime(runtime) {
   return runtime;
 }
 
+function attachInteractionContractRuntime(runtime) {
+  if (!runtime || typeof runtime !== 'object') return runtime;
+
+  const interactionContractRuntime = createUniversalInteractionContractRuntime(runtime);
+  runtime.interactionContractRuntime = interactionContractRuntime;
+
+  const recovered = interactionContractRuntime.recoverSession();
+  const snapshot = interactionContractRuntime.synchronize('attach', {
+    recovered
+  });
+
+  runtime.metadata = {
+    ...(runtime.metadata || {}),
+    interactionContract: {
+      ...snapshot,
+      recovered,
+      channels: interactionContractRuntime.constructor.supportedChannels()
+    }
+  };
+
+  return runtime;
+}
+
 function runLifecycleCleanupForRuntime(runtime) {
   if (!educationalObjectLifecycleManager || typeof educationalObjectLifecycleManager.cleanupScene !== 'function') {
     return;
@@ -168,11 +192,13 @@ function ensureRuntime() {
 
 export function buildScene(validatedSceneJson = {}) {
   activeRuntime = attachTimelineSynchronizationRuntime(
-    attachAdaptiveTeachingRuntime(
-      attachSpeechPlaybackRuntime(
-        attachNarrationSynchronizationRuntime(
-          attachSceneEventRuntime(
-            attachTimelineScheduler(buildRuntimeSceneGraph(validatedSceneJson || {}))
+    attachInteractionContractRuntime(
+      attachAdaptiveTeachingRuntime(
+        attachSpeechPlaybackRuntime(
+          attachNarrationSynchronizationRuntime(
+            attachSceneEventRuntime(
+              attachTimelineScheduler(buildRuntimeSceneGraph(validatedSceneJson || {}))
+            )
           )
         )
       )
@@ -184,11 +210,13 @@ export function buildScene(validatedSceneJson = {}) {
 export function loadScene(sceneJson = {}) {
   const validatedScene = processSceneJsonPipeline(sceneJson || {}, { sourceType: 'runtime' });
   activeRuntime = attachTimelineSynchronizationRuntime(
-    attachAdaptiveTeachingRuntime(
-      attachSpeechPlaybackRuntime(
-        attachNarrationSynchronizationRuntime(
-          attachSceneEventRuntime(
-            attachTimelineScheduler(buildRuntimeSceneGraph(validatedScene))
+    attachInteractionContractRuntime(
+      attachAdaptiveTeachingRuntime(
+        attachSpeechPlaybackRuntime(
+          attachNarrationSynchronizationRuntime(
+            attachSceneEventRuntime(
+              attachTimelineScheduler(buildRuntimeSceneGraph(validatedScene))
+            )
           )
         )
       )
@@ -204,9 +232,11 @@ export function destroyScene() {
   runtime.timelineSynchronizationRuntime?.persistSession?.();
   runtime.speechPlaybackRuntime?.persistSession?.();
   runtime.adaptiveTeachingRuntime?.persistSession?.();
+  runtime.interactionContractRuntime?.persistSession?.();
   runtime.timelineSynchronizationRuntime?.destroy?.();
   runtime.speechPlaybackRuntime?.destroy?.();
   runtime.adaptiveTeachingRuntime?.destroy?.();
+  runtime.interactionContractRuntime?.destroy?.();
   runtime.narrationSynchronizationRuntime?.destroy?.();
   runtime.sceneEventRuntime?.destroy?.();
   runtime.stateManager.destroyAll();
@@ -226,6 +256,7 @@ export function resetScene() {
   runtime.timelineSynchronizationRuntime?.synchronize?.('reset-before-state-manager');
   runtime.speechPlaybackRuntime?.seek?.(0);
   runtime.adaptiveTeachingRuntime?.synchronize?.('reset');
+  runtime.interactionContractRuntime?.synchronize?.('reset');
   runtime.narrationSynchronizationRuntime?.reset?.();
   runtime.sceneEventRuntime?.reset?.();
   runtime.stateManager.resetAll();
@@ -239,6 +270,7 @@ export function pauseScene() {
   runtime.timelineSynchronizationRuntime?.pause?.('scene-runtime');
   runtime.speechPlaybackRuntime?.pause?.('scene-runtime');
   runtime.adaptiveTeachingRuntime?.markInterrupted?.('scene-paused');
+  runtime.interactionContractRuntime?.handleExternalTimelineMutation?.('pause', { source: 'scene-runtime' });
   runtime.narrationSynchronizationRuntime?.pause?.('scene-runtime');
   runtime.stateManager.pauseAll();
   runtime.timelineSynchronizationRuntime?.synchronize?.('pause-scene-state-manager');
@@ -250,6 +282,7 @@ export function resumeScene() {
   runtime.timelineSynchronizationRuntime?.resume?.('scene-runtime');
   runtime.speechPlaybackRuntime?.resume?.('scene-runtime');
   runtime.adaptiveTeachingRuntime?.synchronize?.('scene-resumed');
+  runtime.interactionContractRuntime?.handleExternalTimelineMutation?.('resume', { source: 'scene-runtime' });
   runtime.narrationSynchronizationRuntime?.resume?.('scene-runtime');
   runtime.stateManager.resumeAll();
   runtime.timelineSynchronizationRuntime?.synchronize?.('resume-scene-state-manager');
