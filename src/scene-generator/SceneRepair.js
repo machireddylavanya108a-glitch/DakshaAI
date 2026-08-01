@@ -16,6 +16,7 @@ import {
   createDefaultTimelineStep,
   generateSceneScopedId
 } from './SceneSchema.js';
+import { buildTimeline } from '../timeline/index.js';
 
 function isObject(value) {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
@@ -35,6 +36,10 @@ function ensureArray(value) {
 
 function computeStatistics(scene) {
   const timeline = ensureArray(scene.timeline);
+  const timelineTrackClips = ensureArray(scene.timelineTracks).reduce(
+    (count, track) => count + ensureArray(track?.clips).length,
+    0
+  );
   const objects = ensureArray(scene.objects);
   const animations = ensureArray(scene.animations);
   const interactions = ensureArray(scene.interactions);
@@ -44,7 +49,7 @@ function computeStatistics(scene) {
 
   return {
     objectCount: objects.length,
-    timelineSteps: timeline.length,
+    timelineSteps: Math.max(timeline.length, timelineTrackClips),
     animationCount: animations.length,
     interactionCount: interactions.length,
     labelCount: labels.length,
@@ -90,6 +95,10 @@ export function repairScene(sceneInput, validationInput = null) {
       ...(isObject(source.camera) ? source.camera : {})
     },
     timeline: ensureArray(source.timeline),
+    timelineTracks: ensureArray(source.timelineTracks),
+    timelineEvents: ensureArray(source.timelineEvents),
+    timelineMarkers: ensureArray(source.timelineMarkers),
+    timelineData: isObject(source.timelineData) ? source.timelineData : null,
     objects: ensureArray(source.objects),
     educationalObjects: ensureArray(source.educationalObjects),
     educationalObjectInstances: ensureArray(source.educationalObjectInstances),
@@ -164,6 +173,9 @@ export function repairScene(sceneInput, validationInput = null) {
   if (!source.behaviorDiagnostics) repairMessages.push('Inserted default behaviorDiagnostics.');
   if (!source.labels) repairMessages.push('Inserted empty labels list.');
   if (!source.narration) repairMessages.push('Inserted empty narration.');
+  if (!source.timelineTracks) repairMessages.push('Inserted empty timelineTracks list.');
+  if (!source.timelineEvents) repairMessages.push('Inserted empty timelineEvents list.');
+  if (!source.timelineMarkers) repairMessages.push('Inserted empty timelineMarkers list.');
 
   repaired.camera.position = toVector(repaired.camera.position, [0, 1.8, 5]);
   repaired.camera.rotation = toVector(repaired.camera.rotation, [0, 0, 0]);
@@ -222,6 +234,12 @@ export function repairScene(sceneInput, validationInput = null) {
         : { type: 'manual', value: null }
     };
   });
+
+  const timelineData = buildTimeline(repaired);
+  repaired.timelineData = timelineData;
+  repaired.timelineTracks = ensureArray(timelineData?.tracks);
+  repaired.timelineEvents = ensureArray(timelineData?.events);
+  repaired.timelineMarkers = ensureArray(timelineData?.markers);
 
   const computedStatistics = computeStatistics(repaired);
   repaired.statistics = {

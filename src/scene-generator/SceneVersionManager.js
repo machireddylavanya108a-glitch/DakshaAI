@@ -8,6 +8,7 @@ import { createSceneDiagnosticsSnapshot } from './SceneDiagnostics.js';
 import { ensureSceneVisualizationCapabilityMetadata } from '../visualization-capabilities/VisualizationCapability.js';
 import { ensureSceneVisualizationTemplateMetadata } from '../visualization-templates/VisualizationTemplate.js';
 import { ensureSceneEducationalObjectMetadata } from '../educational-objects/index.js';
+import { buildTimeline } from '../timeline/index.js';
 
 function safeArray(value) {
   return Array.isArray(value) ? value : [];
@@ -79,6 +80,12 @@ export function processSceneJsonPipeline(rawScene, options = {}) {
     finalScene = ensureSceneEducationalObjectMetadata(finalScene, {
       forceFallbackOnInvalid: true
     });
+
+    const timelineData = buildTimeline(finalScene);
+    finalScene.timelineData = timelineData;
+    finalScene.timelineTracks = safeArray(timelineData?.tracks);
+    finalScene.timelineEvents = safeArray(timelineData?.events);
+    finalScene.timelineMarkers = safeArray(timelineData?.markers);
 
     finalScene.diagnostics = {
       ...finalScene.diagnostics,

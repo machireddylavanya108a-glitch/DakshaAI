@@ -5,6 +5,7 @@ import {
   createDefaultNarration,
   createDefaultAudio
 } from './SceneSchema.js';
+import { validateTimeline as validateTimelineData } from '../timeline/index.js';
 
 function isObject(value) {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
@@ -267,6 +268,11 @@ export function validateTimeline(timeline) {
   const errors = [];
   const warnings = [];
 
+  if (isObject(timeline)) {
+    const validation = validateTimelineData(timeline);
+    return makeResult(validation.errors || [], validation.warnings || [], validation.repairable !== false);
+  }
+
   if (!Array.isArray(timeline)) {
     errors.push('Timeline must be an array.');
     return makeResult(errors, warnings, true);
@@ -291,6 +297,35 @@ export function validateTimeline(timeline) {
     if (!Array.isArray(step.objects)) errors.push(`Timeline step ${index} objects must be an array.`);
     if (!Array.isArray(step.animations)) errors.push(`Timeline step ${index} animations must be an array.`);
   });
+
+  return makeResult(errors, warnings, true);
+}
+
+export function validateTimelineCollections(scene) {
+  const errors = [];
+  const warnings = [];
+
+  if (scene.timelineTracks !== undefined && !Array.isArray(scene.timelineTracks)) {
+    errors.push('timelineTracks must be an array when provided.');
+  }
+
+  if (scene.timelineEvents !== undefined && !Array.isArray(scene.timelineEvents)) {
+    errors.push('timelineEvents must be an array when provided.');
+  }
+
+  if (scene.timelineMarkers !== undefined && !Array.isArray(scene.timelineMarkers)) {
+    errors.push('timelineMarkers must be an array when provided.');
+  }
+
+  if (scene.timelineData !== undefined && scene.timelineData !== null && !isObject(scene.timelineData)) {
+    errors.push('timelineData must be an object when provided.');
+  }
+
+  if (isObject(scene.timelineData)) {
+    const validation = validateTimelineData(scene.timelineData);
+    errors.push(...(validation.errors || []));
+    warnings.push(...(validation.warnings || []));
+  }
 
   return makeResult(errors, warnings, true);
 }
@@ -415,6 +450,7 @@ export function validateScene(scene) {
     validateBehaviorDiagnostics(scene.behaviorDiagnostics),
     validateObjectDiagnostics(scene.objectDiagnostics),
     validateTimeline(scene.timeline),
+    validateTimelineCollections(scene),
     validateAnimations(scene.animations),
     validateInteractions(scene.interactions),
     validateMetadata(scene.metadata),

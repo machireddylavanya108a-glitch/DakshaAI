@@ -7,6 +7,26 @@ import { buildSceneHierarchy } from './SceneHierarchy.js';
 import { resolveSceneDependencies } from './SceneDependencyResolver.js';
 import { SceneStateManager } from './SceneStateManager.js';
 import { buildSceneBuilderDiagnostics } from './SceneBuilderDiagnostics.js';
+import { buildTimeline } from '../timeline/index.js';
+
+function buildRuntimeTimelineMetadata(scene = {}) {
+  const timelineData = buildTimeline(scene);
+  return {
+    timelineId: timelineData.timelineId,
+    version: timelineData.version,
+    trackIds: (timelineData.tracks || []).map((track) => track.id),
+    clipIds: (timelineData.clips || []).map((clip) => clip.id),
+    markerIds: (timelineData.markers || []).map((marker) => marker.id),
+    eventIds: (timelineData.events || []).map((event) => event.id),
+    dependencyMetadata: (timelineData.dependencies || []).map((dependency) => ({
+      id: dependency.id,
+      type: dependency.type,
+      from: dependency.from,
+      to: dependency.to,
+      metadata: dependency.metadata || {}
+    }))
+  };
+}
 
 export function buildRuntimeSceneGraph(validatedSceneJson = {}) {
   const buildStart = Date.now();
@@ -42,6 +62,16 @@ export function buildRuntimeSceneGraph(validatedSceneJson = {}) {
     dependencyDiagnostics
   });
 
+  const timelineMetadata = buildRuntimeTimelineMetadata(validatedSceneJson);
+  const rootNode = graph.getNode(validatedSceneJson.sceneId);
+  if (rootNode) {
+    rootNode.runtimeData = {
+      ...(rootNode.runtimeData || {}),
+      timelineMetadata
+    };
+    registry.update(rootNode.id, rootNode);
+  }
+
   return {
     sceneId: validatedSceneJson.sceneId,
     graph,
@@ -51,7 +81,8 @@ export function buildRuntimeSceneGraph(validatedSceneJson = {}) {
     metadata: {
       title: validatedSceneJson.title,
       subject: validatedSceneJson.subject,
-      version: validatedSceneJson.version
+      version: validatedSceneJson.version,
+      timeline: timelineMetadata
     }
   };
 }

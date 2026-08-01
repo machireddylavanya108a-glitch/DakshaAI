@@ -35,6 +35,16 @@ export function deriveKnownKinds(sceneJson = {}) {
 
 export function createNodeSpecsFromScene(sceneJson = {}) {
   const sceneId = String(sceneJson.sceneId || 'scene-root');
+  const skippedKeys = new Set([
+    'timelineData',
+    'timelineTracks',
+    'timelineEvents',
+    'timelineMarkers',
+    'timelineDependencies',
+    'timelineActions',
+    'timelineSegments',
+    'timelineGroups'
+  ]);
   const specs = [
     createNodeSpec({
       id: sceneId,
@@ -53,6 +63,7 @@ export function createNodeSpecsFromScene(sceneJson = {}) {
 
   Object.entries(sceneJson || {}).forEach(([key, value]) => {
     if (['sceneId', 'title', 'subject', 'version'].includes(key)) return;
+    if (skippedKeys.has(key)) return;
 
     if (Array.isArray(value)) {
       const kind = singularize(key);

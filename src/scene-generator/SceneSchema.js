@@ -229,6 +229,10 @@ export function createSafeScene(overrides = {}) {
     environment: createDefaultEnvironment(),
     camera: createDefaultCamera(),
     timeline: [],
+    timelineTracks: [],
+    timelineEvents: [],
+    timelineMarkers: [],
+    timelineData: null,
     objects: [
       {
         ...createDefaultObject(0),
@@ -290,6 +294,10 @@ export function createSafeScene(overrides = {}) {
       ...base.camera,
       ...(overrides.camera || {})
     },
+    timelineTracks: Array.isArray(overrides.timelineTracks) ? overrides.timelineTracks : base.timelineTracks,
+    timelineEvents: Array.isArray(overrides.timelineEvents) ? overrides.timelineEvents : base.timelineEvents,
+    timelineMarkers: Array.isArray(overrides.timelineMarkers) ? overrides.timelineMarkers : base.timelineMarkers,
+    timelineData: overrides.timelineData || base.timelineData,
     narration: {
       ...base.narration,
       ...(overrides.narration || {})

@@ -1,3 +1,5 @@
+import { buildTimeline, runTimelineIntegrityChecks } from '../timeline/index.js';
+
 function isObject(value) {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
 }
@@ -195,6 +197,11 @@ export function runSceneIntegrityChecks(scene) {
   });
 
   warnings.push(...detectTimelineLoops(timeline));
+
+  const timelineData = buildTimeline(working);
+  const timelineIntegrity = runTimelineIntegrityChecks(timelineData);
+  errors.push(...(timelineIntegrity.errors || []));
+  warnings.push(...(timelineIntegrity.warnings || []));
 
   return createResult(errors, warnings);
 }

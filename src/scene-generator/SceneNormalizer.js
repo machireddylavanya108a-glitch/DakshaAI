@@ -13,6 +13,7 @@ import {
   createDefaultValidation,
   createDefaultDiagnostics
 } from './SceneSchema.js';
+import { buildTimeline } from '../timeline/index.js';
 
 function isObject(value) {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
@@ -166,6 +167,13 @@ function normalizeTimelineStep(raw, index = 0) {
   };
 }
 
+function resolveTimelineStepSource(source = {}) {
+  if (Array.isArray(source.timeline)) return source.timeline;
+  if (isObject(source.timeline) && Array.isArray(source.timeline.steps)) return source.timeline.steps;
+  if (Array.isArray(source.steps)) return source.steps;
+  return [];
+}
+
 export function normalizeScene(rawScene, options = {}) {
   const source = isObject(rawScene) ? { ...rawScene } : {};
   const templateAlias = pick(source, ['visualizationTemplate', 'sceneTemplate', 'template', 'layoutTemplate', 'templateConfig', 'sceneLayout'], null);
@@ -190,6 +198,15 @@ export function normalizeScene(rawScene, options = {}) {
   const objectRelationshipsAlias = pick(source, ['objectRelationships', 'object_relationships', 'relationships', 'links', 'dependencies'], []);
   const behaviorDiagnosticsAlias = pick(source, ['behaviorDiagnostics', 'behavior_diagnostics'], null);
   const objectDiagnosticsAlias = pick(source, ['objectDiagnostics', 'educationalObjectDiagnostics'], null);
+  const timelineStepSource = resolveTimelineStepSource(source);
+
+  const timelineData = buildTimeline({
+    ...source,
+    timeline: source.timeline,
+    timelineTracks: pick(source, ['timelineTracks'], []),
+    timelineEvents: pick(source, ['timelineEvents'], []),
+    timelineMarkers: pick(source, ['timelineMarkers'], [])
+  });
 
   const normalized = {
     ...source,
@@ -200,7 +217,11 @@ export function normalizeScene(rawScene, options = {}) {
     classification: normalizeClassification(classificationValue),
     environment: normalizeEnvironment(pick(source, ['environment', 'sceneEnvironment'], {})),
     camera: normalizeCamera(mergedCamera),
-    timeline: toArray(pick(source, ['timeline', 'steps'], []), []).map((step, index) => normalizeTimelineStep(step, index)),
+    timeline: timelineStepSource.map((step, index) => normalizeTimelineStep(step, index)),
+    timelineTracks: Array.isArray(timelineData?.tracks) ? timelineData.tracks : [],
+    timelineEvents: Array.isArray(timelineData?.events) ? timelineData.events : [],
+    timelineMarkers: Array.isArray(timelineData?.markers) ? timelineData.markers : [],
+    timelineData,
     objects: toArray(pick(source, ['objects', 'models', 'entities'], []), []).map((objectValue, index) => normalizeObject(objectValue, index)),
     educationalObjects: toArray(educationalObjectsAlias, []).map((item, index) => normalizeEducationalObjectDescriptor(item, index)),
     educationalObjectInstances: toArray(educationalObjectInstancesAlias, []),
