@@ -24,6 +24,7 @@ import {
 } from './SceneGenerationConfig.js';
 import { SceneGenerationError, toSceneGenerationError } from './SceneGenerationError.js';
 import { resolveVisualizationCapabilities } from '../visualization-capabilities/index.js';
+import { analyzeVisualizationStrategy, normalizeVisualizationStrategyProfile } from '../visualization-strategy/index.js';
 import {
   generateVisualizationTemplate,
   selectVisualizationTemplate
@@ -177,6 +178,25 @@ function normalizeInput(input = {}) {
       locale: String(pruned.locale || 'en')
     },
     learnerContext: pruned.learnerContext && typeof pruned.learnerContext === 'object' ? pruned.learnerContext : {}
+  };
+
+  const existingVisualizationStrategy = pruned.visualizationStrategy
+    || pruned.sourceMeta?.visualizationStrategy
+    || normalized.classification?.visualizationStrategy
+    || null;
+
+  normalized.visualizationStrategy = existingVisualizationStrategy && typeof existingVisualizationStrategy === 'object'
+    ? normalizeVisualizationStrategyProfile(existingVisualizationStrategy)
+    : analyzeVisualizationStrategy({
+      sourceType: normalized.source,
+      sourceName: normalized.title,
+      content: normalized.content.join(' '),
+      intent: normalized.classification?.visualizationStrategy?.metadata?.intent || {}
+    });
+
+  normalized.classification = {
+    ...(normalized.classification || {}),
+    visualizationStrategy: normalized.visualizationStrategy
   };
 
   if (!normalized.content.length) {
@@ -618,6 +638,7 @@ async function attachVisualizationCapabilityMetadata(scene, normalizedInput, con
     educationalObjectInstances: objectGeneration.objectInstances || scene.educationalObjectInstances || [],
     metadata: {
       ...(scene.metadata && typeof scene.metadata === 'object' ? scene.metadata : {}),
+      visualizationStrategy: normalizedInput.visualizationStrategy,
       visualizationCapabilities: {
         visualizationRequirements: resolved.visualizationRequirements,
         selectedCapabilities: resolved.selectedCapabilities,

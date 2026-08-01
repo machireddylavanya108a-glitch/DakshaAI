@@ -186,6 +186,7 @@ export class TimelineSynchronizationRuntime {
     const inputCameraControlState = this.inputCameraControlRuntime?.snapshot?.() || this.runtime?.metadata?.inputCameraControl || null;
     const educationalInspectionState = this.educationalInspectionRuntime?.snapshot?.() || this.runtime?.metadata?.educationalInspection || null;
     const accessibilityRecoveryState = this.accessibilityStateRecoveryRuntime?.snapshot?.() || this.runtime?.metadata?.accessibilityRecovery || null;
+    const visualizationStrategyState = this.runtime?.metadata?.visualizationStrategy || null;
     const previousSession = this.sharedState?.session || {
       persistenceKey: this.persistenceKey,
       recovered: false,
@@ -212,6 +213,7 @@ export class TimelineSynchronizationRuntime {
       inputCameraControl: inputCameraControlState,
       educationalInspection: educationalInspectionState,
       accessibilityRecovery: accessibilityRecoveryState,
+      visualizationStrategy: visualizationStrategyState,
       playback,
       sceneGraph: {
         nodeCount: graphSummary.nodeCount,
@@ -237,6 +239,7 @@ export class TimelineSynchronizationRuntime {
           inputCameraControlState,
           educationalInspectionState,
           accessibilityRecoveryState,
+          visualizationStrategyState,
           updatedAt: Date.now()
         },
         rendererAdapter: {
@@ -253,6 +256,7 @@ export class TimelineSynchronizationRuntime {
           inputCameraControlState,
           educationalInspectionState,
           accessibilityRecoveryState,
+          visualizationStrategyState,
           updatedAt: Date.now()
         },
         interactionEngine: {
@@ -268,6 +272,7 @@ export class TimelineSynchronizationRuntime {
           inputCameraControlState,
           educationalInspectionState,
           accessibilityRecoveryState,
+          visualizationStrategyState,
           updatedAt: Date.now()
         }
       },
@@ -472,19 +477,22 @@ export class TimelineSynchronizationRuntime {
         ...(this.runtime.metadata?.accessibilityRecovery || {}),
         ...this.sharedState.accessibilityRecovery
       },
+      visualizationStrategy: this.sharedState.visualizationStrategy || this.runtime.metadata?.visualizationStrategy || null,
       rendererAdapter: {
         ...(this.runtime.metadata?.rendererAdapter || {}),
         timelineState: this.sharedState.adapters.rendererAdapter,
         cameraControlState: this.sharedState.inputCameraControl,
         educationalInspectionState: this.sharedState.educationalInspection,
-        accessibilityRecoveryState: this.sharedState.accessibilityRecovery
+        accessibilityRecoveryState: this.sharedState.accessibilityRecovery,
+        visualizationStrategyState: this.sharedState.visualizationStrategy
       },
       aiTeacherAdapter: {
         ...(this.runtime.metadata?.aiTeacherAdapter || {}),
         timelineState: this.sharedState.adapters.aiTeacher,
         inputCameraControlState: this.sharedState.inputCameraControl,
         educationalInspectionState: this.sharedState.educationalInspection,
-        accessibilityRecoveryState: this.sharedState.accessibilityRecovery
+        accessibilityRecoveryState: this.sharedState.accessibilityRecovery,
+        visualizationStrategyState: this.sharedState.visualizationStrategy
       }
     };
 

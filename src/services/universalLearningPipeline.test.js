@@ -53,4 +53,8 @@ test('buildUniversalLearningArtifacts returns the full learning suite', () => {
   assert.ok(suite.knowledgeGraph.conceptGraph.includes('Force'));
   assert.ok(suite.knowledgeGraph.skillGraph.includes('Physics'));
   assert.ok(suite.knowledgeGraph.learningTree.includes('Physics'));
+  assert.ok(suite.visualizationStrategy);
+  assert.ok(suite.visualizationStrategy.primaryStrategy);
+  assert.ok(Array.isArray(suite.visualizationStrategy.strategies));
+  assert.ok(suite.aiTeacher.narrationStrategy);
 });

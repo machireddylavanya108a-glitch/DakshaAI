@@ -3,6 +3,8 @@ import { buildContentIntelligenceProfile } from '../utils/contentIntelligenceEng
 import { buildKnowledgeGraph } from '../utils/knowledgeGraphEngine.js';
 import { normalizeInput } from '../utils/inputNormalization.js';
 import { analyzeUniversalLearningIntent } from '../intent-analysis/index.js';
+import { analyzeVisualizationStrategy } from '../visualization-strategy/index.js';
+import { normalizeVisualizationStrategyProfile } from '../visualization-strategy/index.js';
 import {
   normalizeVisionOutput,
   deriveDeterministicCounts,
@@ -393,7 +395,8 @@ function buildLessonSession(packageData, sourceModel, detections, metadata, inte
     aiTeacher: {
       script: beginnerLesson,
       language: metadata.language,
-      style: 'adaptive'
+      style: 'adaptive',
+      narrationStrategy: metadata?.visualizationStrategy?.primaryStrategy?.narrationStrategy || 'concept-first narration'
     },
     lesson3d: {
       topic: intelligenceProfile?.subject || metadata.subject,
@@ -434,11 +437,15 @@ export function buildUniversalLearningArtifacts({ sourceMeta, sourceModel, learn
   const roadmap = Array.isArray(learningSession?.learningRoadmap) ? learningSession.learningRoadmap : [];
   const practiceQuestions = Array.isArray(learningSession?.practice?.questions) ? learningSession.practice.questions : [];
   const notes = learningSession?.notes || {};
+  const visualizationStrategy = normalizeVisualizationStrategyProfile(
+    sourceMeta?.visualizationStrategy || learningSession?.visualizationStrategy || {}
+  );
 
   const aiTeacher = {
     ...learningSession?.aiTeacher,
     language: sourceMeta?.language || learningSession?.aiTeacher?.language || 'English',
-    style: learningSession?.aiTeacher?.style || 'adaptive'
+    style: learningSession?.aiTeacher?.style || 'adaptive',
+    narrationStrategy: learningSession?.aiTeacher?.narrationStrategy || visualizationStrategy?.primaryStrategy?.narrationStrategy || 'concept-first narration'
   };
 
   const knowledgeGraph = buildKnowledgeGraph({
@@ -448,7 +455,8 @@ export function buildUniversalLearningArtifacts({ sourceMeta, sourceModel, learn
     advancedTopics: Array.isArray(sourceMeta?.subtopics) ? sourceMeta.subtopics.slice(0, 3) : [],
     similarTopics: Array.isArray(sourceMeta?.chapters) ? sourceMeta.chapters.slice(0, 3) : [],
     revisions: Array.isArray(learningSession?.revisionNotes) ? learningSession.revisionNotes.slice(0, 3) : [],
-    sourceText: sourceModel?.extractedText || learningSession?.summary || ''
+    sourceText: sourceModel?.extractedText || learningSession?.summary || '',
+    visualizationStrategy
   });
 
   const lessonSuite = {
@@ -473,6 +481,7 @@ export function buildUniversalLearningArtifacts({ sourceMeta, sourceModel, learn
     sourceModel,
     sourceMeta,
     detections,
+    visualizationStrategy,
     aiTeacher,
     lesson3d: {
       topic: sourceMeta?.subject || learningSession?.title || 'Universal lesson',
@@ -587,6 +596,13 @@ export async function runUniversalLearningPipeline({
     content: normalizedContent.detectedText || extracted.extractedText,
     visualDescription: normalizedContent.visualDescription || extracted.visionSummary || ''
   });
+  const visualizationStrategy = analyzeVisualizationStrategy({
+    sourceType,
+    sourceName: normalizedName,
+    content: normalizedContent.detectedText || extracted.extractedText,
+    visualDescription: normalizedContent.visualDescription || extracted.visionSummary || '',
+    intent: intentProfile
+  });
 
   const sourceModel = buildSourceModel({
     sourceName: normalizedName,
@@ -614,6 +630,7 @@ export async function runUniversalLearningPipeline({
     contentPurpose: normalizedContent.contentPurpose,
     topic: normalizedContent.topic,
     intentProfile,
+    visualizationStrategy,
     detectDiagrams: detections.hasDiagrams,
     detectFormulas: detections.hasFormulas,
     detectTables: detections.hasTables,
@@ -658,6 +675,7 @@ export async function runUniversalLearningPipeline({
       reasoningStyle: intentProfile.reasoningStyle,
       intentConfidence: intentProfile.confidenceScore,
       intentPathway: intentProfile.learningPathway,
+      visualizationStrategy,
       chapters: intelligenceProfile?.chapters || [],
       topics: normalizedContent.topicResolution.subtopics || intelligenceProfile?.topics || [],
       subtopics: normalizedContent.topicResolution.subtopics || intelligenceProfile?.subtopics || [],

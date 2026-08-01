@@ -423,6 +423,11 @@ test('scene runtime attaches timeline synchronization runtime', () => {
   assert.ok(getActiveSharedRuntimeState());
   assert.ok(runtime.metadata.timelineSynchronization);
   assert.ok(runtime.metadata.aiTeacherAdapter);
+  assert.ok(runtime.metadata.visualizationStrategy);
+  assert.ok(runtime.metadata.visualizationStrategy.primaryStrategy);
+  assert.ok(runtime.metadata.aiTeacherAdapter.visualizationStrategyState);
+  assert.ok(runtime.metadata.rendererAdapter.visualizationStrategyState);
+  assert.ok(runtime.metadata.interactionEngine.visualizationStrategyState);
   assert.ok(runtime.metadata.rendererAdapter.timelineState);
   assert.ok(runtime.metadata.interactionEngine.timelineState);
   assert.ok(runtime.metadata.narration);
@@ -438,6 +443,10 @@ test('scene runtime attaches timeline synchronization runtime', () => {
   assert.ok(shared.inputCameraControl);
   assert.ok(shared.educationalInspection);
   assert.ok(shared.accessibilityRecovery);
+  assert.ok(shared.visualizationStrategy);
+  assert.ok(shared.adapters.aiTeacher.visualizationStrategyState);
+  assert.ok(shared.adapters.rendererAdapter.visualizationStrategyState);
+  assert.ok(shared.adapters.interactionEngine.visualizationStrategyState);
   assert.equal(shared.narration.segmentCount >= 1, true);
   assert.ok(shared.narration.synchronization);
   assert.equal(typeof shared.speechPlayback.playbackState, 'string');

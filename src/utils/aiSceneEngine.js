@@ -3,6 +3,7 @@ import { buildAnimationPlan, buildAutoAnimationState } from './aiAnimationEngine
 import { processSceneJsonPipeline } from '../scene-generator/SceneVersionManager.js';
 import { loadScene } from '../scene-builder/SceneRuntime.js';
 import { analyzeUniversalLearningIntent } from '../intent-analysis/index.js';
+import { analyzeVisualizationStrategy } from '../visualization-strategy/index.js';
 
 const STOP_WORDS = new Set([
   'a', 'an', 'the', 'and', 'or', 'to', 'of', 'for', 'on', 'in', 'with', 'from', 'by', 'at', 'as', 'into', 'about',
@@ -230,6 +231,12 @@ export function classifyUniversalSubject(content = '', sourceType = 'typed-topic
     sourceType,
     content: normalizedContent
   });
+  const strategyProfile = analyzeVisualizationStrategy({
+    sourceType,
+    content: normalizedContent,
+    intent
+  });
+  const strategy = strategyProfile.primaryStrategy;
 
   const semanticAnchor = topTerms.slice(0, 2).join(' ');
   const inferredDomain = intent.knowledgeDomain
@@ -248,11 +255,11 @@ export function classifyUniversalSubject(content = '', sourceType = 'typed-topic
         ? toTitleCase(semanticAnchor)
         : `${toTitleCase(sourceType || 'topic')} Focus`;
 
-  const visualization = intent.visualizationComplexity === 'high'
+  const visualization = strategy?.visualizationStyle || (intent.visualizationComplexity === 'high'
     ? `${deriveVisualizationStyle(topTerms, inferredSubDomain)} Layered`
-    : deriveVisualizationStyle(topTerms, inferredSubDomain);
+    : deriveVisualizationStyle(topTerms, inferredSubDomain));
   const interactionCategory = deriveInteractionCategory(topTerms, inferredSubDomain);
-  const sceneComplexity = intent.interactionComplexity || inferComplexity(normalizedContent, topTerms, rankedAssets);
+  const sceneComplexity = strategy?.sceneComplexity || intent.interactionComplexity || inferComplexity(normalizedContent, topTerms, rankedAssets);
   const renderMode = deriveRenderMode(normalizedContent, rankedAssets);
   const objectCategory = inferredDomain === 'Custom' ? 'Dynamic' : inferredDomain;
 
@@ -263,13 +270,19 @@ export function classifyUniversalSubject(content = '', sourceType = 'typed-topic
     sceneComplexity,
     renderMode,
     objectCategory,
-    animationCategory: sceneComplexity === 'high' ? 'Layered Motion' : 'Guided Motion',
+    animationCategory: strategy?.animationIntensity || (sceneComplexity === 'high' ? 'Layered Motion' : 'Guided Motion'),
     interactionCategory,
     interaction: interactionCategory,
     learningIntent: intent.learningIntent,
     educationalStrategy: intent.educationalStrategy,
     reasoningStyle: intent.reasoningStyle,
-    intentConfidence: intent.confidenceScore
+    intentConfidence: intent.confidenceScore,
+    visualizationStrategy: strategyProfile,
+    renderingPriority: strategy?.renderingPriority || 'balanced',
+    cameraStrategy: strategy?.cameraStrategy || 'adaptive-context-camera',
+    narrationStrategy: strategy?.narrationStrategy || 'concept-first narration',
+    timelineStrategy: strategy?.timelineStrategy || 'checkpoint-driven',
+    simulationRequirements: strategy?.simulationRequirements || { required: false, mode: 'not-required', parameters: { supportsUnknownStates: true } }
   };
 }
 

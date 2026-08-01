@@ -48,7 +48,8 @@ export function buildKnowledgeGraph({
   advancedTopics = [],
   similarTopics = [],
   revisions = [],
-  sourceText = ''
+  sourceText = '',
+  visualizationStrategy = null
 } = {}) {
   const safeTopic = normalize(topic, 'Learning topic');
   const conceptList = buildConcepts(safeTopic, prereqs, [...relatedTopics, ...advancedTopics, ...similarTopics, ...revisions], sourceText);
@@ -105,6 +106,7 @@ export function buildKnowledgeGraph({
     dependencyGraph,
     futureTopics,
     sourceText: normalize(sourceText, ''),
+    visualizationStrategy: visualizationStrategy && typeof visualizationStrategy === 'object' ? visualizationStrategy : null,
     generatedAt: new Date().toISOString()
   };
 }

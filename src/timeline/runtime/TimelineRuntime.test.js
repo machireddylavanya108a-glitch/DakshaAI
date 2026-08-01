@@ -756,6 +756,31 @@ test('84 synchronization runtime updates shared adapter state', () => {
     sceneId: 'scene-sync-1',
     timelineScheduler: scheduler,
     metadata: {
+      visualizationStrategy: {
+        schemaVersion: 'v2',
+        primaryStrategy: {
+          strategyId: 'strategy-1',
+          visualizationStyle: 'adaptive visualization',
+          sceneComplexity: 'medium',
+          interactionLevel: 'medium',
+          animationIntensity: 'medium',
+          cameraStrategy: 'adaptive-context-camera',
+          narrationStrategy: 'concept-first narration',
+          timelineStrategy: 'checkpoint-driven',
+          objectDensity: 'medium',
+          renderingPriority: 'balanced',
+          simulationRequirements: {
+            required: false,
+            mode: 'not-required',
+            parameters: { supportsUnknownStates: true }
+          },
+          learningMode: 'guided-learning',
+          reasoningStrategy: 'conceptual-reasoning',
+          confidenceScore: 0.66
+        },
+        strategies: [],
+        confidenceScore: 0.66
+      },
       timeline: {
         timelineId: 'runtime-timeline-1',
         version: 'v2',
@@ -790,6 +815,10 @@ test('84 synchronization runtime updates shared adapter state', () => {
   const state = synchronization.synchronize('test');
   assert.equal(state.adapters.rendererAdapter.timeMs, 500);
   assert.equal(state.adapters.aiTeacher.state, 'Playing');
+  assert.equal(state.visualizationStrategy.primaryStrategy.visualizationStyle, 'adaptive visualization');
+  assert.equal(state.adapters.aiTeacher.visualizationStrategyState.primaryStrategy.visualizationStyle, 'adaptive visualization');
+  assert.equal(state.adapters.rendererAdapter.visualizationStrategyState.primaryStrategy.visualizationStyle, 'adaptive visualization');
+  assert.equal(state.adapters.interactionEngine.visualizationStrategyState.primaryStrategy.visualizationStyle, 'adaptive visualization');
 });
 
 test('85 synchronization runtime persists and recovers shared session', () => {

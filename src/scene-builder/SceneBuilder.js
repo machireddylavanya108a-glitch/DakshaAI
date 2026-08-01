@@ -8,6 +8,7 @@ import { resolveSceneDependencies } from './SceneDependencyResolver.js';
 import { SceneStateManager } from './SceneStateManager.js';
 import { buildSceneBuilderDiagnostics } from './SceneBuilderDiagnostics.js';
 import { buildTimeline } from '../timeline/index.js';
+import { normalizeVisualizationStrategyProfile } from '../visualization-strategy/index.js';
 
 const UNIVERSAL_INTERACTION_TYPES = new Set([
   'click',
@@ -94,6 +95,30 @@ function toKebab(value = '') {
     .replace(/[^a-z0-9-]/g, '')
     .replace(/-+/g, '-')
     .replace(/^-|-$/g, '');
+}
+
+function resolveVisualizationStrategyMetadata(scene = {}) {
+  const source = scene?.metadata?.visualizationStrategy
+    || scene?.classification?.visualizationStrategy
+    || scene?.visualizationStrategy
+    || {};
+
+  const profile = normalizeVisualizationStrategyProfile(source);
+  const primary = profile.primaryStrategy || {};
+
+  return {
+    profile,
+    primary,
+    summary: {
+      schemaVersion: profile.schemaVersion,
+      strategyCount: Array.isArray(profile.strategies) ? profile.strategies.length : 0,
+      confidenceScore: Number(profile.confidenceScore || 0),
+      visualizationStyle: String(primary.visualizationStyle || 'adaptive visualization'),
+      sceneComplexity: String(primary.sceneComplexity || 'medium'),
+      interactionLevel: String(primary.interactionLevel || 'medium'),
+      animationIntensity: String(primary.animationIntensity || 'medium')
+    }
+  };
 }
 
 function normalizeInteractionType(input = 'custom') {
@@ -727,6 +752,7 @@ export function buildRuntimeSceneGraph(validatedSceneJson = {}) {
   const inputCameraMetadata = applyInputCameraRuntimeMetadata(graph, validatedSceneJson);
   const educationalInspectionMetadata = applyEducationalInspectionRuntimeMetadata(graph);
   const accessibilityRecoveryMetadata = applyAccessibilityRecoveryRuntimeMetadata(graph, validatedSceneJson);
+  const visualizationStrategyMetadata = resolveVisualizationStrategyMetadata(validatedSceneJson);
   const rootNode = graph.getNode(validatedSceneJson.sceneId);
   if (rootNode) {
     rootNode.runtimeData = {
@@ -758,6 +784,15 @@ export function buildRuntimeSceneGraph(validatedSceneJson = {}) {
         focusableObjectCount: accessibilityRecoveryMetadata.focusableObjectIds.length,
         knownFeatureCount: accessibilityRecoveryMetadata.knownFeatures.length,
         unknownFeatureCount: accessibilityRecoveryMetadata.unknownFeatures.length
+      },
+      visualizationStrategy: {
+        schemaVersion: visualizationStrategyMetadata.summary.schemaVersion,
+        strategyCount: visualizationStrategyMetadata.summary.strategyCount,
+        confidenceScore: visualizationStrategyMetadata.summary.confidenceScore,
+        visualizationStyle: visualizationStrategyMetadata.summary.visualizationStyle,
+        sceneComplexity: visualizationStrategyMetadata.summary.sceneComplexity,
+        interactionLevel: visualizationStrategyMetadata.summary.interactionLevel,
+        animationIntensity: visualizationStrategyMetadata.summary.animationIntensity
       }
     };
     registry.update(rootNode.id, rootNode);
@@ -773,6 +808,7 @@ export function buildRuntimeSceneGraph(validatedSceneJson = {}) {
       title: validatedSceneJson.title,
       subject: validatedSceneJson.subject,
       version: validatedSceneJson.version,
+      visualizationStrategy: visualizationStrategyMetadata.profile,
       timeline: timelineMetadata,
       timelineData: runtimeTimeline.timelineData,
       narration: narrationMetadata,
@@ -827,7 +863,8 @@ export function buildRuntimeSceneGraph(validatedSceneJson = {}) {
             selectedObjects: [],
             checkpoints: []
           }
-        }
+        },
+        visualizationStrategyState: visualizationStrategyMetadata.profile
       },
       interactionEngine: {
         timelineState: {
@@ -884,7 +921,8 @@ export function buildRuntimeSceneGraph(validatedSceneJson = {}) {
             selectedObjects: [],
             checkpoints: []
           }
-        }
+        },
+        visualizationStrategyState: visualizationStrategyMetadata.profile
       },
       speechPlayback: {
         playbackState: 'Ready',
@@ -1321,7 +1359,8 @@ export function buildRuntimeSceneGraph(validatedSceneJson = {}) {
             selectedObjects: [],
             checkpoints: []
           }
-        }
+        },
+        visualizationStrategyState: visualizationStrategyMetadata.profile
       }
     }
   };

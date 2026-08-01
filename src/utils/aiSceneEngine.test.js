@@ -14,6 +14,9 @@ test('buildSceneBlueprint emits universal classification and assets', () => {
   assert.ok(blueprint.classification.learningIntent);
   assert.ok(blueprint.classification.educationalStrategy);
   assert.ok(blueprint.classification.reasoningStyle);
+  assert.ok(blueprint.classification.visualizationStrategy);
+  assert.ok(blueprint.classification.visualizationStrategy.primaryStrategy);
+  assert.ok(Array.isArray(blueprint.classification.visualizationStrategy.strategies));
   assert.ok(blueprint.entities.length >= 3);
   assert.ok(blueprint.assetPlan.length >= 1);
   assert.ok(blueprint.assetPlan[0].assetId);
@@ -32,6 +35,7 @@ test('buildSceneFromBlueprint returns a complete scene with classification metad
   assert.ok(scene.objects.length >= 3);
   assert.equal(scene.supports3D, true);
   assert.ok(scene.summary.length > 20);
+  assert.ok(scene.classification.visualizationStrategy);
 });
 
 test('unknown sparse input uses adaptive custom classification', () => {

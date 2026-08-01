@@ -128,6 +128,8 @@ test('successful structured AI scene response', async () => {
   assert.equal(result.status, 'success');
   assert.equal(result.fallbackUsed, false);
   assert.ok(result.scene?.sceneId);
+  assert.ok(result.scene?.metadata?.visualizationStrategy);
+  assert.ok(result.scene?.metadata?.visualizationStrategy?.primaryStrategy);
   assert.ok(result.runtimeGraph?.nodes?.length >= 1);
   assert.ok(result.rendererPayload?.objects?.length >= 1);
 });
