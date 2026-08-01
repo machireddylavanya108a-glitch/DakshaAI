@@ -147,6 +147,7 @@ export class TimelineSynchronizationRuntime {
     this.interactionContractRuntime = runtime?.interactionContractRuntime || null;
     this.inputCameraControlRuntime = runtime?.inputCameraControlRuntime || null;
     this.educationalInspectionRuntime = runtime?.educationalInspectionRuntime || null;
+    this.accessibilityStateRecoveryRuntime = runtime?.accessibilityStateRecoveryRuntime || null;
     this.interactionEngine = runtime?.behaviorRuntime || null;
     this.persistenceAdapter = this.options.persistenceAdapter || this.scheduler?.persistenceAdapter || createDefaultPersistenceAdapter();
     this.persistenceKey = String(this.options.persistenceKey || this.scheduler?.persistenceKey || 'daksha.timeline.runtime.v1');
@@ -163,6 +164,7 @@ export class TimelineSynchronizationRuntime {
     this.attachInteractionContractRuntime(this.interactionContractRuntime);
     this.attachInputCameraControlRuntime(this.inputCameraControlRuntime);
     this.attachEducationalInspectionRuntime(this.educationalInspectionRuntime);
+    this.attachAccessibilityStateRecoveryRuntime(this.accessibilityStateRecoveryRuntime);
     this.attachInteractionEngine(this.interactionEngine);
   }
 
@@ -183,6 +185,7 @@ export class TimelineSynchronizationRuntime {
     const interactionContractState = this.interactionContractRuntime?.snapshot?.() || this.runtime?.metadata?.interactionContract || null;
     const inputCameraControlState = this.inputCameraControlRuntime?.snapshot?.() || this.runtime?.metadata?.inputCameraControl || null;
     const educationalInspectionState = this.educationalInspectionRuntime?.snapshot?.() || this.runtime?.metadata?.educationalInspection || null;
+    const accessibilityRecoveryState = this.accessibilityStateRecoveryRuntime?.snapshot?.() || this.runtime?.metadata?.accessibilityRecovery || null;
     const previousSession = this.sharedState?.session || {
       persistenceKey: this.persistenceKey,
       recovered: false,
@@ -208,6 +211,7 @@ export class TimelineSynchronizationRuntime {
       interactionContract: interactionContractState,
       inputCameraControl: inputCameraControlState,
       educationalInspection: educationalInspectionState,
+      accessibilityRecovery: accessibilityRecoveryState,
       playback,
       sceneGraph: {
         nodeCount: graphSummary.nodeCount,
@@ -232,6 +236,7 @@ export class TimelineSynchronizationRuntime {
           interactionContractState,
           inputCameraControlState,
           educationalInspectionState,
+          accessibilityRecoveryState,
           updatedAt: Date.now()
         },
         rendererAdapter: {
@@ -247,6 +252,7 @@ export class TimelineSynchronizationRuntime {
           interactionContractState,
           inputCameraControlState,
           educationalInspectionState,
+          accessibilityRecoveryState,
           updatedAt: Date.now()
         },
         interactionEngine: {
@@ -261,6 +267,7 @@ export class TimelineSynchronizationRuntime {
           interactionContractState,
           inputCameraControlState,
           educationalInspectionState,
+          accessibilityRecoveryState,
           updatedAt: Date.now()
         }
       },
@@ -411,6 +418,19 @@ export class TimelineSynchronizationRuntime {
     this.unsubscribers.push(unsubscribe);
   }
 
+  attachAccessibilityStateRecoveryRuntime(accessibilityStateRecoveryRuntime) {
+    if (!accessibilityStateRecoveryRuntime || typeof accessibilityStateRecoveryRuntime.on !== 'function') return;
+
+    const unsubscribe = accessibilityStateRecoveryRuntime.on('*', ({ channel, payload }) => {
+      this.synchronize('accessibility-recovery-event', {
+        channel: channel || 'accessibility-recovery-event',
+        payload: payload || {}
+      });
+    });
+
+    this.unsubscribers.push(unsubscribe);
+  }
+
   attachInteractionEngine(interactionEngine) {
     if (!interactionEngine || typeof interactionEngine.getDiagnostics !== 'function') return;
     this.synchronize('interaction-engine-attached', {
@@ -433,7 +453,8 @@ export class TimelineSynchronizationRuntime {
         timelineState: this.sharedState.adapters.interactionEngine,
         contractState: this.sharedState.interactionContract,
         inputCameraControlState: this.sharedState.inputCameraControl,
-        educationalInspectionState: this.sharedState.educationalInspection
+        educationalInspectionState: this.sharedState.educationalInspection,
+        accessibilityRecoveryState: this.sharedState.accessibilityRecovery
       },
       interactionContract: {
         ...(this.runtime.metadata?.interactionContract || {}),
@@ -447,17 +468,23 @@ export class TimelineSynchronizationRuntime {
         ...(this.runtime.metadata?.educationalInspection || {}),
         ...this.sharedState.educationalInspection
       },
+      accessibilityRecovery: {
+        ...(this.runtime.metadata?.accessibilityRecovery || {}),
+        ...this.sharedState.accessibilityRecovery
+      },
       rendererAdapter: {
         ...(this.runtime.metadata?.rendererAdapter || {}),
         timelineState: this.sharedState.adapters.rendererAdapter,
         cameraControlState: this.sharedState.inputCameraControl,
-        educationalInspectionState: this.sharedState.educationalInspection
+        educationalInspectionState: this.sharedState.educationalInspection,
+        accessibilityRecoveryState: this.sharedState.accessibilityRecovery
       },
       aiTeacherAdapter: {
         ...(this.runtime.metadata?.aiTeacherAdapter || {}),
         timelineState: this.sharedState.adapters.aiTeacher,
         inputCameraControlState: this.sharedState.inputCameraControl,
-        educationalInspectionState: this.sharedState.educationalInspection
+        educationalInspectionState: this.sharedState.educationalInspection,
+        accessibilityRecoveryState: this.sharedState.accessibilityRecovery
       }
     };
 
@@ -559,6 +586,7 @@ export class TimelineSynchronizationRuntime {
     this.interactionContractRuntime?.handleExternalTimelineMutation?.('pause', { reason });
     this.inputCameraControlRuntime?.handleExternalTimelineMutation?.('pause', { reason });
     this.educationalInspectionRuntime?.handleExternalTimelineMutation?.('pause', { reason });
+    this.accessibilityStateRecoveryRuntime?.handleExternalTimelineMutation?.('pause', { reason });
     this.narrationSynchronizationRuntime?.handleExternalTimelineMutation?.('pause', { reason });
     const state = this.synchronize('pause', { reason });
     this.persistSession();
@@ -573,6 +601,7 @@ export class TimelineSynchronizationRuntime {
     this.interactionContractRuntime?.handleExternalTimelineMutation?.('resume', { reason });
     this.inputCameraControlRuntime?.handleExternalTimelineMutation?.('resume', { reason });
     this.educationalInspectionRuntime?.handleExternalTimelineMutation?.('resume', { reason });
+    this.accessibilityStateRecoveryRuntime?.handleExternalTimelineMutation?.('resume', { reason });
     this.narrationSynchronizationRuntime?.handleExternalTimelineMutation?.('resume', { reason });
     const state = this.synchronize('resume', { reason });
     this.persistSession();
@@ -586,6 +615,7 @@ export class TimelineSynchronizationRuntime {
     this.interactionContractRuntime?.handleExternalTimelineMutation?.('replay', { fromTimeMs: Number(fromTimeMs || 0) });
     this.inputCameraControlRuntime?.handleExternalTimelineMutation?.('replay', { fromTimeMs: Number(fromTimeMs || 0) });
     this.educationalInspectionRuntime?.handleExternalTimelineMutation?.('replay', { fromTimeMs: Number(fromTimeMs || 0) });
+    this.accessibilityStateRecoveryRuntime?.handleExternalTimelineMutation?.('replay', { fromTimeMs: Number(fromTimeMs || 0) });
     this.narrationSynchronizationRuntime?.handleExternalTimelineMutation?.('replay', { fromTimeMs: Number(fromTimeMs || 0) });
     const state = this.synchronize('replay', { fromTimeMs });
     this.persistSession();
@@ -599,6 +629,7 @@ export class TimelineSynchronizationRuntime {
     this.interactionContractRuntime?.handleExternalTimelineMutation?.('restart', {});
     this.inputCameraControlRuntime?.handleExternalTimelineMutation?.('restart', {});
     this.educationalInspectionRuntime?.handleExternalTimelineMutation?.('restart', {});
+    this.accessibilityStateRecoveryRuntime?.handleExternalTimelineMutation?.('restart', {});
     this.narrationSynchronizationRuntime?.handleExternalTimelineMutation?.('restart', {});
     const state = this.synchronize('restart', {});
     this.persistSession();
@@ -612,6 +643,7 @@ export class TimelineSynchronizationRuntime {
     this.interactionContractRuntime?.handleExternalTimelineMutation?.('speed-change', { speed: Number(speed || 1) });
     this.inputCameraControlRuntime?.handleExternalTimelineMutation?.('speed-change', { speed: Number(speed || 1) });
     this.educationalInspectionRuntime?.handleExternalTimelineMutation?.('speed-change', { speed: Number(speed || 1) });
+    this.accessibilityStateRecoveryRuntime?.handleExternalTimelineMutation?.('speed-change', { speed: Number(speed || 1) });
     this.narrationSynchronizationRuntime?.handleExternalTimelineMutation?.('speed-change', { speed: Number(speed || 1) });
     const state = this.synchronize('speed-change', { speed });
     this.persistSession();
@@ -625,6 +657,7 @@ export class TimelineSynchronizationRuntime {
     this.interactionContractRuntime?.handleExternalTimelineMutation?.('seek-time', { timeMs: Number(timeMs || 0) });
     this.inputCameraControlRuntime?.handleExternalTimelineMutation?.('seek-time', { timeMs: Number(timeMs || 0) });
     this.educationalInspectionRuntime?.handleExternalTimelineMutation?.('seek-time', { timeMs: Number(timeMs || 0) });
+    this.accessibilityStateRecoveryRuntime?.handleExternalTimelineMutation?.('seek-time', { timeMs: Number(timeMs || 0) });
     this.narrationSynchronizationRuntime?.handleExternalTimelineMutation?.('seek-time', { timeMs: Number(timeMs || 0) });
     const state = this.synchronize('seek-time', { timeMs: Number(timeMs || 0) });
     this.persistSession();
@@ -638,6 +671,7 @@ export class TimelineSynchronizationRuntime {
     this.interactionContractRuntime?.handleExternalTimelineMutation?.('seek-chapter', { chapterId: chapterId || null });
     this.inputCameraControlRuntime?.handleExternalTimelineMutation?.('seek-chapter', { chapterId: chapterId || null });
     this.educationalInspectionRuntime?.handleExternalTimelineMutation?.('seek-chapter', { chapterId: chapterId || null });
+    this.accessibilityStateRecoveryRuntime?.handleExternalTimelineMutation?.('seek-chapter', { chapterId: chapterId || null });
     this.narrationSynchronizationRuntime?.handleExternalTimelineMutation?.('seek-chapter', { chapterId: chapterId || null });
     const state = this.synchronize('seek-chapter', { chapterId: chapterId || null });
     this.persistSession();
@@ -651,6 +685,7 @@ export class TimelineSynchronizationRuntime {
     this.interactionContractRuntime?.handleExternalTimelineMutation?.('seek-clip', { clipId: clipId || null });
     this.inputCameraControlRuntime?.handleExternalTimelineMutation?.('seek-clip', { clipId: clipId || null });
     this.educationalInspectionRuntime?.handleExternalTimelineMutation?.('seek-clip', { clipId: clipId || null });
+    this.accessibilityStateRecoveryRuntime?.handleExternalTimelineMutation?.('seek-clip', { clipId: clipId || null });
     this.narrationSynchronizationRuntime?.handleExternalTimelineMutation?.('seek-clip', { clipId: clipId || null });
     const state = this.synchronize('seek-clip', { clipId: clipId || null });
     this.persistSession();
@@ -664,6 +699,7 @@ export class TimelineSynchronizationRuntime {
     this.interactionContractRuntime?.handleExternalTimelineMutation?.('seek-event', { eventId: eventId || null });
     this.inputCameraControlRuntime?.handleExternalTimelineMutation?.('seek-event', { eventId: eventId || null });
     this.educationalInspectionRuntime?.handleExternalTimelineMutation?.('seek-event', { eventId: eventId || null });
+    this.accessibilityStateRecoveryRuntime?.handleExternalTimelineMutation?.('seek-event', { eventId: eventId || null });
     this.narrationSynchronizationRuntime?.handleExternalTimelineMutation?.('seek-event', { eventId: eventId || null });
     const state = this.synchronize('seek-event', { eventId: eventId || null });
     this.persistSession();
@@ -677,6 +713,7 @@ export class TimelineSynchronizationRuntime {
     this.interactionContractRuntime?.handleExternalTimelineMutation?.('seek-marker', { markerId: markerId || null });
     this.inputCameraControlRuntime?.handleExternalTimelineMutation?.('seek-marker', { markerId: markerId || null });
     this.educationalInspectionRuntime?.handleExternalTimelineMutation?.('seek-marker', { markerId: markerId || null });
+    this.accessibilityStateRecoveryRuntime?.handleExternalTimelineMutation?.('seek-marker', { markerId: markerId || null });
     this.narrationSynchronizationRuntime?.handleExternalTimelineMutation?.('seek-marker', { markerId: markerId || null });
     const state = this.synchronize('seek-marker', { markerId: markerId || null });
     this.persistSession();
@@ -690,6 +727,7 @@ export class TimelineSynchronizationRuntime {
     this.interactionContractRuntime?.handleExternalTimelineMutation?.('seek-checkpoint', { checkpointId: checkpointId || null });
     this.inputCameraControlRuntime?.handleExternalTimelineMutation?.('seek-checkpoint', { checkpointId: checkpointId || null });
     this.educationalInspectionRuntime?.handleExternalTimelineMutation?.('seek-checkpoint', { checkpointId: checkpointId || null });
+    this.accessibilityStateRecoveryRuntime?.handleExternalTimelineMutation?.('seek-checkpoint', { checkpointId: checkpointId || null });
     this.narrationSynchronizationRuntime?.handleExternalTimelineMutation?.('seek-checkpoint', { checkpointId: checkpointId || null });
     const state = this.synchronize('seek-checkpoint', { checkpointId: checkpointId || null });
     this.persistSession();
@@ -703,6 +741,7 @@ export class TimelineSynchronizationRuntime {
     this.interactionContractRuntime?.handleExternalTimelineMutation?.('seek-percentage', { percentage: Number(percentage || 0) });
     this.inputCameraControlRuntime?.handleExternalTimelineMutation?.('seek-percentage', { percentage: Number(percentage || 0) });
     this.educationalInspectionRuntime?.handleExternalTimelineMutation?.('seek-percentage', { percentage: Number(percentage || 0) });
+    this.accessibilityStateRecoveryRuntime?.handleExternalTimelineMutation?.('seek-percentage', { percentage: Number(percentage || 0) });
     this.narrationSynchronizationRuntime?.handleExternalTimelineMutation?.('seek-percentage', { percentage: Number(percentage || 0) });
     const state = this.synchronize('seek-percentage', { percentage: Number(percentage || 0) });
     this.persistSession();
@@ -716,6 +755,7 @@ export class TimelineSynchronizationRuntime {
     this.interactionContractRuntime?.handleExternalTimelineMutation?.('resume-checkpoint', { checkpointId: checkpointId || null });
     this.inputCameraControlRuntime?.handleExternalTimelineMutation?.('resume-checkpoint', { checkpointId: checkpointId || null });
     this.educationalInspectionRuntime?.handleExternalTimelineMutation?.('resume-checkpoint', { checkpointId: checkpointId || null });
+    this.accessibilityStateRecoveryRuntime?.handleExternalTimelineMutation?.('resume-checkpoint', { checkpointId: checkpointId || null });
     this.narrationSynchronizationRuntime?.handleExternalTimelineMutation?.('resume-checkpoint', { checkpointId: checkpointId || null });
     const state = this.synchronize('resume-checkpoint', { checkpointId: checkpointId || null });
     this.persistSession();

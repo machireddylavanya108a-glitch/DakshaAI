@@ -73,6 +73,19 @@ const UNIVERSAL_EDUCATIONAL_OBJECT_CAPABILITIES = new Set([
   'reset'
 ]);
 
+const UNIVERSAL_ACCESSIBILITY_FEATURES = new Set([
+  'keyboard-navigation',
+  'screen-reader-metadata',
+  'focus-management',
+  'high-contrast-mode',
+  'scalable-ui',
+  'captions-metadata',
+  'narration-metadata',
+  'reduced-motion',
+  'font-scaling',
+  'interaction-timing'
+]);
+
 function toKebab(value = '') {
   return String(value || '')
     .trim()
@@ -468,6 +481,159 @@ function applyEducationalInspectionRuntimeMetadata(graph) {
   };
 }
 
+function normalizeAccessibilityFeature(input = 'keyboard-navigation') {
+  const normalized = toKebab(input || 'keyboard-navigation');
+
+  if (!normalized) {
+    return {
+      feature: 'keyboard-navigation',
+      knownFeature: true
+    };
+  }
+
+  if (normalized === 'keyboardnavigation') {
+    return {
+      feature: 'keyboard-navigation',
+      knownFeature: true
+    };
+  }
+
+  if (normalized === 'screenreadermetadata') {
+    return {
+      feature: 'screen-reader-metadata',
+      knownFeature: true
+    };
+  }
+
+  if (normalized === 'focusmanagement') {
+    return {
+      feature: 'focus-management',
+      knownFeature: true
+    };
+  }
+
+  if (normalized === 'highcontrastmode') {
+    return {
+      feature: 'high-contrast-mode',
+      knownFeature: true
+    };
+  }
+
+  if (normalized === 'scalableui') {
+    return {
+      feature: 'scalable-ui',
+      knownFeature: true
+    };
+  }
+
+  if (normalized === 'captionsmetadata') {
+    return {
+      feature: 'captions-metadata',
+      knownFeature: true
+    };
+  }
+
+  if (normalized === 'narrationmetadata') {
+    return {
+      feature: 'narration-metadata',
+      knownFeature: true
+    };
+  }
+
+  if (normalized === 'reducedmotion') {
+    return {
+      feature: 'reduced-motion',
+      knownFeature: true
+    };
+  }
+
+  if (normalized === 'fontscaling') {
+    return {
+      feature: 'font-scaling',
+      knownFeature: true
+    };
+  }
+
+  if (normalized === 'interactiontiming') {
+    return {
+      feature: 'interaction-timing',
+      knownFeature: true
+    };
+  }
+
+  return {
+    feature: normalized,
+    knownFeature: UNIVERSAL_ACCESSIBILITY_FEATURES.has(normalized)
+  };
+}
+
+function applyAccessibilityRecoveryRuntimeMetadata(graph, scene = {}) {
+  const knownFeatures = new Set([...UNIVERSAL_ACCESSIBILITY_FEATURES]);
+  const unknownFeatures = new Set();
+  const focusableObjectIds = [];
+
+  const sceneAccessibility = scene?.accessibility && typeof scene.accessibility === 'object' ? scene.accessibility : {};
+  const featureInput = Array.isArray(sceneAccessibility.features) ? sceneAccessibility.features : [];
+
+  featureInput
+    .map((entry) => normalizeAccessibilityFeature(entry))
+    .forEach((entry) => {
+      if (entry.knownFeature) {
+        knownFeatures.add(entry.feature);
+      } else {
+        unknownFeatures.add(entry.feature);
+      }
+    });
+
+  graph.nodes.forEach((node) => {
+    const sourceKey = String(node?.metadata?.sourceKey || '').toLowerCase();
+    const isFocusable = Boolean(node?.properties?.interactive || node?.properties?.clickable || node?.properties?.focusable);
+    const isObjectNode = sourceKey === 'objects' || sourceKey === 'educationalobjects' || sourceKey === 'educationalobjectinstances';
+
+    if (isFocusable || isObjectNode) {
+      focusableObjectIds.push(node.id);
+    }
+
+    node.runtimeData = {
+      ...(node.runtimeData || {}),
+      accessibilityRecovery: {
+        schemaVersion: 'v2',
+        objectId: node.id,
+        keyboardNavigation: {
+          focusable: isFocusable || isObjectNode,
+          tabIndex: Number.isFinite(Number(node?.properties?.tabIndex)) ? Number(node.properties.tabIndex) : 0
+        },
+        screenReader: {
+          label: String(node?.properties?.ariaLabel || node?.properties?.label || node?.properties?.name || node?.id || ''),
+          description: String(node?.properties?.ariaDescription || node?.properties?.description || ''),
+          role: String(node?.properties?.ariaRole || sourceKey || 'generic')
+        },
+        captionsMetadata: {
+          enabled: true
+        },
+        narrationMetadata: {
+          enabled: true
+        },
+        reducedMotionAlternative: node?.properties?.reducedMotionAlternative || null,
+        highContrastHint: node?.properties?.highContrastHint || null,
+        fontScaleHint: node?.properties?.fontScaleHint || null,
+        interactionTimingHintMs: Number(node?.properties?.interactionTimingHintMs || 0)
+      }
+    };
+
+    node.properties = {
+      ...(node.properties || {}),
+      accessibilityRecoveryMetadata: node.runtimeData.accessibilityRecovery
+    };
+  });
+
+  return {
+    knownFeatures: [...knownFeatures],
+    unknownFeatures: [...unknownFeatures],
+    focusableObjectIds: [...new Set(focusableObjectIds)]
+  };
+}
+
 function buildRuntimeTimelineMetadata(scene = {}) {
   const timelineData = buildTimeline(scene);
   const narrationMetadata = timelineData?.metadata?.narration || {
@@ -560,6 +726,7 @@ export function buildRuntimeSceneGraph(validatedSceneJson = {}) {
   const interactionContractMetadata = applyInteractionContractRuntimeMetadata(graph, validatedSceneJson);
   const inputCameraMetadata = applyInputCameraRuntimeMetadata(graph, validatedSceneJson);
   const educationalInspectionMetadata = applyEducationalInspectionRuntimeMetadata(graph);
+  const accessibilityRecoveryMetadata = applyAccessibilityRecoveryRuntimeMetadata(graph, validatedSceneJson);
   const rootNode = graph.getNode(validatedSceneJson.sceneId);
   if (rootNode) {
     rootNode.runtimeData = {
@@ -585,6 +752,12 @@ export function buildRuntimeSceneGraph(validatedSceneJson = {}) {
         objectCount: educationalInspectionMetadata.objectIds.length,
         knownCapabilityCount: educationalInspectionMetadata.knownCapabilities.length,
         unknownCapabilityCount: educationalInspectionMetadata.unknownCapabilities.length
+      },
+      accessibilityRecovery: {
+        schemaVersion: 'v2',
+        focusableObjectCount: accessibilityRecoveryMetadata.focusableObjectIds.length,
+        knownFeatureCount: accessibilityRecoveryMetadata.knownFeatures.length,
+        unknownFeatureCount: accessibilityRecoveryMetadata.unknownFeatures.length
       }
     };
     registry.update(rootNode.id, rootNode);
@@ -641,6 +814,19 @@ export function buildRuntimeSceneGraph(validatedSceneJson = {}) {
             registeredTypes: [],
             unknownDeviceTypes: []
           }
+        },
+        accessibilityRecoveryState: {
+          schemaVersion: 'v2',
+          timelineTimeMs: 0,
+          knownFeatures: accessibilityRecoveryMetadata.knownFeatures,
+          unknownFeatures: accessibilityRecoveryMetadata.unknownFeatures,
+          focusableObjectIds: accessibilityRecoveryMetadata.focusableObjectIds,
+          session: {
+            timelinePosition: 0,
+            playbackState: 'Ready',
+            selectedObjects: [],
+            checkpoints: []
+          }
         }
       },
       interactionEngine: {
@@ -684,6 +870,19 @@ export function buildRuntimeSceneGraph(validatedSceneJson = {}) {
             redoCount: 0,
             resetCount: 0,
             validationErrors: 0
+          }
+        },
+        accessibilityRecoveryState: {
+          schemaVersion: 'v2',
+          timelineTimeMs: 0,
+          knownFeatures: accessibilityRecoveryMetadata.knownFeatures,
+          unknownFeatures: accessibilityRecoveryMetadata.unknownFeatures,
+          focusableObjectIds: accessibilityRecoveryMetadata.focusableObjectIds,
+          session: {
+            timelinePosition: 0,
+            playbackState: 'Ready',
+            selectedObjects: [],
+            checkpoints: []
           }
         }
       },
@@ -900,6 +1099,143 @@ export function buildRuntimeSceneGraph(validatedSceneJson = {}) {
         knownCapabilities: educationalInspectionMetadata.knownCapabilities,
         unknownCapabilities: educationalInspectionMetadata.unknownCapabilities
       },
+      accessibilityRecovery: {
+        schemaVersion: 'v2',
+        timelineTimeMs: 0,
+        knownFeatures: accessibilityRecoveryMetadata.knownFeatures,
+        unknownFeatures: accessibilityRecoveryMetadata.unknownFeatures,
+        accessibility: {
+          keyboardNavigation: {
+            enabled: true,
+            focusOrder: accessibilityRecoveryMetadata.focusableObjectIds,
+            focusIndex: accessibilityRecoveryMetadata.focusableObjectIds.length ? 0 : -1,
+            activeFocusId: accessibilityRecoveryMetadata.focusableObjectIds[0] || null,
+            lastAction: 'boot'
+          },
+          screenReader: {
+            enabled: true,
+            metadataByObjectId: accessibilityRecoveryMetadata.focusableObjectIds.reduce((acc, objectId) => {
+              const node = graph.getNode(objectId);
+              acc[objectId] = {
+                label: String(node?.properties?.name || node?.properties?.label || objectId),
+                description: String(node?.properties?.description || ''),
+                role: String(node?.metadata?.sourceKey || 'generic')
+              };
+              return acc;
+            }, {}),
+            liveRegionQueue: []
+          },
+          focusManagement: {
+            enabled: true,
+            trapFocus: false,
+            restoreFocusOnResume: true,
+            lastFocusedId: accessibilityRecoveryMetadata.focusableObjectIds[0] || null,
+            focusHistory: accessibilityRecoveryMetadata.focusableObjectIds[0] ? [accessibilityRecoveryMetadata.focusableObjectIds[0]] : []
+          },
+          visual: {
+            highContrastMode: false,
+            reducedMotion: false,
+            uiScale: 1,
+            fontScale: 1
+          },
+          timing: {
+            interactionTimingMs: 0,
+            keyboardRepeatDelayMs: 250,
+            captionDelayMs: 0,
+            narrationDelayMs: 0,
+            custom: {}
+          },
+          captions: {
+            enabled: true,
+            tracks: [
+              {
+                id: 'default-caption-track',
+                language: 'en',
+                cueCount: (narrationMetadata.cues?.all || []).length,
+                segmentCount: (narrationMetadata.segments || []).length
+              }
+            ],
+            activeTrackId: 'default-caption-track',
+            cues: narrationMetadata.cues?.all || [],
+            metadata: {}
+          },
+          narration: {
+            enabled: true,
+            segmentCount: (narrationMetadata.segments || []).length,
+            segments: narrationMetadata.segments || [],
+            summary: narrationMetadata.summary || {},
+            metadata: {}
+          },
+          preferences: {},
+          unknownSettings: {}
+        },
+        session: {
+          currentLesson: validatedSceneJson.title,
+          runtimeScene: {
+            sceneId: validatedSceneJson.sceneId,
+            nodeCount: graph.getNodeCount(),
+            relationshipCount: graph.getRelationshipCount()
+          },
+          timelinePosition: 0,
+          playbackState: 'Ready',
+          cameraMetadata: {
+            currentMode: inputCameraMetadata.currentMode,
+            knownMode: inputCameraMetadata.knownMode,
+            position: toVector3(validatedSceneJson?.camera?.position || [0, 1.8, 5], [0, 1.8, 5]),
+            rotation: toVector3(validatedSceneJson?.camera?.rotation || [0, 0, 0], [0, 0, 0]),
+            target: toVector3(validatedSceneJson?.camera?.target || [0, 1, 0], [0, 1, 0]),
+            zoom: Number(validatedSceneJson?.camera?.zoom || 1)
+          },
+          interactionState: {
+            contractCount: interactionContractMetadata.contracts.length,
+            objectCount: interactionContractMetadata.objectCount
+          },
+          selectedObjects: [],
+          checkpoints: [],
+          quizProgress: {},
+          learningProgress: {
+            progressPercent: 0,
+            completedUnits: 0,
+            totalUnits: 1
+          },
+          aiTeacherState: {
+            state: 'Ready',
+            timeMs: 0,
+            checkpointId: null,
+            progress: 0
+          },
+          userPreferences: {},
+          unknownState: {}
+        },
+        recovery: {
+          interrupted: false,
+          resumeReason: null,
+          checkpointId: null,
+          resumedAt: null,
+          migrationApplied: false,
+          corruptionRecovered: false,
+          versionBeforeMigration: null
+        },
+        diagnostics: {
+          synchronizations: 0,
+          persistedSessions: 0,
+          recoveredSessions: 0,
+          migrations: 0,
+          corruptionRecoveries: 0,
+          warnings: [],
+          recoverableErrors: []
+        },
+        metrics: {
+          focusMoves: 0,
+          keyboardActions: 0,
+          restores: 0,
+          checkpointRestores: 0,
+          unknownFeatureCount: accessibilityRecoveryMetadata.unknownFeatures.length
+        },
+        runtimeEvents: {
+          recent: []
+        }
+      },
       aiTeacherAdapter: {
         timelineState: {
           state: 'Ready',
@@ -971,6 +1307,19 @@ export function buildRuntimeSceneGraph(validatedSceneJson = {}) {
             redoCount: 0,
             resetCount: 0,
             validationErrors: 0
+          }
+        },
+        accessibilityRecoveryState: {
+          schemaVersion: 'v2',
+          timelineTimeMs: 0,
+          knownFeatures: accessibilityRecoveryMetadata.knownFeatures,
+          unknownFeatures: accessibilityRecoveryMetadata.unknownFeatures,
+          focusableObjectIds: accessibilityRecoveryMetadata.focusableObjectIds,
+          session: {
+            timelinePosition: 0,
+            playbackState: 'Ready',
+            selectedObjects: [],
+            checkpoints: []
           }
         }
       }

@@ -155,6 +155,29 @@ test('every runtime graph object exposes educational inspection metadata and unk
   assert.equal(runtime.metadata.educationalInspection.metrics.objectCount >= 2, true);
 });
 
+test('runtime graph includes universal accessibility recovery metadata and unknown features', () => {
+  const scene = processSceneJsonPipeline({
+    title: 'Accessibility Recovery Metadata Scene',
+    accessibility: {
+      features: ['keyboard-navigation', 'screen-reader-metadata', 'future-neuro-adaptive-mode']
+    },
+    objects: [
+      { id: 'obj-1', name: 'A', interactive: true, ariaLabel: 'Object A', ariaDescription: 'Detailed object description' },
+      { id: 'obj-2', name: 'B', clickable: true, ariaRole: 'button' }
+    ]
+  });
+
+  const runtime = buildRuntimeSceneGraph(scene);
+  const objectNodes = [...runtime.graph.nodes.values()].filter((node) => String(node?.metadata?.sourceKey || '').toLowerCase() === 'objects');
+
+  assert.equal(objectNodes.length >= 2, true);
+  assert.equal(objectNodes.every((node) => typeof node?.runtimeData?.accessibilityRecovery === 'object'), true);
+  assert.equal(objectNodes.some((node) => node?.runtimeData?.accessibilityRecovery?.keyboardNavigation?.focusable === true), true);
+  assert.ok(runtime.metadata.accessibilityRecovery);
+  assert.equal(runtime.metadata.accessibilityRecovery.knownFeatures.includes('keyboard-navigation'), true);
+  assert.equal(runtime.metadata.accessibilityRecovery.unknownFeatures.includes('future-neuro-adaptive-mode'), true);
+});
+
 test('circular references are detected in diagnostics', () => {
   const scene = processSceneJsonPipeline({
     title: 'Cycle Scene',
@@ -387,9 +410,11 @@ test('scene runtime attaches timeline synchronization runtime', () => {
   assert.ok(runtime.interactionContractRuntime);
   assert.ok(runtime.inputCameraControlRuntime);
   assert.ok(runtime.educationalInspectionRuntime);
+  assert.ok(runtime.accessibilityStateRecoveryRuntime);
   assert.equal(typeof runtime.interactionContractRuntime.emitInteractionEvent, 'function');
   assert.equal(typeof runtime.inputCameraControlRuntime.processInputEvent, 'function');
   assert.equal(typeof runtime.educationalInspectionRuntime.inspectObject, 'function');
+  assert.equal(typeof runtime.accessibilityStateRecoveryRuntime.navigateFocus, 'function');
   assert.equal(typeof runtime.adaptiveTeachingRuntime.evaluate, 'function');
   assert.equal(typeof runtime.speechPlaybackRuntime.play, 'function');
   assert.equal(typeof runtime.narrationSynchronizationRuntime.synchronize, 'function');
@@ -412,6 +437,7 @@ test('scene runtime attaches timeline synchronization runtime', () => {
   assert.ok(shared.interactionContract);
   assert.ok(shared.inputCameraControl);
   assert.ok(shared.educationalInspection);
+  assert.ok(shared.accessibilityRecovery);
   assert.equal(shared.narration.segmentCount >= 1, true);
   assert.ok(shared.narration.synchronization);
   assert.equal(typeof shared.speechPlayback.playbackState, 'string');
@@ -424,6 +450,7 @@ test('scene runtime attaches timeline synchronization runtime', () => {
   assert.equal(typeof shared.adapters.aiTeacher.interactionContractState.schemaVersion, 'string');
   assert.equal(typeof shared.adapters.aiTeacher.inputCameraControlState.schemaVersion, 'string');
   assert.equal(typeof shared.adapters.aiTeacher.educationalInspectionState.schemaVersion, 'string');
+  assert.equal(typeof shared.adapters.aiTeacher.accessibilityRecoveryState.schemaVersion, 'string');
 });
 
 test('timeline synchronization persists and recovers across runtime reload', () => {
