@@ -12,3 +12,8 @@ export {
   buildUniversalNarrationPackage,
   buildNarrationSegments
 } from './NarrationSegmentation.js';
+
+export {
+  NarrationSceneSynchronizationRuntime,
+  createNarrationSceneSynchronizationRuntime
+} from './runtime/index.js';

@@ -2,6 +2,7 @@ import { processSceneJsonPipeline } from '../scene-generator/SceneVersionManager
 import { buildRuntimeSceneGraph } from './SceneBuilder.js';
 import { TimelineScheduler, createTimelineSynchronizationRuntime } from '../timeline/runtime/index.js';
 import { createSceneEventRuntime } from '../scene-events/index.js';
+import { createNarrationSceneSynchronizationRuntime } from '../narration/index.js';
 
 let activeRuntime = null;
 let educationalObjectLifecycleManager = null;
@@ -76,6 +77,23 @@ function attachTimelineSynchronizationRuntime(runtime) {
   return runtime;
 }
 
+function attachNarrationSynchronizationRuntime(runtime) {
+  if (!runtime || typeof runtime !== 'object') return runtime;
+
+  const narrationSynchronizationRuntime = createNarrationSceneSynchronizationRuntime(runtime);
+  runtime.narrationSynchronizationRuntime = narrationSynchronizationRuntime;
+
+  runtime.metadata = {
+    ...(runtime.metadata || {}),
+    narrationSynchronization: {
+      ...(narrationSynchronizationRuntime.snapshot?.() || {}),
+      channels: narrationSynchronizationRuntime.constructor.supportedChannels()
+    }
+  };
+
+  return runtime;
+}
+
 function runLifecycleCleanupForRuntime(runtime) {
   if (!educationalObjectLifecycleManager || typeof educationalObjectLifecycleManager.cleanupScene !== 'function') {
     return;
@@ -102,8 +120,10 @@ function ensureRuntime() {
 
 export function buildScene(validatedSceneJson = {}) {
   activeRuntime = attachTimelineSynchronizationRuntime(
-    attachSceneEventRuntime(
-      attachTimelineScheduler(buildRuntimeSceneGraph(validatedSceneJson || {}))
+    attachNarrationSynchronizationRuntime(
+      attachSceneEventRuntime(
+        attachTimelineScheduler(buildRuntimeSceneGraph(validatedSceneJson || {}))
+      )
     )
   );
   return activeRuntime;
@@ -112,8 +132,10 @@ export function buildScene(validatedSceneJson = {}) {
 export function loadScene(sceneJson = {}) {
   const validatedScene = processSceneJsonPipeline(sceneJson || {}, { sourceType: 'runtime' });
   activeRuntime = attachTimelineSynchronizationRuntime(
-    attachSceneEventRuntime(
-      attachTimelineScheduler(buildRuntimeSceneGraph(validatedScene))
+    attachNarrationSynchronizationRuntime(
+      attachSceneEventRuntime(
+        attachTimelineScheduler(buildRuntimeSceneGraph(validatedScene))
+      )
     )
   );
   activeRuntime.stateManager.setActiveAll();
@@ -125,6 +147,7 @@ export function destroyScene() {
   runLifecycleCleanupForRuntime(runtime);
   runtime.timelineSynchronizationRuntime?.persistSession?.();
   runtime.timelineSynchronizationRuntime?.destroy?.();
+  runtime.narrationSynchronizationRuntime?.destroy?.();
   runtime.sceneEventRuntime?.destroy?.();
   runtime.stateManager.destroyAll();
   runtime.registry.destroy();
@@ -141,6 +164,7 @@ export function reloadScene(sceneJson = {}) {
 export function resetScene() {
   const runtime = ensureRuntime();
   runtime.timelineSynchronizationRuntime?.synchronize?.('reset-before-state-manager');
+  runtime.narrationSynchronizationRuntime?.reset?.();
   runtime.sceneEventRuntime?.reset?.();
   runtime.stateManager.resetAll();
   runtime.stateManager.initializeAll();
@@ -151,6 +175,7 @@ export function resetScene() {
 export function pauseScene() {
   const runtime = ensureRuntime();
   runtime.timelineSynchronizationRuntime?.pause?.('scene-runtime');
+  runtime.narrationSynchronizationRuntime?.pause?.('scene-runtime');
   runtime.stateManager.pauseAll();
   runtime.timelineSynchronizationRuntime?.synchronize?.('pause-scene-state-manager');
   return runtime;
@@ -159,6 +184,7 @@ export function pauseScene() {
 export function resumeScene() {
   const runtime = ensureRuntime();
   runtime.timelineSynchronizationRuntime?.resume?.('scene-runtime');
+  runtime.narrationSynchronizationRuntime?.resume?.('scene-runtime');
   runtime.stateManager.resumeAll();
   runtime.timelineSynchronizationRuntime?.synchronize?.('resume-scene-state-manager');
   return runtime;

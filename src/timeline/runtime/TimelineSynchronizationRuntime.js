@@ -141,6 +141,7 @@ export class TimelineSynchronizationRuntime {
     this.options = isObject(options) ? options : {};
     this.scheduler = runtime?.timelineScheduler || runtime?.sceneScheduler || null;
     this.sceneEventRuntime = runtime?.sceneEventRuntime || runtime?.sceneEventSystem || null;
+    this.narrationSynchronizationRuntime = runtime?.narrationSynchronizationRuntime || null;
     this.interactionEngine = runtime?.behaviorRuntime || null;
     this.persistenceAdapter = this.options.persistenceAdapter || this.scheduler?.persistenceAdapter || createDefaultPersistenceAdapter();
     this.persistenceKey = String(this.options.persistenceKey || this.scheduler?.persistenceKey || 'daksha.timeline.runtime.v1');
@@ -151,6 +152,7 @@ export class TimelineSynchronizationRuntime {
 
     this.attachScheduler(this.scheduler);
     this.attachSceneEventRuntime(this.sceneEventRuntime);
+    this.attachNarrationSynchronizationRuntime(this.narrationSynchronizationRuntime);
     this.attachInteractionEngine(this.interactionEngine);
   }
 
@@ -165,6 +167,7 @@ export class TimelineSynchronizationRuntime {
     };
     const activeNarrationSegment = resolveActiveNarrationSegment(narration, playback.timeMs);
     const activeNarrationCues = resolveActiveNarrationCues(narration, activeNarrationSegment?.id || null);
+    const narrationSynchronizationState = this.narrationSynchronizationRuntime?.snapshot?.() || null;
     const previousSession = this.sharedState?.session || {
       persistenceKey: this.persistenceKey,
       recovered: false,
@@ -182,7 +185,8 @@ export class TimelineSynchronizationRuntime {
         activeSegmentId: activeNarrationSegment?.id || null,
         activeCueIds: activeNarrationCues.map((cue) => cue.id),
         segmentCount: Number(narration?.summary?.segmentCount || narration?.segments?.length || 0),
-        cueCount: Number(narration?.summary?.cueCount || narration?.cues?.all?.length || 0)
+        cueCount: Number(narration?.summary?.cueCount || narration?.cues?.all?.length || 0),
+        synchronization: narrationSynchronizationState
       },
       playback,
       sceneGraph: {
@@ -202,6 +206,7 @@ export class TimelineSynchronizationRuntime {
           progress: playback.progress,
           activeNarrationSegmentId: activeNarrationSegment?.id || null,
           activeNarrationCueIds: activeNarrationCues.map((cue) => cue.id),
+          narrationSynchronizationState,
           updatedAt: Date.now()
         },
         rendererAdapter: {
@@ -211,6 +216,7 @@ export class TimelineSynchronizationRuntime {
           currentClipId: playback.currentClipId,
           activeNarrationSegmentId: activeNarrationSegment?.id || null,
           activeNarrationCueIds: activeNarrationCues.map((cue) => cue.id),
+          narrationSynchronizationState,
           updatedAt: Date.now()
         },
         interactionEngine: {
@@ -219,6 +225,7 @@ export class TimelineSynchronizationRuntime {
           currentEventId: playback.currentEventId,
           activeNarrationSegmentId: activeNarrationSegment?.id || null,
           activeNarrationCueIds: activeNarrationCues.map((cue) => cue.id),
+          narrationSynchronizationState,
           updatedAt: Date.now()
         }
       },
@@ -285,6 +292,19 @@ export class TimelineSynchronizationRuntime {
       this.synchronize('scene-event-dispatched', {
         eventId: event?.id || null,
         eventType: event?.type || 'unknown'
+      });
+    });
+
+    this.unsubscribers.push(unsubscribe);
+  }
+
+  attachNarrationSynchronizationRuntime(narrationSynchronizationRuntime) {
+    if (!narrationSynchronizationRuntime || typeof narrationSynchronizationRuntime.on !== 'function') return;
+
+    const unsubscribe = narrationSynchronizationRuntime.on('*', ({ channel, payload }) => {
+      this.synchronize('narration-sync-event', {
+        channel: channel || 'narration-sync',
+        payload: payload || {}
       });
     });
 
@@ -415,6 +435,7 @@ export class TimelineSynchronizationRuntime {
   pause(reason = 'manual') {
     this.scheduler?.pause?.(reason);
     this.sceneEventRuntime?.pause?.(reason);
+    this.narrationSynchronizationRuntime?.handleExternalTimelineMutation?.('pause', { reason });
     const state = this.synchronize('pause', { reason });
     this.persistSession();
     return state;
@@ -423,6 +444,7 @@ export class TimelineSynchronizationRuntime {
   resume(reason = 'manual') {
     this.scheduler?.resume?.(reason);
     this.sceneEventRuntime?.resume?.(reason);
+    this.narrationSynchronizationRuntime?.handleExternalTimelineMutation?.('resume', { reason });
     const state = this.synchronize('resume', { reason });
     this.persistSession();
     return state;
@@ -430,6 +452,7 @@ export class TimelineSynchronizationRuntime {
 
   replay(fromTimeMs = 0) {
     this.scheduler?.replay?.(fromTimeMs);
+    this.narrationSynchronizationRuntime?.handleExternalTimelineMutation?.('replay', { fromTimeMs: Number(fromTimeMs || 0) });
     const state = this.synchronize('replay', { fromTimeMs });
     this.persistSession();
     return state;
@@ -437,6 +460,7 @@ export class TimelineSynchronizationRuntime {
 
   restart() {
     this.scheduler?.restart?.();
+    this.narrationSynchronizationRuntime?.handleExternalTimelineMutation?.('restart', {});
     const state = this.synchronize('restart', {});
     this.persistSession();
     return state;
@@ -444,6 +468,7 @@ export class TimelineSynchronizationRuntime {
 
   setSpeed(speed) {
     this.scheduler?.setSpeed?.(speed);
+    this.narrationSynchronizationRuntime?.handleExternalTimelineMutation?.('speed-change', { speed: Number(speed || 1) });
     const state = this.synchronize('speed-change', { speed });
     this.persistSession();
     return state;
@@ -451,6 +476,7 @@ export class TimelineSynchronizationRuntime {
 
   seekByTime(timeMs) {
     this.scheduler?.seekByTime?.(timeMs);
+    this.narrationSynchronizationRuntime?.handleExternalTimelineMutation?.('seek-time', { timeMs: Number(timeMs || 0) });
     const state = this.synchronize('seek-time', { timeMs: Number(timeMs || 0) });
     this.persistSession();
     return state;
@@ -458,6 +484,7 @@ export class TimelineSynchronizationRuntime {
 
   seekByChapter(chapterId) {
     this.scheduler?.seekByChapter?.(chapterId);
+    this.narrationSynchronizationRuntime?.handleExternalTimelineMutation?.('seek-chapter', { chapterId: chapterId || null });
     const state = this.synchronize('seek-chapter', { chapterId: chapterId || null });
     this.persistSession();
     return state;
@@ -465,6 +492,7 @@ export class TimelineSynchronizationRuntime {
 
   seekByClip(clipId) {
     this.scheduler?.seekByClip?.(clipId);
+    this.narrationSynchronizationRuntime?.handleExternalTimelineMutation?.('seek-clip', { clipId: clipId || null });
     const state = this.synchronize('seek-clip', { clipId: clipId || null });
     this.persistSession();
     return state;
@@ -472,6 +500,7 @@ export class TimelineSynchronizationRuntime {
 
   seekByEvent(eventId) {
     this.scheduler?.seekByEvent?.(eventId);
+    this.narrationSynchronizationRuntime?.handleExternalTimelineMutation?.('seek-event', { eventId: eventId || null });
     const state = this.synchronize('seek-event', { eventId: eventId || null });
     this.persistSession();
     return state;
@@ -479,6 +508,7 @@ export class TimelineSynchronizationRuntime {
 
   seekByMarker(markerId) {
     this.scheduler?.seekByMarker?.(markerId);
+    this.narrationSynchronizationRuntime?.handleExternalTimelineMutation?.('seek-marker', { markerId: markerId || null });
     const state = this.synchronize('seek-marker', { markerId: markerId || null });
     this.persistSession();
     return state;
@@ -486,6 +516,7 @@ export class TimelineSynchronizationRuntime {
 
   seekByCheckpoint(checkpointId) {
     this.scheduler?.seekByCheckpoint?.(checkpointId);
+    this.narrationSynchronizationRuntime?.handleExternalTimelineMutation?.('seek-checkpoint', { checkpointId: checkpointId || null });
     const state = this.synchronize('seek-checkpoint', { checkpointId: checkpointId || null });
     this.persistSession();
     return state;
@@ -493,6 +524,7 @@ export class TimelineSynchronizationRuntime {
 
   seekByPercentage(percentage) {
     this.scheduler?.seekByPercentage?.(percentage);
+    this.narrationSynchronizationRuntime?.handleExternalTimelineMutation?.('seek-percentage', { percentage: Number(percentage || 0) });
     const state = this.synchronize('seek-percentage', { percentage: Number(percentage || 0) });
     this.persistSession();
     return state;
@@ -500,6 +532,7 @@ export class TimelineSynchronizationRuntime {
 
   resumeFromCheckpoint(checkpointId) {
     this.scheduler?.resumeFromCheckpoint?.(checkpointId);
+    this.narrationSynchronizationRuntime?.handleExternalTimelineMutation?.('resume-checkpoint', { checkpointId: checkpointId || null });
     const state = this.synchronize('resume-checkpoint', { checkpointId: checkpointId || null });
     this.persistSession();
     return state;
