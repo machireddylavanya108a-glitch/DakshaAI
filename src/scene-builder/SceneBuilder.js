@@ -160,6 +160,24 @@ export function buildRuntimeSceneGraph(validatedSceneJson = {}) {
           volume: 1,
           currentSegmentId: null,
           updatedAt: null
+        },
+        adaptiveLearningState: {
+          modeProfile: {
+            mode: 'intermediate',
+            knownMode: true
+          },
+          progress: {
+            progressPercent: 0,
+            completedUnits: 0,
+            totalUnits: 1
+          },
+          adaptation: {
+            explanationDepth: 0.55,
+            pacing: 1,
+            examplesIntensity: 0.7,
+            complexity: 0.55,
+            recommendations: []
+          }
         }
       },
       interactionEngine: {
@@ -182,6 +200,33 @@ export function buildRuntimeSceneGraph(validatedSceneJson = {}) {
         currentSegmentId: null,
         totalSegments: (narrationMetadata.segments || []).length,
         completedSegments: 0
+      },
+      adaptiveLearning: {
+        modeProfile: {
+          mode: 'intermediate',
+          knownMode: true
+        },
+        progress: {
+          progressPercent: 0,
+          completedUnits: 0,
+          totalUnits: 1
+        },
+        metrics: {
+          struggleScore: 0,
+          confidenceScore: 1,
+          averageResponseTimeMs: 0,
+          mistakes: 0,
+          skippedCount: 0,
+          repeatedSectionCount: 0,
+          repeatedMistakes: []
+        },
+        adaptation: {
+          explanationDepth: 0.55,
+          pacing: 1,
+          examplesIntensity: 0.7,
+          complexity: 0.55,
+          recommendations: []
+        }
       }
     }
   };

@@ -4,6 +4,7 @@ import { TimelineScheduler, createTimelineSynchronizationRuntime } from '../time
 import { createSceneEventRuntime } from '../scene-events/index.js';
 import { createNarrationSceneSynchronizationRuntime } from '../narration/index.js';
 import { createSpeechPlaybackRuntimeController } from '../speech/index.js';
+import { createAdaptiveTeachingRecoveryEngine } from '../adaptive-learning/index.js';
 
 let activeRuntime = null;
 let educationalObjectLifecycleManager = null;
@@ -118,6 +119,29 @@ function attachSpeechPlaybackRuntime(runtime) {
   return runtime;
 }
 
+function attachAdaptiveTeachingRuntime(runtime) {
+  if (!runtime || typeof runtime !== 'object') return runtime;
+
+  const adaptiveTeachingRuntime = createAdaptiveTeachingRecoveryEngine(runtime);
+  runtime.adaptiveTeachingRuntime = adaptiveTeachingRuntime;
+
+  const recovered = adaptiveTeachingRuntime.recoverSession();
+  const snapshot = adaptiveTeachingRuntime.synchronize('attach', {
+    recovered
+  });
+
+  runtime.metadata = {
+    ...(runtime.metadata || {}),
+    adaptiveLearning: {
+      ...snapshot,
+      recovered,
+      channels: adaptiveTeachingRuntime.constructor.supportedChannels()
+    }
+  };
+
+  return runtime;
+}
+
 function runLifecycleCleanupForRuntime(runtime) {
   if (!educationalObjectLifecycleManager || typeof educationalObjectLifecycleManager.cleanupScene !== 'function') {
     return;
@@ -144,10 +168,12 @@ function ensureRuntime() {
 
 export function buildScene(validatedSceneJson = {}) {
   activeRuntime = attachTimelineSynchronizationRuntime(
-    attachSpeechPlaybackRuntime(
-      attachNarrationSynchronizationRuntime(
-        attachSceneEventRuntime(
-          attachTimelineScheduler(buildRuntimeSceneGraph(validatedSceneJson || {}))
+    attachAdaptiveTeachingRuntime(
+      attachSpeechPlaybackRuntime(
+        attachNarrationSynchronizationRuntime(
+          attachSceneEventRuntime(
+            attachTimelineScheduler(buildRuntimeSceneGraph(validatedSceneJson || {}))
+          )
         )
       )
     )
@@ -158,10 +184,12 @@ export function buildScene(validatedSceneJson = {}) {
 export function loadScene(sceneJson = {}) {
   const validatedScene = processSceneJsonPipeline(sceneJson || {}, { sourceType: 'runtime' });
   activeRuntime = attachTimelineSynchronizationRuntime(
-    attachSpeechPlaybackRuntime(
-      attachNarrationSynchronizationRuntime(
-        attachSceneEventRuntime(
-          attachTimelineScheduler(buildRuntimeSceneGraph(validatedScene))
+    attachAdaptiveTeachingRuntime(
+      attachSpeechPlaybackRuntime(
+        attachNarrationSynchronizationRuntime(
+          attachSceneEventRuntime(
+            attachTimelineScheduler(buildRuntimeSceneGraph(validatedScene))
+          )
         )
       )
     )
@@ -175,8 +203,10 @@ export function destroyScene() {
   runLifecycleCleanupForRuntime(runtime);
   runtime.timelineSynchronizationRuntime?.persistSession?.();
   runtime.speechPlaybackRuntime?.persistSession?.();
+  runtime.adaptiveTeachingRuntime?.persistSession?.();
   runtime.timelineSynchronizationRuntime?.destroy?.();
   runtime.speechPlaybackRuntime?.destroy?.();
+  runtime.adaptiveTeachingRuntime?.destroy?.();
   runtime.narrationSynchronizationRuntime?.destroy?.();
   runtime.sceneEventRuntime?.destroy?.();
   runtime.stateManager.destroyAll();
@@ -195,6 +225,7 @@ export function resetScene() {
   const runtime = ensureRuntime();
   runtime.timelineSynchronizationRuntime?.synchronize?.('reset-before-state-manager');
   runtime.speechPlaybackRuntime?.seek?.(0);
+  runtime.adaptiveTeachingRuntime?.synchronize?.('reset');
   runtime.narrationSynchronizationRuntime?.reset?.();
   runtime.sceneEventRuntime?.reset?.();
   runtime.stateManager.resetAll();
@@ -207,6 +238,7 @@ export function pauseScene() {
   const runtime = ensureRuntime();
   runtime.timelineSynchronizationRuntime?.pause?.('scene-runtime');
   runtime.speechPlaybackRuntime?.pause?.('scene-runtime');
+  runtime.adaptiveTeachingRuntime?.markInterrupted?.('scene-paused');
   runtime.narrationSynchronizationRuntime?.pause?.('scene-runtime');
   runtime.stateManager.pauseAll();
   runtime.timelineSynchronizationRuntime?.synchronize?.('pause-scene-state-manager');
@@ -217,6 +249,7 @@ export function resumeScene() {
   const runtime = ensureRuntime();
   runtime.timelineSynchronizationRuntime?.resume?.('scene-runtime');
   runtime.speechPlaybackRuntime?.resume?.('scene-runtime');
+  runtime.adaptiveTeachingRuntime?.synchronize?.('scene-resumed');
   runtime.narrationSynchronizationRuntime?.resume?.('scene-runtime');
   runtime.stateManager.resumeAll();
   runtime.timelineSynchronizationRuntime?.synchronize?.('resume-scene-state-manager');
