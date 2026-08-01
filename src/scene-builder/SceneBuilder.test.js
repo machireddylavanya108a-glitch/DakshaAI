@@ -102,6 +102,32 @@ test('every runtime graph object exposes universal interaction contract metadata
   assert.equal(nodes.some((node) => (node?.runtimeData?.interactionContract?.unknownTypes || []).includes('future-emergent-gesture')), true);
 });
 
+test('every runtime graph object exposes camera control metadata from scene camera configuration', () => {
+  const scene = processSceneJsonPipeline({
+    title: 'Camera Metadata Scene',
+    camera: {
+      movement: {
+        mode: 'presentation-mode'
+      },
+      constraints: {
+        minDistance: 2,
+        maxDistance: 25,
+        minZoom: 0.5,
+        maxZoom: 2.5
+      }
+    },
+    objects: [{ id: 'obj-1', name: 'A', position: [2, 3, 4] }, { id: 'obj-2', name: 'B', position: [0, 1, -2] }]
+  });
+
+  const runtime = buildRuntimeSceneGraph(scene);
+  const objectNodes = [...runtime.graph.nodes.values()].filter((node) => String(node?.metadata?.sourceKey || '').toLowerCase() === 'objects');
+
+  assert.equal(objectNodes.length >= 2, true);
+  assert.equal(objectNodes.every((node) => typeof node?.runtimeData?.cameraControl === 'object'), true);
+  assert.equal(objectNodes.every((node) => Array.isArray(node?.runtimeData?.cameraControl?.focusPoint)), true);
+  assert.equal(runtime.metadata.inputCameraControl.camera.currentMode, 'presentation-mode');
+});
+
 test('circular references are detected in diagnostics', () => {
   const scene = processSceneJsonPipeline({
     title: 'Cycle Scene',
@@ -332,7 +358,9 @@ test('scene runtime attaches timeline synchronization runtime', () => {
   assert.ok(runtime.speechPlaybackRuntime);
   assert.ok(runtime.adaptiveTeachingRuntime);
   assert.ok(runtime.interactionContractRuntime);
+  assert.ok(runtime.inputCameraControlRuntime);
   assert.equal(typeof runtime.interactionContractRuntime.emitInteractionEvent, 'function');
+  assert.equal(typeof runtime.inputCameraControlRuntime.processInputEvent, 'function');
   assert.equal(typeof runtime.adaptiveTeachingRuntime.evaluate, 'function');
   assert.equal(typeof runtime.speechPlaybackRuntime.play, 'function');
   assert.equal(typeof runtime.narrationSynchronizationRuntime.synchronize, 'function');
@@ -353,15 +381,18 @@ test('scene runtime attaches timeline synchronization runtime', () => {
   assert.ok(shared.speechPlayback);
   assert.ok(shared.adaptiveLearning);
   assert.ok(shared.interactionContract);
+  assert.ok(shared.inputCameraControl);
   assert.equal(shared.narration.segmentCount >= 1, true);
   assert.ok(shared.narration.synchronization);
   assert.equal(typeof shared.speechPlayback.playbackState, 'string');
   assert.equal(typeof shared.adaptiveLearning.modeProfile.mode, 'string');
   assert.equal(typeof shared.interactionContract.schemaVersion, 'string');
+  assert.equal(typeof shared.inputCameraControl.schemaVersion, 'string');
   assert.equal(typeof shared.adapters.aiTeacher.activeNarrationSegmentId, 'string');
   assert.equal(typeof shared.adapters.aiTeacher.speechPlaybackState.playbackState, 'string');
   assert.equal(typeof shared.adapters.aiTeacher.adaptiveLearningState.modeProfile.mode, 'string');
   assert.equal(typeof shared.adapters.aiTeacher.interactionContractState.schemaVersion, 'string');
+  assert.equal(typeof shared.adapters.aiTeacher.inputCameraControlState.schemaVersion, 'string');
 });
 
 test('timeline synchronization persists and recovers across runtime reload', () => {

@@ -29,6 +29,29 @@ const UNIVERSAL_INTERACTION_TYPES = new Set([
   'custom'
 ]);
 
+const UNIVERSAL_INPUT_DEVICE_TYPES = new Set([
+  'mouse',
+  'touch',
+  'keyboard',
+  'pen',
+  'stylus',
+  'trackpad',
+  'gamepad'
+]);
+
+const UNIVERSAL_CAMERA_MODES = new Set([
+  'orbit',
+  'pan',
+  'zoom',
+  'rotate',
+  'focus-object',
+  'reset-camera',
+  'fit-scene',
+  'first-person',
+  'free-camera',
+  'presentation-mode'
+]);
+
 function toKebab(value = '') {
   return String(value || '')
     .trim()
@@ -66,6 +89,64 @@ function normalizeInteractionType(input = 'custom') {
   return {
     type: normalized,
     knownType: UNIVERSAL_INTERACTION_TYPES.has(normalized)
+  };
+}
+
+function normalizeCameraMode(input = 'orbit') {
+  const normalized = toKebab(input || 'orbit');
+
+  if (!normalized) {
+    return {
+      mode: 'orbit',
+      knownMode: true
+    };
+  }
+
+  if (normalized === 'firstperson') {
+    return {
+      mode: 'first-person',
+      knownMode: true
+    };
+  }
+
+  if (normalized === 'freecamera') {
+    return {
+      mode: 'free-camera',
+      knownMode: true
+    };
+  }
+
+  if (normalized === 'presentation') {
+    return {
+      mode: 'presentation-mode',
+      knownMode: true
+    };
+  }
+
+  if (normalized === 'focus') {
+    return {
+      mode: 'focus-object',
+      knownMode: true
+    };
+  }
+
+  if (normalized === 'reset') {
+    return {
+      mode: 'reset-camera',
+      knownMode: true
+    };
+  }
+
+  if (normalized === 'fit') {
+    return {
+      mode: 'fit-scene',
+      knownMode: true
+    };
+  }
+
+  return {
+    mode: normalized,
+    knownMode: UNIVERSAL_CAMERA_MODES.has(normalized)
   };
 }
 
@@ -168,6 +249,91 @@ function applyInteractionContractRuntimeMetadata(graph, scene = {}) {
   };
 }
 
+function toVector3(value, fallback = [0, 0, 0]) {
+  const source = Array.isArray(value) ? value : fallback;
+  if (!Array.isArray(source) || source.length < 3) {
+    return [...fallback];
+  }
+
+  return [
+    Number.isFinite(Number(source[0])) ? Number(source[0]) : fallback[0],
+    Number.isFinite(Number(source[1])) ? Number(source[1]) : fallback[1],
+    Number.isFinite(Number(source[2])) ? Number(source[2]) : fallback[2]
+  ];
+}
+
+function applyInputCameraRuntimeMetadata(graph, scene = {}) {
+  const sourceCamera = scene?.camera && typeof scene.camera === 'object' ? scene.camera : {};
+  const sourceMovement = sourceCamera?.movement && typeof sourceCamera.movement === 'object' ? sourceCamera.movement : {};
+  const mode = normalizeCameraMode(sourceMovement.mode || 'orbit');
+  const cameraConstraints = sourceCamera?.constraints && typeof sourceCamera.constraints === 'object'
+    ? sourceCamera.constraints
+    : {
+      minDistance: 1,
+      maxDistance: 40,
+      minPolarAngle: 0.1,
+      maxPolarAngle: 3,
+      minZoom: 0.3,
+      maxZoom: 5
+    };
+
+  const availableModes = [
+    mode.mode,
+    ...(Array.isArray(sourceCamera?.supportedModes) ? sourceCamera.supportedModes : [])
+  ]
+    .map((entry) => normalizeCameraMode(entry))
+    .map((entry) => entry.mode);
+
+  const uniqueModes = [...new Set([...UNIVERSAL_CAMERA_MODES, ...availableModes])];
+  const knownModes = uniqueModes.filter((entry) => normalizeCameraMode(entry).knownMode === true);
+  const unknownModes = uniqueModes.filter((entry) => normalizeCameraMode(entry).knownMode === false);
+
+  const objectFocusIds = [];
+
+  graph.nodes.forEach((node) => {
+    const sourceKey = String(node?.metadata?.sourceKey || '').toLowerCase();
+    const focusPoint = toVector3(node?.properties?.position || node?.properties?.target || [0, 0, 0], [0, 0, 0]);
+
+    node.runtimeData = {
+      ...(node.runtimeData || {}),
+      cameraControl: {
+        schemaVersion: 'v1',
+        objectId: node.id,
+        focusPoint,
+        cameraMode: mode.mode,
+        knownMode: mode.knownMode,
+        availableModes: uniqueModes,
+        constraints: cameraConstraints,
+        metadata: {
+          sourceKey,
+          interactive: Boolean(node?.properties?.interactive || node?.properties?.clickable)
+        }
+      }
+    };
+
+    node.properties = {
+      ...(node.properties || {}),
+      cameraControlMetadata: node.runtimeData.cameraControl
+    };
+
+    if (sourceKey === 'objects' || sourceKey === 'educationalobjects' || sourceKey === 'educationalobjectinstances') {
+      objectFocusIds.push(node.id);
+    }
+  });
+
+  return {
+    currentMode: mode.mode,
+    knownMode: mode.knownMode,
+    knownModes,
+    unknownModes,
+    constraints: cameraConstraints,
+    objectFocusIds,
+    availableModes: uniqueModes,
+    supportedInputDeviceTypes: [...UNIVERSAL_INPUT_DEVICE_TYPES],
+    supportedCameraModes: [...UNIVERSAL_CAMERA_MODES]
+  };
+}
+
 function buildRuntimeTimelineMetadata(scene = {}) {
   const timelineData = buildTimeline(scene);
   const narrationMetadata = timelineData?.metadata?.narration || {
@@ -258,6 +424,7 @@ export function buildRuntimeSceneGraph(validatedSceneJson = {}) {
   const timelineMetadata = runtimeTimeline.metadata;
   const narrationMetadata = runtimeTimeline.narrationMetadata;
   const interactionContractMetadata = applyInteractionContractRuntimeMetadata(graph, validatedSceneJson);
+  const inputCameraMetadata = applyInputCameraRuntimeMetadata(graph, validatedSceneJson);
   const rootNode = graph.getNode(validatedSceneJson.sceneId);
   if (rootNode) {
     rootNode.runtimeData = {
@@ -269,6 +436,14 @@ export function buildRuntimeSceneGraph(validatedSceneJson = {}) {
         objectCount: interactionContractMetadata.objectCount,
         knownTypeCount: interactionContractMetadata.knownTypeCount,
         unknownTypeCount: interactionContractMetadata.unknownTypeCount
+      },
+      inputCameraControl: {
+        schemaVersion: 'v1',
+        currentMode: inputCameraMetadata.currentMode,
+        knownMode: inputCameraMetadata.knownMode,
+        objectFocusCount: inputCameraMetadata.objectFocusIds.length,
+        knownModeCount: inputCameraMetadata.knownModes.length,
+        unknownModeCount: inputCameraMetadata.unknownModes.length
       }
     };
     registry.update(rootNode.id, rootNode);
@@ -306,6 +481,25 @@ export function buildRuntimeSceneGraph(validatedSceneJson = {}) {
           currentClipId: null,
           activeNarrationSegmentId: null,
           updatedAt: null
+        },
+        cameraControlState: {
+          schemaVersion: 'v1',
+          timelineTimeMs: 0,
+          camera: {
+            currentMode: inputCameraMetadata.currentMode,
+            knownMode: inputCameraMetadata.knownMode,
+            availableModes: inputCameraMetadata.availableModes,
+            constraints: inputCameraMetadata.constraints,
+            position: toVector3(validatedSceneJson?.camera?.position || [0, 1.8, 5], [0, 1.8, 5]),
+            rotation: toVector3(validatedSceneJson?.camera?.rotation || [0, 0, 0], [0, 0, 0]),
+            target: toVector3(validatedSceneJson?.camera?.target || [0, 1, 0], [0, 1, 0]),
+            zoom: Number(validatedSceneJson?.camera?.zoom || 1)
+          },
+          inputLayer: {
+            devices: {},
+            registeredTypes: [],
+            unknownDeviceTypes: []
+          }
         }
       },
       interactionEngine: {
@@ -326,6 +520,14 @@ export function buildRuntimeSceneGraph(validatedSceneJson = {}) {
             unknownTypeCount: interactionContractMetadata.unknownTypeCount,
             validationErrors: 0
           }
+        },
+        inputCameraControlState: {
+          schemaVersion: 'v1',
+          timelineTimeMs: 0,
+          cameraMode: inputCameraMetadata.currentMode,
+          knownMode: inputCameraMetadata.knownMode,
+          supportedInputDeviceTypes: inputCameraMetadata.supportedInputDeviceTypes,
+          supportedCameraModes: inputCameraMetadata.supportedCameraModes
         }
       },
       speechPlayback: {
@@ -408,6 +610,65 @@ export function buildRuntimeSceneGraph(validatedSceneJson = {}) {
           .map((contract) => contract.type),
         coverageScore: 1
       },
+      inputCameraControl: {
+        schemaVersion: 'v1',
+        timelineTimeMs: 0,
+        inputLayer: {
+          devices: {},
+          registeredTypes: [],
+          unknownDeviceTypes: [],
+          history: []
+        },
+        camera: {
+          currentMode: inputCameraMetadata.currentMode,
+          knownMode: inputCameraMetadata.knownMode,
+          availableModes: inputCameraMetadata.availableModes,
+          constraints: inputCameraMetadata.constraints,
+          focusPointsByObjectId: inputCameraMetadata.objectFocusIds.reduce((acc, objectId) => {
+            const node = graph.getNode(objectId);
+            if (node?.runtimeData?.cameraControl?.focusPoint) {
+              acc[objectId] = {
+                objectId,
+                position: node.runtimeData.cameraControl.focusPoint,
+                boundsRadius: Number(node?.properties?.boundsRadius || 1)
+              };
+            }
+            return acc;
+          }, {}),
+          position: toVector3(validatedSceneJson?.camera?.position || [0, 1.8, 5], [0, 1.8, 5]),
+          rotation: toVector3(validatedSceneJson?.camera?.rotation || [0, 0, 0], [0, 0, 0]),
+          target: toVector3(validatedSceneJson?.camera?.target || [0, 1, 0], [0, 1, 0]),
+          zoom: Number(validatedSceneJson?.camera?.zoom || 1)
+        },
+        metrics: {
+          registeredDeviceCount: 0,
+          knownDeviceCount: 0,
+          unknownDeviceCount: 0,
+          inputEventCount: 0,
+          cameraMutationCount: 0,
+          unknownCameraModeCount: inputCameraMetadata.unknownModes.length,
+          transitionCount: 0,
+          validationErrors: 0
+        },
+        diagnostics: {
+          synchronizations: 0,
+          persistedSessions: 0,
+          recoveredSessions: 0,
+          warnings: []
+        },
+        runtimeEvents: {
+          recent: []
+        },
+        recovery: {
+          interrupted: false,
+          lastCheckpointId: null,
+          resumeTimeMs: 0
+        },
+        supportedInputDeviceTypes: inputCameraMetadata.supportedInputDeviceTypes,
+        supportedCameraModes: inputCameraMetadata.supportedCameraModes,
+        knownCameraModes: inputCameraMetadata.knownModes,
+        unknownCameraModes: inputCameraMetadata.unknownModes
+      },
       aiTeacherAdapter: {
         timelineState: {
           state: 'Ready',
@@ -456,6 +717,14 @@ export function buildRuntimeSceneGraph(validatedSceneJson = {}) {
             unknownTypeCount: interactionContractMetadata.unknownTypeCount,
             validationErrors: 0
           }
+        },
+        inputCameraControlState: {
+          schemaVersion: 'v1',
+          timelineTimeMs: 0,
+          cameraMode: inputCameraMetadata.currentMode,
+          knownMode: inputCameraMetadata.knownMode,
+          supportedInputDeviceTypes: inputCameraMetadata.supportedInputDeviceTypes,
+          supportedCameraModes: inputCameraMetadata.supportedCameraModes
         }
       }
     }
