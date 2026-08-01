@@ -26,3 +26,15 @@ export {
   normalizeRuntimeState,
   migrateRuntimeState
 } from './UniversalRenderManagerRuntime.js';
+
+export {
+  UniversalAnimationTimelineIntegrationRuntime,
+  createUniversalAnimationTimelineIntegrationRuntime,
+  normalizeIntegrationState,
+  migrateIntegrationState,
+  normalizeControlProfile,
+  normalizeTimelineRuntimeState,
+  normalizeAnimationState,
+  normalizeInteractionState,
+  normalizeSynchronizationState
+} from './UniversalAnimationTimelineIntegrationRuntime.js';

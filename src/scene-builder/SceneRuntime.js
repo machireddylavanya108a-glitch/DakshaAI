@@ -10,7 +10,10 @@ import { createUniversalInputCameraControlRuntime } from '../input-camera/index.
 import { createUniversalEducationalInspectionRuntime } from '../inspection/index.js';
 import { createUniversalAccessibilityStateRecoveryRuntime } from '../accessibility/index.js';
 import { createUniversalAssetLoadingRuntime } from '../asset-runtime/index.js';
-import { createUniversalRendererCore } from '../renderer-core/index.js';
+import {
+  createUniversalRendererCore,
+  createUniversalAnimationTimelineIntegrationRuntime
+} from '../renderer-core/index.js';
 
 let activeRuntime = null;
 let educationalObjectLifecycleManager = null;
@@ -305,6 +308,46 @@ function attachUniversalRendererCore(runtime) {
   return runtime;
 }
 
+function attachUniversalAnimationTimelineIntegrationRuntime(runtime) {
+  if (!runtime || typeof runtime !== 'object') return runtime;
+
+  const integrationRuntime = createUniversalAnimationTimelineIntegrationRuntime(runtime, {
+    persistenceKey: 'daksha.animation.timeline.integration.v1'
+  });
+
+  runtime.animationTimelineIntegrationRuntime = integrationRuntime;
+
+  const recovered = integrationRuntime.recoverSession();
+  const buildResult = integrationRuntime.build();
+  const snapshot = integrationRuntime.synchronize('attach', {
+    recovered,
+    buildStatus: buildResult.status
+  });
+
+  runtime.metadata = {
+    ...(runtime.metadata || {}),
+    animationTimelineIntegration: {
+      ...snapshot,
+      recovered,
+      channels: integrationRuntime.constructor.supportedChannels()
+    },
+    rendererAdapter: {
+      ...(runtime.metadata?.rendererAdapter || {}),
+      animationTimelineIntegrationState: snapshot
+    },
+    aiTeacherAdapter: {
+      ...(runtime.metadata?.aiTeacherAdapter || {}),
+      animationTimelineIntegrationState: snapshot
+    },
+    interactionEngine: {
+      ...(runtime.metadata?.interactionEngine || {}),
+      animationTimelineIntegrationState: snapshot
+    }
+  };
+
+  return runtime;
+}
+
 function runLifecycleCleanupForRuntime(runtime) {
   if (!educationalObjectLifecycleManager || typeof educationalObjectLifecycleManager.cleanupScene !== 'function') {
     return;
@@ -331,6 +374,7 @@ function ensureRuntime() {
 
 export function buildScene(validatedSceneJson = {}) {
   activeRuntime = attachTimelineSynchronizationRuntime(
+    attachUniversalAnimationTimelineIntegrationRuntime(
     attachUniversalRendererCore(
     attachAssetLoadingRuntime(
     attachAccessibilityStateRecoveryRuntime(
@@ -352,6 +396,7 @@ export function buildScene(validatedSceneJson = {}) {
     )
     )
     )
+    )
   );
   return activeRuntime;
 }
@@ -359,6 +404,7 @@ export function buildScene(validatedSceneJson = {}) {
 export function loadScene(sceneJson = {}) {
   const validatedScene = processSceneJsonPipeline(sceneJson || {}, { sourceType: 'runtime' });
   activeRuntime = attachTimelineSynchronizationRuntime(
+    attachUniversalAnimationTimelineIntegrationRuntime(
     attachUniversalRendererCore(
     attachAssetLoadingRuntime(
     attachAccessibilityStateRecoveryRuntime(
@@ -380,11 +426,10 @@ export function loadScene(sceneJson = {}) {
     )
     )
     )
+    )
   );
   activeRuntime.stateManager.setActiveAll();
-  activeRuntime.rendererCore?.update?.({
-    commands: [{ action: 'scene-load', nodeId: 'runtime-root' }]
-  });
+  activeRuntime.animationTimelineIntegrationRuntime?.synchronize?.('scene-loaded');
   activeRuntime.rendererCore?.synchronize?.('scene-loaded');
   return activeRuntime;
 }
@@ -392,6 +437,7 @@ export function loadScene(sceneJson = {}) {
 export function destroyScene() {
   const runtime = ensureRuntime();
   runLifecycleCleanupForRuntime(runtime);
+  runtime.animationTimelineIntegrationRuntime?.persistSession?.();
   runtime.rendererCore?.persistSession?.();
   runtime.timelineSynchronizationRuntime?.persistSession?.();
   runtime.speechPlaybackRuntime?.persistSession?.();
@@ -401,6 +447,7 @@ export function destroyScene() {
   runtime.educationalInspectionRuntime?.persistSession?.();
   runtime.accessibilityStateRecoveryRuntime?.persistSession?.();
   runtime.assetLoadingRuntime?.persistSession?.();
+  runtime.animationTimelineIntegrationRuntime?.destroy?.();
   runtime.rendererCore?.destroy?.();
   runtime.timelineSynchronizationRuntime?.destroy?.();
   runtime.speechPlaybackRuntime?.destroy?.();
@@ -435,12 +482,14 @@ export function resetScene() {
   runtime.accessibilityStateRecoveryRuntime?.synchronize?.('reset');
   runtime.narrationSynchronizationRuntime?.reset?.();
   runtime.sceneEventRuntime?.reset?.();
+  runtime.animationTimelineIntegrationRuntime?.reset?.();
   runtime.rendererCore?.reset?.();
   runtime.rendererCore?.build?.({
     runtimeGraph: runtime.graph?.toJSON?.() || { nodes: [], edges: [] }
   });
   runtime.stateManager.resetAll();
   runtime.stateManager.initializeAll();
+  runtime.animationTimelineIntegrationRuntime?.synchronize?.('reset');
   runtime.rendererCore?.synchronize?.('reset');
   runtime.timelineSynchronizationRuntime?.synchronize?.('reset-after-state-manager');
   return runtime;
@@ -448,6 +497,7 @@ export function resetScene() {
 
 export function pauseScene() {
   const runtime = ensureRuntime();
+  runtime.animationTimelineIntegrationRuntime?.pause?.('scene-runtime');
   runtime.rendererCore?.pause?.('scene-runtime');
   runtime.timelineSynchronizationRuntime?.pause?.('scene-runtime');
   runtime.speechPlaybackRuntime?.pause?.('scene-runtime');
@@ -459,6 +509,7 @@ export function pauseScene() {
   runtime.assetLoadingRuntime?.handleExternalTimelineMutation?.('pause', { source: 'scene-runtime' });
   runtime.narrationSynchronizationRuntime?.pause?.('scene-runtime');
   runtime.stateManager.pauseAll();
+  runtime.animationTimelineIntegrationRuntime?.synchronize?.('pause-scene-state-manager');
   runtime.rendererCore?.synchronize?.('pause-scene-state-manager');
   runtime.timelineSynchronizationRuntime?.synchronize?.('pause-scene-state-manager');
   return runtime;
@@ -466,6 +517,7 @@ export function pauseScene() {
 
 export function resumeScene() {
   const runtime = ensureRuntime();
+  runtime.animationTimelineIntegrationRuntime?.resume?.('scene-runtime');
   runtime.rendererCore?.resume?.('scene-runtime');
   runtime.timelineSynchronizationRuntime?.resume?.('scene-runtime');
   runtime.speechPlaybackRuntime?.resume?.('scene-runtime');
@@ -477,9 +529,7 @@ export function resumeScene() {
   runtime.assetLoadingRuntime?.handleExternalTimelineMutation?.('resume', { source: 'scene-runtime' });
   runtime.narrationSynchronizationRuntime?.resume?.('scene-runtime');
   runtime.stateManager.resumeAll();
-  runtime.rendererCore?.update?.({
-    commands: [{ action: 'resume-frame', nodeId: 'runtime-root' }]
-  });
+  runtime.animationTimelineIntegrationRuntime?.synchronize?.('resume-scene-state-manager');
   runtime.rendererCore?.synchronize?.('resume-scene-state-manager');
   runtime.timelineSynchronizationRuntime?.synchronize?.('resume-scene-state-manager');
   return runtime;
@@ -507,6 +557,10 @@ export function getActiveRuntimeScene() {
 
 export function getActiveRendererCore() {
   return ensureRuntime()?.rendererCore || null;
+}
+
+export function getActiveAnimationTimelineIntegrationRuntime() {
+  return ensureRuntime()?.animationTimelineIntegrationRuntime || null;
 }
 
 export function setEducationalObjectLifecycleManager(manager) {

@@ -150,6 +150,7 @@ export class TimelineSynchronizationRuntime {
     this.accessibilityStateRecoveryRuntime = runtime?.accessibilityStateRecoveryRuntime || null;
     this.assetLoadingRuntime = runtime?.assetLoadingRuntime || null;
     this.rendererCore = runtime?.rendererCore || null;
+    this.animationTimelineIntegrationRuntime = runtime?.animationTimelineIntegrationRuntime || null;
     this.interactionEngine = runtime?.behaviorRuntime || null;
     this.persistenceAdapter = this.options.persistenceAdapter || this.scheduler?.persistenceAdapter || createDefaultPersistenceAdapter();
     this.persistenceKey = String(this.options.persistenceKey || this.scheduler?.persistenceKey || 'daksha.timeline.runtime.v1');
@@ -169,6 +170,7 @@ export class TimelineSynchronizationRuntime {
     this.attachAccessibilityStateRecoveryRuntime(this.accessibilityStateRecoveryRuntime);
     this.attachAssetLoadingRuntime(this.assetLoadingRuntime);
     this.attachRendererCore(this.rendererCore);
+    this.attachAnimationTimelineIntegrationRuntime(this.animationTimelineIntegrationRuntime);
     this.attachInteractionEngine(this.interactionEngine);
   }
 
@@ -197,6 +199,9 @@ export class TimelineSynchronizationRuntime {
     const assetDiscoveryState = this.runtime?.metadata?.assetDiscovery || null;
     const assetLoadingState = this.assetLoadingRuntime?.snapshot?.() || this.runtime?.metadata?.assetLoading || null;
     const rendererCoreState = this.rendererCore?.snapshot?.() || this.runtime?.metadata?.rendererCore || null;
+    const animationTimelineIntegrationState = this.animationTimelineIntegrationRuntime?.snapshot?.()
+      || this.runtime?.metadata?.animationTimelineIntegration
+      || null;
     const previousSession = this.sharedState?.session || {
       persistenceKey: this.persistenceKey,
       recovered: false,
@@ -230,6 +235,7 @@ export class TimelineSynchronizationRuntime {
       assetDiscovery: assetDiscoveryState,
       assetLoading: assetLoadingState,
       rendererCore: rendererCoreState,
+      animationTimelineIntegration: animationTimelineIntegrationState,
       playback,
       sceneGraph: {
         nodeCount: graphSummary.nodeCount,
@@ -262,6 +268,7 @@ export class TimelineSynchronizationRuntime {
           assetDiscoveryState,
           assetLoadingState,
           rendererCoreState,
+          animationTimelineIntegrationState,
           updatedAt: Date.now()
         },
         rendererAdapter: {
@@ -285,6 +292,7 @@ export class TimelineSynchronizationRuntime {
           assetDiscoveryState,
           assetLoadingState,
           rendererCoreState,
+          animationTimelineIntegrationState,
           updatedAt: Date.now()
         },
         interactionEngine: {
@@ -307,6 +315,7 @@ export class TimelineSynchronizationRuntime {
           assetDiscoveryState,
           assetLoadingState,
           rendererCoreState,
+          animationTimelineIntegrationState,
           updatedAt: Date.now()
         }
       },
@@ -496,6 +505,19 @@ export class TimelineSynchronizationRuntime {
     this.unsubscribers.push(unsubscribe);
   }
 
+  attachAnimationTimelineIntegrationRuntime(animationTimelineIntegrationRuntime) {
+    if (!animationTimelineIntegrationRuntime || typeof animationTimelineIntegrationRuntime.on !== 'function') return;
+
+    const unsubscribe = animationTimelineIntegrationRuntime.on('*', ({ channel, payload }) => {
+      this.synchronize('animation-timeline-integration-event', {
+        channel: channel || 'animation-timeline-integration-event',
+        payload: payload || {}
+      });
+    });
+
+    this.unsubscribers.push(unsubscribe);
+  }
+
   attachInteractionEngine(interactionEngine) {
     if (!interactionEngine || typeof interactionEngine.getDiagnostics !== 'function') return;
     this.synchronize('interaction-engine-attached', {
@@ -556,6 +578,8 @@ export class TimelineSynchronizationRuntime {
         this.sharedState.assetLoading || this.runtime.metadata?.assetLoading || null,
       rendererCore:
         this.sharedState.rendererCore || this.runtime.metadata?.rendererCore || null,
+      animationTimelineIntegration:
+        this.sharedState.animationTimelineIntegration || this.runtime.metadata?.animationTimelineIntegration || null,
       rendererAdapter: {
         ...(this.runtime.metadata?.rendererAdapter || {}),
         timelineState: this.sharedState.adapters.rendererAdapter,
@@ -568,7 +592,8 @@ export class TimelineSynchronizationRuntime {
         assetRegistryState: this.sharedState.assetRegistry,
         assetDiscoveryState: this.sharedState.assetDiscovery,
         assetLoadingState: this.sharedState.assetLoading,
-        rendererCoreState: this.sharedState.rendererCore
+        rendererCoreState: this.sharedState.rendererCore,
+        animationTimelineIntegrationState: this.sharedState.animationTimelineIntegration
       },
       aiTeacherAdapter: {
         ...(this.runtime.metadata?.aiTeacherAdapter || {}),
@@ -582,7 +607,8 @@ export class TimelineSynchronizationRuntime {
         assetRegistryState: this.sharedState.assetRegistry,
         assetDiscoveryState: this.sharedState.assetDiscovery,
         assetLoadingState: this.sharedState.assetLoading,
-        rendererCoreState: this.sharedState.rendererCore
+        rendererCoreState: this.sharedState.rendererCore,
+        animationTimelineIntegrationState: this.sharedState.animationTimelineIntegration
       }
     };
 

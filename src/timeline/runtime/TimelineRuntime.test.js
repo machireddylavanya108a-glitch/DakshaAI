@@ -945,3 +945,78 @@ test('85 synchronization runtime persists and recovers shared session', () => {
   assert.equal(schedulerTwo.clock.timeMs, 880);
   assert.equal(syncTwo.getSharedState().session.recovered, true);
 });
+
+test('86 synchronization runtime propagates animation timeline integration state across adapters', () => {
+  const scheduler = new TimelineScheduler(sampleTimeline(), {
+    persistenceAdapter: createMemoryAdapter()
+  });
+
+  const animationTimelineIntegrationRuntime = {
+    on(_channel, listener) {
+      listener({
+        channel: 'animation-timeline-synchronized',
+        payload: {
+          reason: 'unit-test'
+        }
+      });
+      return () => {};
+    },
+    snapshot() {
+      return {
+        schemaVersion: 'v1',
+        timeline: {
+          playbackState: 'Playing',
+          timeMs: 420
+        },
+        animations: {
+          source: 'timeline-events-only',
+          processedTriggers: [{ eventName: 'EventReady' }]
+        },
+        interactions: {
+          selection: ['obj-1']
+        }
+      };
+    }
+  };
+
+  const runtime = {
+    sceneId: 'scene-sync-animation-runtime',
+    timelineScheduler: scheduler,
+    animationTimelineIntegrationRuntime,
+    metadata: {
+      timeline: {
+        timelineId: 'runtime-timeline-1',
+        version: 'v2',
+        trackIds: ['track-1'],
+        clipIds: ['clip-1', 'clip-2'],
+        markerIds: ['chapter-1', 'marker-1'],
+        eventIds: ['event-1', 'event-2']
+      },
+      rendererAdapter: {},
+      aiTeacherAdapter: {}
+    },
+    graph: {
+      nodes: new Map([['scene-sync-animation-runtime', {}], ['obj-1', {}]]),
+      edges: [{ from: 'scene-sync-animation-runtime', to: 'obj-1' }],
+      getNodeCount() {
+        return 2;
+      },
+      getRelationshipCount() {
+        return 1;
+      }
+    }
+  };
+
+  const synchronization = createTimelineSynchronizationRuntime(runtime, {
+    persistenceAdapter: scheduler.persistenceAdapter,
+    persistenceKey: 'daksha.timeline.runtime.sync-animation-integration'
+  });
+
+  const state = synchronization.synchronize('unit-test');
+  assert.equal(typeof state.animationTimelineIntegration, 'object');
+  assert.equal(state.animationTimelineIntegration.animations.source, 'timeline-events-only');
+  assert.equal(typeof state.adapters.rendererAdapter.animationTimelineIntegrationState, 'object');
+  assert.equal(typeof state.adapters.aiTeacher.animationTimelineIntegrationState, 'object');
+  assert.equal(runtime.metadata.rendererAdapter.animationTimelineIntegrationState.animations.source, 'timeline-events-only');
+  assert.equal(runtime.metadata.aiTeacherAdapter.animationTimelineIntegrationState.animations.source, 'timeline-events-only');
+});

@@ -8,6 +8,7 @@ import {
   resetScene,
   destroyScene,
   getActiveRendererCore,
+  getActiveAnimationTimelineIntegrationRuntime,
   getActiveSharedRuntimeState
 } from './SceneRuntime.js';
 
@@ -47,11 +48,15 @@ function createSceneFixture() {
 test('scene runtime attaches universal renderer core and syncs renderer adapter metadata', () => {
   const runtime = buildScene(createSceneFixture());
   const rendererCore = getActiveRendererCore();
+  const animationTimelineIntegrationRuntime = getActiveAnimationTimelineIntegrationRuntime();
 
   assert.ok(runtime);
   assert.ok(rendererCore);
+  assert.ok(animationTimelineIntegrationRuntime);
   assert.equal(typeof runtime.metadata.rendererCore, 'object');
   assert.equal(typeof runtime.metadata.rendererAdapter.rendererCoreState, 'object');
+  assert.equal(typeof runtime.metadata.animationTimelineIntegration, 'object');
+  assert.equal(typeof runtime.metadata.rendererAdapter.animationTimelineIntegrationState, 'object');
   assert.equal(typeof runtime.metadata.rendererCore.metadata.renderSubsystems, 'object');
   assert.equal(Array.isArray(runtime.metadata.rendererCore.metadata.renderSubsystems.camera.entities), true);
   assert.equal(Array.isArray(runtime.metadata.rendererCore.metadata.renderSubsystems.lighting.entities), true);
@@ -60,7 +65,9 @@ test('scene runtime attaches universal renderer core and syncs renderer adapter 
 
   const sharedState = getActiveSharedRuntimeState();
   assert.equal(typeof sharedState?.rendererCore, 'object');
+  assert.equal(typeof sharedState?.animationTimelineIntegration, 'object');
   assert.equal(typeof sharedState?.adapters?.rendererAdapter?.rendererCoreState, 'object');
+  assert.equal(typeof sharedState?.adapters?.rendererAdapter?.animationTimelineIntegrationState, 'object');
   assert.equal(typeof sharedState?.adapters?.rendererAdapter?.rendererCoreState?.metadata?.renderSubsystems, 'object');
 
   destroyScene();
@@ -69,18 +76,22 @@ test('scene runtime attaches universal renderer core and syncs renderer adapter 
 test('scene runtime renderer core responds to pause, resume, reset, and load lifecycle', () => {
   loadScene(createSceneFixture());
   const rendererCore = getActiveRendererCore();
+  const animationTimelineIntegrationRuntime = getActiveAnimationTimelineIntegrationRuntime();
 
   const pausedRuntime = pauseScene();
   assert.equal(pausedRuntime.rendererCore.snapshot().lifecycle.paused, true);
+  assert.equal(pausedRuntime.animationTimelineIntegrationRuntime.snapshot().animations.paused, true);
 
   const resumedRuntime = resumeScene();
   assert.equal(resumedRuntime.rendererCore.snapshot().lifecycle.paused, false);
+  assert.equal(resumedRuntime.animationTimelineIntegrationRuntime.snapshot().animations.paused, false);
 
   const resetRuntime = resetScene();
   assert.equal(resetRuntime.rendererCore.snapshot().lifecycle.built, true);
 
   const snapshot = rendererCore.snapshot();
   assert.equal(snapshot.lifecycle.initialized, true);
+  assert.equal(animationTimelineIntegrationRuntime.snapshot().runtimeGraph.nodeCount >= 1, true);
 
   destroyScene();
 });
