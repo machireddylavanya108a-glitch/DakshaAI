@@ -1020,3 +1020,77 @@ test('86 synchronization runtime propagates animation timeline integration state
   assert.equal(runtime.metadata.rendererAdapter.animationTimelineIntegrationState.animations.source, 'timeline-events-only');
   assert.equal(runtime.metadata.aiTeacherAdapter.animationTimelineIntegrationState.animations.source, 'timeline-events-only');
 });
+
+test('87 synchronization runtime propagates adaptive rendering performance state across adapters', () => {
+  const scheduler = new TimelineScheduler(sampleTimeline(), {
+    persistenceAdapter: createMemoryAdapter()
+  });
+
+  const adaptiveRenderingPerformanceRuntime = {
+    on(_channel, listener) {
+      listener({
+        channel: 'adaptive-rendering-synchronized',
+        payload: {
+          reason: 'unit-test'
+        }
+      });
+      return () => {};
+    },
+    snapshot() {
+      return {
+        schemaVersion: 'v1',
+        adaptiveRenderer: {
+          currentMode: 'Interactive 2D',
+          selectedReason: 'test'
+        },
+        performance: {
+          adaptiveQualityScale: 0.72
+        },
+        accessibility: {
+          reducedMotion: true
+        }
+      };
+    }
+  };
+
+  const runtime = {
+    sceneId: 'scene-sync-adaptive-runtime',
+    timelineScheduler: scheduler,
+    adaptiveRenderingPerformanceRuntime,
+    metadata: {
+      timeline: {
+        timelineId: 'runtime-timeline-1',
+        version: 'v2',
+        trackIds: ['track-1'],
+        clipIds: ['clip-1', 'clip-2'],
+        markerIds: ['chapter-1', 'marker-1'],
+        eventIds: ['event-1', 'event-2']
+      },
+      rendererAdapter: {},
+      aiTeacherAdapter: {}
+    },
+    graph: {
+      nodes: new Map([['scene-sync-adaptive-runtime', {}], ['obj-1', {}]]),
+      edges: [{ from: 'scene-sync-adaptive-runtime', to: 'obj-1' }],
+      getNodeCount() {
+        return 2;
+      },
+      getRelationshipCount() {
+        return 1;
+      }
+    }
+  };
+
+  const synchronization = createTimelineSynchronizationRuntime(runtime, {
+    persistenceAdapter: scheduler.persistenceAdapter,
+    persistenceKey: 'daksha.timeline.runtime.sync-adaptive-rendering'
+  });
+
+  const state = synchronization.synchronize('unit-test');
+  assert.equal(typeof state.adaptiveRenderingPerformance, 'object');
+  assert.equal(state.adaptiveRenderingPerformance.adaptiveRenderer.currentMode, 'Interactive 2D');
+  assert.equal(typeof state.adapters.rendererAdapter.adaptiveRenderingPerformanceState, 'object');
+  assert.equal(typeof state.adapters.aiTeacher.adaptiveRenderingPerformanceState, 'object');
+  assert.equal(runtime.metadata.rendererAdapter.adaptiveRenderingPerformanceState.adaptiveRenderer.currentMode, 'Interactive 2D');
+  assert.equal(runtime.metadata.aiTeacherAdapter.adaptiveRenderingPerformanceState.adaptiveRenderer.currentMode, 'Interactive 2D');
+});

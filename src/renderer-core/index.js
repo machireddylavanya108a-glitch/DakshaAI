@@ -38,3 +38,17 @@ export {
   normalizeInteractionState,
   normalizeSynchronizationState
 } from './UniversalAnimationTimelineIntegrationRuntime.js';
+
+export {
+  UniversalAdaptiveRenderingPerformanceRuntime,
+  createUniversalAdaptiveRenderingPerformanceRuntime,
+  normalizeAdaptiveRuntimeState,
+  migrateAdaptiveRuntimeState,
+  normalizePerformanceState,
+  normalizeAccessibilityState,
+  normalizeAdaptiveRendererState,
+  normalizeRecoveryState,
+  normalizeDeviceCapabilityState,
+  normalizeAssetAvailabilityState,
+  normalizeUserPreferenceState
+} from './UniversalAdaptiveRenderingPerformanceRuntime.js';

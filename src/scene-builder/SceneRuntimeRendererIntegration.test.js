@@ -9,6 +9,7 @@ import {
   destroyScene,
   getActiveRendererCore,
   getActiveAnimationTimelineIntegrationRuntime,
+  getActiveAdaptiveRenderingPerformanceRuntime,
   getActiveSharedRuntimeState
 } from './SceneRuntime.js';
 
@@ -49,14 +50,18 @@ test('scene runtime attaches universal renderer core and syncs renderer adapter 
   const runtime = buildScene(createSceneFixture());
   const rendererCore = getActiveRendererCore();
   const animationTimelineIntegrationRuntime = getActiveAnimationTimelineIntegrationRuntime();
+  const adaptiveRenderingPerformanceRuntime = getActiveAdaptiveRenderingPerformanceRuntime();
 
   assert.ok(runtime);
   assert.ok(rendererCore);
   assert.ok(animationTimelineIntegrationRuntime);
+  assert.ok(adaptiveRenderingPerformanceRuntime);
   assert.equal(typeof runtime.metadata.rendererCore, 'object');
   assert.equal(typeof runtime.metadata.rendererAdapter.rendererCoreState, 'object');
   assert.equal(typeof runtime.metadata.animationTimelineIntegration, 'object');
+  assert.equal(typeof runtime.metadata.adaptiveRenderingPerformance, 'object');
   assert.equal(typeof runtime.metadata.rendererAdapter.animationTimelineIntegrationState, 'object');
+  assert.equal(typeof runtime.metadata.rendererAdapter.adaptiveRenderingPerformanceState, 'object');
   assert.equal(typeof runtime.metadata.rendererCore.metadata.renderSubsystems, 'object');
   assert.equal(Array.isArray(runtime.metadata.rendererCore.metadata.renderSubsystems.camera.entities), true);
   assert.equal(Array.isArray(runtime.metadata.rendererCore.metadata.renderSubsystems.lighting.entities), true);
@@ -66,8 +71,10 @@ test('scene runtime attaches universal renderer core and syncs renderer adapter 
   const sharedState = getActiveSharedRuntimeState();
   assert.equal(typeof sharedState?.rendererCore, 'object');
   assert.equal(typeof sharedState?.animationTimelineIntegration, 'object');
+  assert.equal(typeof sharedState?.adaptiveRenderingPerformance, 'object');
   assert.equal(typeof sharedState?.adapters?.rendererAdapter?.rendererCoreState, 'object');
   assert.equal(typeof sharedState?.adapters?.rendererAdapter?.animationTimelineIntegrationState, 'object');
+  assert.equal(typeof sharedState?.adapters?.rendererAdapter?.adaptiveRenderingPerformanceState, 'object');
   assert.equal(typeof sharedState?.adapters?.rendererAdapter?.rendererCoreState?.metadata?.renderSubsystems, 'object');
 
   destroyScene();
@@ -77,14 +84,17 @@ test('scene runtime renderer core responds to pause, resume, reset, and load lif
   loadScene(createSceneFixture());
   const rendererCore = getActiveRendererCore();
   const animationTimelineIntegrationRuntime = getActiveAnimationTimelineIntegrationRuntime();
+  const adaptiveRenderingPerformanceRuntime = getActiveAdaptiveRenderingPerformanceRuntime();
 
   const pausedRuntime = pauseScene();
   assert.equal(pausedRuntime.rendererCore.snapshot().lifecycle.paused, true);
   assert.equal(pausedRuntime.animationTimelineIntegrationRuntime.snapshot().animations.paused, true);
+  assert.equal(pausedRuntime.adaptiveRenderingPerformanceRuntime.snapshot().session.interrupted, true);
 
   const resumedRuntime = resumeScene();
   assert.equal(resumedRuntime.rendererCore.snapshot().lifecycle.paused, false);
   assert.equal(resumedRuntime.animationTimelineIntegrationRuntime.snapshot().animations.paused, false);
+  assert.equal(resumedRuntime.adaptiveRenderingPerformanceRuntime.snapshot().session.interrupted, false);
 
   const resetRuntime = resetScene();
   assert.equal(resetRuntime.rendererCore.snapshot().lifecycle.built, true);
@@ -92,6 +102,7 @@ test('scene runtime renderer core responds to pause, resume, reset, and load lif
   const snapshot = rendererCore.snapshot();
   assert.equal(snapshot.lifecycle.initialized, true);
   assert.equal(animationTimelineIntegrationRuntime.snapshot().runtimeGraph.nodeCount >= 1, true);
+  assert.equal(adaptiveRenderingPerformanceRuntime.snapshot().runtimeGraph.nodeCount >= 1, true);
 
   destroyScene();
 });

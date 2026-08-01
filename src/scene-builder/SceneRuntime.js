@@ -12,7 +12,8 @@ import { createUniversalAccessibilityStateRecoveryRuntime } from '../accessibili
 import { createUniversalAssetLoadingRuntime } from '../asset-runtime/index.js';
 import {
   createUniversalRendererCore,
-  createUniversalAnimationTimelineIntegrationRuntime
+  createUniversalAnimationTimelineIntegrationRuntime,
+  createUniversalAdaptiveRenderingPerformanceRuntime
 } from '../renderer-core/index.js';
 
 let activeRuntime = null;
@@ -348,6 +349,50 @@ function attachUniversalAnimationTimelineIntegrationRuntime(runtime) {
   return runtime;
 }
 
+function attachUniversalAdaptiveRenderingPerformanceRuntime(runtime) {
+  if (!runtime || typeof runtime !== 'object') return runtime;
+
+  const adaptiveRuntime = createUniversalAdaptiveRenderingPerformanceRuntime(runtime, {
+    persistenceKey: 'daksha.adaptive.rendering.performance.v1'
+  });
+
+  runtime.adaptiveRenderingPerformanceRuntime = adaptiveRuntime;
+
+  const recovered = adaptiveRuntime.recoverSession();
+  const buildResult = adaptiveRuntime.build({
+    deviceCapabilities: runtime?.metadata?.deviceCapabilities || {},
+    userPreferences: runtime?.metadata?.userPreferences || {},
+    accessibility: runtime?.metadata?.accessibility || {}
+  });
+  const snapshot = adaptiveRuntime.synchronize('attach', {
+    recovered,
+    buildStatus: buildResult.status
+  });
+
+  runtime.metadata = {
+    ...(runtime.metadata || {}),
+    adaptiveRenderingPerformance: {
+      ...snapshot,
+      recovered,
+      channels: adaptiveRuntime.constructor.supportedChannels()
+    },
+    rendererAdapter: {
+      ...(runtime.metadata?.rendererAdapter || {}),
+      adaptiveRenderingPerformanceState: snapshot
+    },
+    aiTeacherAdapter: {
+      ...(runtime.metadata?.aiTeacherAdapter || {}),
+      adaptiveRenderingPerformanceState: snapshot
+    },
+    interactionEngine: {
+      ...(runtime.metadata?.interactionEngine || {}),
+      adaptiveRenderingPerformanceState: snapshot
+    }
+  };
+
+  return runtime;
+}
+
 function runLifecycleCleanupForRuntime(runtime) {
   if (!educationalObjectLifecycleManager || typeof educationalObjectLifecycleManager.cleanupScene !== 'function') {
     return;
@@ -374,6 +419,7 @@ function ensureRuntime() {
 
 export function buildScene(validatedSceneJson = {}) {
   activeRuntime = attachTimelineSynchronizationRuntime(
+    attachUniversalAdaptiveRenderingPerformanceRuntime(
     attachUniversalAnimationTimelineIntegrationRuntime(
     attachUniversalRendererCore(
     attachAssetLoadingRuntime(
@@ -397,6 +443,7 @@ export function buildScene(validatedSceneJson = {}) {
     )
     )
     )
+    )
   );
   return activeRuntime;
 }
@@ -404,6 +451,7 @@ export function buildScene(validatedSceneJson = {}) {
 export function loadScene(sceneJson = {}) {
   const validatedScene = processSceneJsonPipeline(sceneJson || {}, { sourceType: 'runtime' });
   activeRuntime = attachTimelineSynchronizationRuntime(
+    attachUniversalAdaptiveRenderingPerformanceRuntime(
     attachUniversalAnimationTimelineIntegrationRuntime(
     attachUniversalRendererCore(
     attachAssetLoadingRuntime(
@@ -427,8 +475,10 @@ export function loadScene(sceneJson = {}) {
     )
     )
     )
+    )
   );
   activeRuntime.stateManager.setActiveAll();
+  activeRuntime.adaptiveRenderingPerformanceRuntime?.synchronize?.('scene-loaded');
   activeRuntime.animationTimelineIntegrationRuntime?.synchronize?.('scene-loaded');
   activeRuntime.rendererCore?.synchronize?.('scene-loaded');
   return activeRuntime;
@@ -437,6 +487,7 @@ export function loadScene(sceneJson = {}) {
 export function destroyScene() {
   const runtime = ensureRuntime();
   runLifecycleCleanupForRuntime(runtime);
+  runtime.adaptiveRenderingPerformanceRuntime?.persistSession?.();
   runtime.animationTimelineIntegrationRuntime?.persistSession?.();
   runtime.rendererCore?.persistSession?.();
   runtime.timelineSynchronizationRuntime?.persistSession?.();
@@ -447,6 +498,7 @@ export function destroyScene() {
   runtime.educationalInspectionRuntime?.persistSession?.();
   runtime.accessibilityStateRecoveryRuntime?.persistSession?.();
   runtime.assetLoadingRuntime?.persistSession?.();
+  runtime.adaptiveRenderingPerformanceRuntime?.destroy?.();
   runtime.animationTimelineIntegrationRuntime?.destroy?.();
   runtime.rendererCore?.destroy?.();
   runtime.timelineSynchronizationRuntime?.destroy?.();
@@ -482,6 +534,7 @@ export function resetScene() {
   runtime.accessibilityStateRecoveryRuntime?.synchronize?.('reset');
   runtime.narrationSynchronizationRuntime?.reset?.();
   runtime.sceneEventRuntime?.reset?.();
+  runtime.adaptiveRenderingPerformanceRuntime?.reset?.();
   runtime.animationTimelineIntegrationRuntime?.reset?.();
   runtime.rendererCore?.reset?.();
   runtime.rendererCore?.build?.({
@@ -489,6 +542,7 @@ export function resetScene() {
   });
   runtime.stateManager.resetAll();
   runtime.stateManager.initializeAll();
+  runtime.adaptiveRenderingPerformanceRuntime?.synchronize?.('reset');
   runtime.animationTimelineIntegrationRuntime?.synchronize?.('reset');
   runtime.rendererCore?.synchronize?.('reset');
   runtime.timelineSynchronizationRuntime?.synchronize?.('reset-after-state-manager');
@@ -497,6 +551,7 @@ export function resetScene() {
 
 export function pauseScene() {
   const runtime = ensureRuntime();
+  runtime.adaptiveRenderingPerformanceRuntime?.markInterrupted?.('scene-runtime-paused');
   runtime.animationTimelineIntegrationRuntime?.pause?.('scene-runtime');
   runtime.rendererCore?.pause?.('scene-runtime');
   runtime.timelineSynchronizationRuntime?.pause?.('scene-runtime');
@@ -509,6 +564,7 @@ export function pauseScene() {
   runtime.assetLoadingRuntime?.handleExternalTimelineMutation?.('pause', { source: 'scene-runtime' });
   runtime.narrationSynchronizationRuntime?.pause?.('scene-runtime');
   runtime.stateManager.pauseAll();
+  runtime.adaptiveRenderingPerformanceRuntime?.synchronize?.('pause-scene-state-manager');
   runtime.animationTimelineIntegrationRuntime?.synchronize?.('pause-scene-state-manager');
   runtime.rendererCore?.synchronize?.('pause-scene-state-manager');
   runtime.timelineSynchronizationRuntime?.synchronize?.('pause-scene-state-manager');
@@ -517,6 +573,7 @@ export function pauseScene() {
 
 export function resumeScene() {
   const runtime = ensureRuntime();
+  runtime.adaptiveRenderingPerformanceRuntime?.continueSession?.(runtime?.timelineSynchronizationRuntime?.getSharedState?.()?.playback?.checkpointId || null);
   runtime.animationTimelineIntegrationRuntime?.resume?.('scene-runtime');
   runtime.rendererCore?.resume?.('scene-runtime');
   runtime.timelineSynchronizationRuntime?.resume?.('scene-runtime');
@@ -529,6 +586,7 @@ export function resumeScene() {
   runtime.assetLoadingRuntime?.handleExternalTimelineMutation?.('resume', { source: 'scene-runtime' });
   runtime.narrationSynchronizationRuntime?.resume?.('scene-runtime');
   runtime.stateManager.resumeAll();
+  runtime.adaptiveRenderingPerformanceRuntime?.synchronize?.('resume-scene-state-manager');
   runtime.animationTimelineIntegrationRuntime?.synchronize?.('resume-scene-state-manager');
   runtime.rendererCore?.synchronize?.('resume-scene-state-manager');
   runtime.timelineSynchronizationRuntime?.synchronize?.('resume-scene-state-manager');
@@ -561,6 +619,10 @@ export function getActiveRendererCore() {
 
 export function getActiveAnimationTimelineIntegrationRuntime() {
   return ensureRuntime()?.animationTimelineIntegrationRuntime || null;
+}
+
+export function getActiveAdaptiveRenderingPerformanceRuntime() {
+  return ensureRuntime()?.adaptiveRenderingPerformanceRuntime || null;
 }
 
 export function setEducationalObjectLifecycleManager(manager) {

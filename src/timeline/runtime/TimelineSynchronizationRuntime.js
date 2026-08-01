@@ -151,6 +151,7 @@ export class TimelineSynchronizationRuntime {
     this.assetLoadingRuntime = runtime?.assetLoadingRuntime || null;
     this.rendererCore = runtime?.rendererCore || null;
     this.animationTimelineIntegrationRuntime = runtime?.animationTimelineIntegrationRuntime || null;
+    this.adaptiveRenderingPerformanceRuntime = runtime?.adaptiveRenderingPerformanceRuntime || null;
     this.interactionEngine = runtime?.behaviorRuntime || null;
     this.persistenceAdapter = this.options.persistenceAdapter || this.scheduler?.persistenceAdapter || createDefaultPersistenceAdapter();
     this.persistenceKey = String(this.options.persistenceKey || this.scheduler?.persistenceKey || 'daksha.timeline.runtime.v1');
@@ -171,6 +172,7 @@ export class TimelineSynchronizationRuntime {
     this.attachAssetLoadingRuntime(this.assetLoadingRuntime);
     this.attachRendererCore(this.rendererCore);
     this.attachAnimationTimelineIntegrationRuntime(this.animationTimelineIntegrationRuntime);
+    this.attachAdaptiveRenderingPerformanceRuntime(this.adaptiveRenderingPerformanceRuntime);
     this.attachInteractionEngine(this.interactionEngine);
   }
 
@@ -201,6 +203,9 @@ export class TimelineSynchronizationRuntime {
     const rendererCoreState = this.rendererCore?.snapshot?.() || this.runtime?.metadata?.rendererCore || null;
     const animationTimelineIntegrationState = this.animationTimelineIntegrationRuntime?.snapshot?.()
       || this.runtime?.metadata?.animationTimelineIntegration
+      || null;
+    const adaptiveRenderingPerformanceState = this.adaptiveRenderingPerformanceRuntime?.snapshot?.()
+      || this.runtime?.metadata?.adaptiveRenderingPerformance
       || null;
     const previousSession = this.sharedState?.session || {
       persistenceKey: this.persistenceKey,
@@ -236,6 +241,7 @@ export class TimelineSynchronizationRuntime {
       assetLoading: assetLoadingState,
       rendererCore: rendererCoreState,
       animationTimelineIntegration: animationTimelineIntegrationState,
+      adaptiveRenderingPerformance: adaptiveRenderingPerformanceState,
       playback,
       sceneGraph: {
         nodeCount: graphSummary.nodeCount,
@@ -269,6 +275,7 @@ export class TimelineSynchronizationRuntime {
           assetLoadingState,
           rendererCoreState,
           animationTimelineIntegrationState,
+          adaptiveRenderingPerformanceState,
           updatedAt: Date.now()
         },
         rendererAdapter: {
@@ -293,6 +300,7 @@ export class TimelineSynchronizationRuntime {
           assetLoadingState,
           rendererCoreState,
           animationTimelineIntegrationState,
+          adaptiveRenderingPerformanceState,
           updatedAt: Date.now()
         },
         interactionEngine: {
@@ -316,6 +324,7 @@ export class TimelineSynchronizationRuntime {
           assetLoadingState,
           rendererCoreState,
           animationTimelineIntegrationState,
+          adaptiveRenderingPerformanceState,
           updatedAt: Date.now()
         }
       },
@@ -518,6 +527,19 @@ export class TimelineSynchronizationRuntime {
     this.unsubscribers.push(unsubscribe);
   }
 
+  attachAdaptiveRenderingPerformanceRuntime(adaptiveRenderingPerformanceRuntime) {
+    if (!adaptiveRenderingPerformanceRuntime || typeof adaptiveRenderingPerformanceRuntime.on !== 'function') return;
+
+    const unsubscribe = adaptiveRenderingPerformanceRuntime.on('*', ({ channel, payload }) => {
+      this.synchronize('adaptive-rendering-performance-event', {
+        channel: channel || 'adaptive-rendering-performance-event',
+        payload: payload || {}
+      });
+    });
+
+    this.unsubscribers.push(unsubscribe);
+  }
+
   attachInteractionEngine(interactionEngine) {
     if (!interactionEngine || typeof interactionEngine.getDiagnostics !== 'function') return;
     this.synchronize('interaction-engine-attached', {
@@ -580,6 +602,8 @@ export class TimelineSynchronizationRuntime {
         this.sharedState.rendererCore || this.runtime.metadata?.rendererCore || null,
       animationTimelineIntegration:
         this.sharedState.animationTimelineIntegration || this.runtime.metadata?.animationTimelineIntegration || null,
+      adaptiveRenderingPerformance:
+        this.sharedState.adaptiveRenderingPerformance || this.runtime.metadata?.adaptiveRenderingPerformance || null,
       rendererAdapter: {
         ...(this.runtime.metadata?.rendererAdapter || {}),
         timelineState: this.sharedState.adapters.rendererAdapter,
@@ -593,7 +617,8 @@ export class TimelineSynchronizationRuntime {
         assetDiscoveryState: this.sharedState.assetDiscovery,
         assetLoadingState: this.sharedState.assetLoading,
         rendererCoreState: this.sharedState.rendererCore,
-        animationTimelineIntegrationState: this.sharedState.animationTimelineIntegration
+        animationTimelineIntegrationState: this.sharedState.animationTimelineIntegration,
+        adaptiveRenderingPerformanceState: this.sharedState.adaptiveRenderingPerformance
       },
       aiTeacherAdapter: {
         ...(this.runtime.metadata?.aiTeacherAdapter || {}),
@@ -608,7 +633,8 @@ export class TimelineSynchronizationRuntime {
         assetDiscoveryState: this.sharedState.assetDiscovery,
         assetLoadingState: this.sharedState.assetLoading,
         rendererCoreState: this.sharedState.rendererCore,
-        animationTimelineIntegrationState: this.sharedState.animationTimelineIntegration
+        animationTimelineIntegrationState: this.sharedState.animationTimelineIntegration,
+        adaptiveRenderingPerformanceState: this.sharedState.adaptiveRenderingPerformance
       }
     };
 
