@@ -238,6 +238,20 @@ export class TimelineScheduler {
     return this.snapshot();
   }
 
+  replay(fromTimeMs = 0) {
+    this.clock.seek(normalizeTimeMs(fromTimeMs, 0));
+    this.cursor.update(this.clock.timeMs);
+    this.playbackState.transition('Playing', {
+      mode: 'replay'
+    });
+    this.clock.play(this.clock.timeMs);
+    this.emitRuntimeEvent('TimelineStarted', {
+      timeMs: this.clock.timeMs,
+      replay: true
+    });
+    return this.snapshot();
+  }
+
   reset() {
     this.clock.reset();
     this.playbackState.transition('Idle');
@@ -276,6 +290,10 @@ export class TimelineScheduler {
 
   seekByPercentage(percentage) {
     return this.seekManager.seekByPercentage({ scheduler: this }, percentage);
+  }
+
+  seekByCheckpoint(checkpointId = null) {
+    return this.seekManager.seekByCheckpoint({ scheduler: this }, checkpointId);
   }
 
   setLoop(mode, options = {}) {
@@ -470,6 +488,7 @@ export class TimelineScheduler {
       speed: this.speedController.getSpeed(),
       activeMarkerId: cursor.currentMarker?.id || null,
       checkpointId: this.checkpoints.latest()?.id || null,
+      checkpoints: this.checkpoints.toJSON(),
       resumePositionMs: this.clock.timeMs,
       playbackState: this.playbackState.getState(),
       loop: this.loopController.snapshot(),
@@ -499,6 +518,10 @@ export class TimelineScheduler {
     if (isObject(safeSnapshot.branch)) {
       this.branchController.activeBranchId = safeSnapshot.branch.activeBranchId || null;
       this.branchController.branchHistory = asArray(safeSnapshot.branch.branchHistory);
+    }
+
+    if (Array.isArray(safeSnapshot.checkpoints)) {
+      this.checkpoints.restore(safeSnapshot.checkpoints);
     }
 
     this.cursor.update(this.clock.timeMs);

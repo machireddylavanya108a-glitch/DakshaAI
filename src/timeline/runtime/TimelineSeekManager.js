@@ -48,4 +48,20 @@ export class TimelineSeekManager {
     const duration = scheduler.cursor.totalDurationMs || 0;
     return this.seekByTime(context, duration * percent);
   }
+
+  seekByCheckpoint(context = {}, checkpointId = null) {
+    const scheduler = context.scheduler;
+    if (!scheduler || !scheduler.checkpoints) return null;
+
+    const checkpoint = checkpointId
+      ? scheduler.checkpoints.getById(checkpointId)
+      : scheduler.checkpoints.latest('resume') || scheduler.checkpoints.latest();
+
+    if (!checkpoint) {
+      scheduler.diagnostics?.addWarning?.('Checkpoint seek requested but no checkpoint was available.');
+      return this.seekByTime(context, 0);
+    }
+
+    return this.seekByTime(context, checkpoint.timeMs);
+  }
 }

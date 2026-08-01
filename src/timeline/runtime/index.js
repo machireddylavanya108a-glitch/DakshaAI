@@ -20,3 +20,4 @@ export {
   DEFAULT_RUNTIME_CONFIG
 } from './TimelineRuntimeConfig.js';
 export { TimelineScheduler } from './TimelineScheduler.js';
+export { TimelineSynchronizationRuntime, createTimelineSynchronizationRuntime } from './TimelineSynchronizationRuntime.js';

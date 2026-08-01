@@ -111,6 +111,30 @@ export function buildRuntimeSceneGraph(validatedSceneJson = {}) {
         },
         sceneEvents: {
           eventIds: timelineMetadata.sceneEventIds
+        },
+        timelineState: {
+          state: 'Ready',
+          timeMs: 0,
+          speed: 1,
+          currentClipId: null,
+          updatedAt: null
+        }
+      },
+      aiTeacherAdapter: {
+        timelineState: {
+          state: 'Ready',
+          timeMs: 0,
+          checkpointId: null,
+          progress: 0,
+          updatedAt: null
+        }
+      },
+      interactionEngine: {
+        timelineState: {
+          state: 'Ready',
+          timeMs: 0,
+          currentEventId: null,
+          updatedAt: null
         }
       }
     }

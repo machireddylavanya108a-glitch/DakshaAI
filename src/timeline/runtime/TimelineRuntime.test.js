@@ -15,6 +15,7 @@ import {
   TimelineBranchController,
   TimelinePlaybackDiagnostics,
   TimelineScheduler,
+  createTimelineSynchronizationRuntime,
   TimelineSecurityError,
   TIMELINE_PLAYBACK_STATES,
   TIMELINE_RUNTIME_EVENTS
@@ -719,4 +720,137 @@ test('80 scheduler completes timeline and emits completion event', () => {
   scheduler.tick(2500);
   assert.equal(completed, true);
   assert.equal(scheduler.playbackState.getState(), 'Completed');
+});
+
+test('81 scheduler seek by checkpoint uses checkpoint timeline position', () => {
+  const scheduler = new TimelineScheduler(sampleTimeline());
+  scheduler.play();
+  scheduler.seekByTime(650);
+  scheduler.createCheckpoint('resume');
+  scheduler.seekByTime(1200);
+  scheduler.seekByCheckpoint();
+  assert.equal(scheduler.clock.timeMs, 650);
+});
+
+test('82 scheduler replay starts from provided time', () => {
+  const scheduler = new TimelineScheduler(sampleTimeline());
+  scheduler.replay(300);
+  assert.equal(scheduler.clock.timeMs, 300);
+  assert.equal(scheduler.playbackState.getState(), 'Playing');
+});
+
+test('83 persistence snapshot includes checkpoint list', () => {
+  const scheduler = new TimelineScheduler(sampleTimeline());
+  scheduler.createCheckpoint('manual', { note: 'checkpoint' });
+  const snapshot = scheduler.createPersistenceSnapshot();
+  assert.equal(Array.isArray(snapshot.checkpoints), true);
+  assert.equal(snapshot.checkpoints.length >= 1, true);
+});
+
+test('84 synchronization runtime updates shared adapter state', () => {
+  const scheduler = new TimelineScheduler(sampleTimeline(), {
+    persistenceAdapter: createMemoryAdapter()
+  });
+
+  const runtime = {
+    sceneId: 'scene-sync-1',
+    timelineScheduler: scheduler,
+    metadata: {
+      timeline: {
+        timelineId: 'runtime-timeline-1',
+        version: 'v2',
+        trackIds: ['track-1'],
+        clipIds: ['clip-1', 'clip-2'],
+        markerIds: ['chapter-1', 'marker-1'],
+        eventIds: ['event-1', 'event-2']
+      },
+      rendererAdapter: {
+        timeline: {}
+      }
+    },
+    graph: {
+      nodes: new Map([['scene-sync-1', {}], ['clip-1', {}]]),
+      edges: [{ from: 'scene-sync-1', to: 'clip-1' }],
+      getNodeCount() {
+        return 2;
+      },
+      getRelationshipCount() {
+        return 1;
+      }
+    }
+  };
+
+  const synchronization = createTimelineSynchronizationRuntime(runtime, {
+    persistenceAdapter: scheduler.persistenceAdapter,
+    persistenceKey: 'daksha.timeline.runtime.sync-test'
+  });
+
+  scheduler.play();
+  scheduler.tick(500);
+  const state = synchronization.synchronize('test');
+  assert.equal(state.adapters.rendererAdapter.timeMs, 500);
+  assert.equal(state.adapters.aiTeacher.state, 'Playing');
+});
+
+test('85 synchronization runtime persists and recovers shared session', () => {
+  const adapter = createMemoryAdapter();
+  const schedulerOne = new TimelineScheduler(sampleTimeline(), {
+    persistenceAdapter: adapter
+  });
+
+  const runtimeOne = {
+    sceneId: 'scene-sync-recover',
+    timelineScheduler: schedulerOne,
+    metadata: {
+      timeline: {
+        timelineId: 'runtime-timeline-1',
+        version: 'v2',
+        trackIds: ['track-1'],
+        clipIds: ['clip-1', 'clip-2'],
+        markerIds: ['chapter-1', 'marker-1'],
+        eventIds: ['event-1', 'event-2']
+      },
+      rendererAdapter: {
+        timeline: {}
+      }
+    },
+    graph: {
+      nodes: new Map([['scene-sync-recover', {}], ['clip-1', {}]]),
+      edges: [{ from: 'scene-sync-recover', to: 'clip-1' }],
+      getNodeCount() {
+        return 2;
+      },
+      getRelationshipCount() {
+        return 1;
+      }
+    }
+  };
+
+  const syncOne = createTimelineSynchronizationRuntime(runtimeOne, {
+    persistenceAdapter: adapter,
+    persistenceKey: 'daksha.timeline.runtime.sync-recover'
+  });
+
+  schedulerOne.play();
+  schedulerOne.seekByTime(880);
+  schedulerOne.createCheckpoint('resume');
+  syncOne.persistSession();
+
+  const schedulerTwo = new TimelineScheduler(sampleTimeline(), {
+    persistenceAdapter: adapter
+  });
+  const runtimeTwo = {
+    ...runtimeOne,
+    timelineScheduler: schedulerTwo
+  };
+
+  const syncTwo = createTimelineSynchronizationRuntime(runtimeTwo, {
+    persistenceAdapter: adapter,
+    persistenceKey: 'daksha.timeline.runtime.sync-recover'
+  });
+
+  const recovered = syncTwo.recoverSession();
+  assert.equal(recovered, true);
+  assert.equal(schedulerTwo.clock.timeMs, 880);
+  assert.equal(syncTwo.getSharedState().session.recovered, true);
 });

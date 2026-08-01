@@ -1,6 +1,6 @@
 import { processSceneJsonPipeline } from '../scene-generator/SceneVersionManager.js';
 import { buildRuntimeSceneGraph } from './SceneBuilder.js';
-import { TimelineScheduler } from '../timeline/runtime/index.js';
+import { TimelineScheduler, createTimelineSynchronizationRuntime } from '../timeline/runtime/index.js';
 import { createSceneEventRuntime } from '../scene-events/index.js';
 
 let activeRuntime = null;
@@ -49,6 +49,33 @@ function attachSceneEventRuntime(runtime) {
   return runtime;
 }
 
+function attachTimelineSynchronizationRuntime(runtime) {
+  if (!runtime || typeof runtime !== 'object') return runtime;
+
+  const synchronizationRuntime = createTimelineSynchronizationRuntime(runtime);
+  runtime.timelineSynchronizationRuntime = synchronizationRuntime;
+  runtime.timelineSynchronization = synchronizationRuntime;
+
+  const recovered = synchronizationRuntime.recoverSession();
+  const sharedState = synchronizationRuntime.synchronize('attach', {
+    recovered
+  }, {
+    recovered
+  });
+
+  runtime.sharedRuntimeState = sharedState;
+  runtime.metadata = {
+    ...(runtime.metadata || {}),
+    timelineSynchronization: {
+      schemaVersion: sharedState.schemaVersion,
+      recovered,
+      channels: synchronizationRuntime.constructor.supportedChannels()
+    }
+  };
+
+  return runtime;
+}
+
 function runLifecycleCleanupForRuntime(runtime) {
   if (!educationalObjectLifecycleManager || typeof educationalObjectLifecycleManager.cleanupScene !== 'function') {
     return;
@@ -74,13 +101,21 @@ function ensureRuntime() {
 }
 
 export function buildScene(validatedSceneJson = {}) {
-  activeRuntime = attachSceneEventRuntime(attachTimelineScheduler(buildRuntimeSceneGraph(validatedSceneJson || {})));
+  activeRuntime = attachTimelineSynchronizationRuntime(
+    attachSceneEventRuntime(
+      attachTimelineScheduler(buildRuntimeSceneGraph(validatedSceneJson || {}))
+    )
+  );
   return activeRuntime;
 }
 
 export function loadScene(sceneJson = {}) {
   const validatedScene = processSceneJsonPipeline(sceneJson || {}, { sourceType: 'runtime' });
-  activeRuntime = attachSceneEventRuntime(attachTimelineScheduler(buildRuntimeSceneGraph(validatedScene)));
+  activeRuntime = attachTimelineSynchronizationRuntime(
+    attachSceneEventRuntime(
+      attachTimelineScheduler(buildRuntimeSceneGraph(validatedScene))
+    )
+  );
   activeRuntime.stateManager.setActiveAll();
   return activeRuntime;
 }
@@ -88,6 +123,8 @@ export function loadScene(sceneJson = {}) {
 export function destroyScene() {
   const runtime = ensureRuntime();
   runLifecycleCleanupForRuntime(runtime);
+  runtime.timelineSynchronizationRuntime?.persistSession?.();
+  runtime.timelineSynchronizationRuntime?.destroy?.();
   runtime.sceneEventRuntime?.destroy?.();
   runtime.stateManager.destroyAll();
   runtime.registry.destroy();
@@ -103,25 +140,27 @@ export function reloadScene(sceneJson = {}) {
 
 export function resetScene() {
   const runtime = ensureRuntime();
+  runtime.timelineSynchronizationRuntime?.synchronize?.('reset-before-state-manager');
   runtime.sceneEventRuntime?.reset?.();
   runtime.stateManager.resetAll();
   runtime.stateManager.initializeAll();
+  runtime.timelineSynchronizationRuntime?.synchronize?.('reset-after-state-manager');
   return runtime;
 }
 
 export function pauseScene() {
   const runtime = ensureRuntime();
-  runtime.timelineScheduler?.pause('scene-runtime');
-  runtime.sceneEventRuntime?.pause('scene-runtime');
+  runtime.timelineSynchronizationRuntime?.pause?.('scene-runtime');
   runtime.stateManager.pauseAll();
+  runtime.timelineSynchronizationRuntime?.synchronize?.('pause-scene-state-manager');
   return runtime;
 }
 
 export function resumeScene() {
   const runtime = ensureRuntime();
-  runtime.timelineScheduler?.resume('scene-runtime');
-  runtime.sceneEventRuntime?.resume('scene-runtime');
+  runtime.timelineSynchronizationRuntime?.resume?.('scene-runtime');
   runtime.stateManager.resumeAll();
+  runtime.timelineSynchronizationRuntime?.synchronize?.('resume-scene-state-manager');
   return runtime;
 }
 
@@ -131,6 +170,14 @@ export function getActiveTimelineScheduler() {
 
 export function getActiveSceneEventRuntime() {
   return ensureRuntime()?.sceneEventRuntime || null;
+}
+
+export function getActiveTimelineSynchronizationRuntime() {
+  return ensureRuntime()?.timelineSynchronizationRuntime || null;
+}
+
+export function getActiveSharedRuntimeState() {
+  return ensureRuntime()?.timelineSynchronizationRuntime?.getSharedState?.() || null;
 }
 
 export function getActiveRuntimeScene() {

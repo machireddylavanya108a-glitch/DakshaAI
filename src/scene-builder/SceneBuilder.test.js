@@ -15,7 +15,9 @@ import {
   setEducationalObjectLifecycleManager,
   getEducationalObjectLifecycleManager,
   getActiveTimelineScheduler,
-  getActiveSceneEventRuntime
+  getActiveSceneEventRuntime,
+  getActiveTimelineSynchronizationRuntime,
+  getActiveSharedRuntimeState
 } from './SceneRuntime.js';
 
 test('large scene builds runtime graph with relationships', () => {
@@ -277,4 +279,79 @@ test('scene event runtime dispatches unknown event types without code changes', 
 
   runtime.sceneEventRuntime.tick(1);
   assert.equal(seen, true);
+});
+
+test('scene runtime attaches timeline synchronization runtime', () => {
+  const runtime = loadScene({
+    title: 'Timeline Sync Runtime Scene',
+    timelineTracks: [
+      {
+        id: 'track-1',
+        name: 'Main',
+        purpose: 'generic',
+        enabled: true,
+        priority: 1,
+        clips: [{ id: 'clip-1', start: 0, end: 1000, duration: 1000, objects: [] }],
+        events: [{ id: 'event-1', type: 'custom', time: 200, targets: ['clip-1'] }],
+        markers: [{ id: 'marker-1', type: 'chapter', time: 0 }],
+        dependencies: [],
+        metadata: {}
+      }
+    ]
+  });
+
+  assert.ok(runtime.timelineSynchronizationRuntime);
+  assert.ok(runtime.timelineSynchronization);
+  assert.equal(typeof runtime.timelineSynchronizationRuntime.seekByTime, 'function');
+  assert.ok(getActiveTimelineSynchronizationRuntime());
+  assert.ok(getActiveSharedRuntimeState());
+  assert.ok(runtime.metadata.timelineSynchronization);
+  assert.ok(runtime.metadata.aiTeacherAdapter);
+  assert.ok(runtime.metadata.rendererAdapter.timelineState);
+  assert.ok(runtime.metadata.interactionEngine.timelineState);
+});
+
+test('timeline synchronization persists and recovers across runtime reload', () => {
+  const first = loadScene({
+    title: 'Timeline Sync Recover Scene',
+    timelineTracks: [
+      {
+        id: 'track-1',
+        name: 'Main',
+        purpose: 'generic',
+        enabled: true,
+        priority: 1,
+        clips: [{ id: 'clip-1', start: 0, end: 1000, duration: 1000, objects: [] }],
+        events: [{ id: 'event-1', type: 'custom', time: 200, targets: ['clip-1'] }],
+        markers: [{ id: 'marker-1', type: 'chapter', time: 0 }],
+        dependencies: [],
+        metadata: {}
+      }
+    ]
+  });
+
+  first.timelineSynchronizationRuntime.seekByTime(640);
+  first.timelineSynchronizationRuntime.persistSession();
+
+  const second = reloadScene({
+    title: 'Timeline Sync Recover Scene',
+    timelineTracks: [
+      {
+        id: 'track-1',
+        name: 'Main',
+        purpose: 'generic',
+        enabled: true,
+        priority: 1,
+        clips: [{ id: 'clip-1', start: 0, end: 1000, duration: 1000, objects: [] }],
+        events: [{ id: 'event-1', type: 'custom', time: 200, targets: ['clip-1'] }],
+        markers: [{ id: 'marker-1', type: 'chapter', time: 0 }],
+        dependencies: [],
+        metadata: {}
+      }
+    ]
+  });
+
+  const recoveredTime = second.timelineScheduler.clock.timeMs;
+  assert.equal(recoveredTime, 640);
+  assert.equal(second.timelineSynchronizationRuntime.getSharedState().session.recovered, true);
 });
