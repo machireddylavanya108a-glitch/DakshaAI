@@ -1,5 +1,8 @@
 import { getDefaultUniversalAssetRegistry } from '../asset-registry/index.js';
 import { analyzeUniversalAssetDiscoveryMatchingResolution } from '../asset-discovery/index.js';
+import { UniversalAssetSecurityManager } from './UniversalAssetSecurityManager.js';
+import { UniversalAssetOptimizationEngine } from './UniversalAssetOptimizationEngine.js';
+import { UniversalProceduralAssetGenerator } from './UniversalProceduralAssetGenerator.js';
 
 const STORE_KEY = '__daksha_universal_asset_loading_runtime_store__';
 const SCHEMA_VERSION = 'v1';
@@ -141,6 +144,10 @@ function normalizeLoadRequestProfile(request = {}) {
         lodLevel: safeString(value.lodLevel || 'medium') || 'medium',
         dependencies: asArray(value.dependencies),
         fallbackAssetIds: asArray(value.fallbackAssetIds),
+        format: safeString(value.format || value?.metadata?.format || ''),
+        checksum: safeString(value.checksum || value.hash || ''),
+        computedChecksum: safeString(value.computedChecksum || value.actualHash || ''),
+        corrupted: value.corrupted === true,
         metadata: isObject(value.metadata) ? value.metadata : {}
       };
     });
@@ -232,6 +239,9 @@ function normalizeRuntimeStateProfile(state = {}) {
       dependencyLoads: Math.max(0, toFiniteNumber(source?.metrics?.dependencyLoads, 0)),
       progressiveLoads: Math.max(0, toFiniteNumber(source?.metrics?.progressiveLoads, 0)),
       streamingLoads: Math.max(0, toFiniteNumber(source?.metrics?.streamingLoads, 0)),
+      optimizedAssets: Math.max(0, toFiniteNumber(source?.metrics?.optimizedAssets, 0)),
+      proceduralFallbacks: Math.max(0, toFiniteNumber(source?.metrics?.proceduralFallbacks, 0)),
+      securityRejects: Math.max(0, toFiniteNumber(source?.metrics?.securityRejects, 0)),
       disposals: Math.max(0, toFiniteNumber(source?.metrics?.disposals, 0)),
       gcRuns: Math.max(0, toFiniteNumber(source?.metrics?.gcRuns, 0))
     },
@@ -243,6 +253,15 @@ function normalizeRuntimeStateProfile(state = {}) {
       warnings: asArray(source?.diagnostics?.warnings),
       errors: asArray(source?.diagnostics?.errors),
       recoveries: Math.max(0, toFiniteNumber(source?.diagnostics?.recoveries, 0))
+    },
+    security: {
+      report: isObject(source?.security?.report) ? source.security.report : null
+    },
+    optimization: {
+      report: isObject(source?.optimization?.report) ? source.optimization.report : null
+    },
+    procedural: {
+      report: isObject(source?.procedural?.report) ? source.procedural.report : null
     },
     lastOperation: isObject(source.lastOperation) ? source.lastOperation : null
   };
@@ -277,9 +296,7 @@ function toCacheKey(candidate = {}) {
   const payload = JSON.stringify({
     assetId: safeString(candidate.assetId || candidate.id),
     version: safeString(candidate.version || 'latest') || 'latest',
-    type: safeString(candidate.type || 'unknown-asset-type') || 'unknown-asset-type',
-    lodLevel: safeString(candidate.lodLevel || 'medium') || 'medium',
-    qualityLevel: safeString(candidate.qualityLevel || 'medium') || 'medium'
+    type: safeString(candidate.type || 'unknown-asset-type') || 'unknown-asset-type'
   });
 
   return `asset-load-${hashKey(payload)}`;
@@ -319,6 +336,10 @@ function normalizeCandidate(entry = {}, index = 0) {
     lodLevel: safeString(source.lodLevel || 'medium') || 'medium',
     dependencies: asArray(source.dependencies),
     fallbackAssetIds: asArray(source.fallbackAssetIds),
+    format: safeString(source.format || source?.metadata?.format || ''),
+    checksum: safeString(source.checksum || source.hash || ''),
+    computedChecksum: safeString(source.computedChecksum || source.actualHash || ''),
+    corrupted: source.corrupted === true,
     metadata: isObject(source.metadata) ? source.metadata : {}
   };
 }
@@ -359,6 +380,9 @@ export class UniversalAssetLoadingRuntime {
     this.persistenceKey = safeString(this.options.persistenceKey) || DEFAULT_PERSISTENCE_KEY;
     this.diskCacheKey = safeString(this.options.diskCacheKey) || DEFAULT_DISK_CACHE_KEY;
     this.cachePolicy = normalizeCachePolicy(this.options.cachePolicy || runtime?.metadata?.assetLoading?.cachePolicy || {});
+    this.securityManager = this.options.securityManager || new UniversalAssetSecurityManager(this.options.securityOptions || {});
+    this.optimizationEngine = this.options.optimizationEngine || new UniversalAssetOptimizationEngine(this.options.optimizationOptions || {});
+    this.proceduralGenerator = this.options.proceduralGenerator || new UniversalProceduralAssetGenerator(this.options.proceduralOptions || {});
 
     this.listeners = createChannelSet();
     this.inflight = new Map();
@@ -397,6 +421,9 @@ export class UniversalAssetLoadingRuntime {
         dependencyLoads: 0,
         progressiveLoads: 0,
         streamingLoads: 0,
+        optimizedAssets: 0,
+        proceduralFallbacks: 0,
+        securityRejects: 0,
         disposals: 0,
         gcRuns: 0
       },
@@ -408,6 +435,15 @@ export class UniversalAssetLoadingRuntime {
         warnings: [],
         errors: [],
         recoveries: 0
+      },
+      security: {
+        report: null
+      },
+      optimization: {
+        report: null
+      },
+      procedural: {
+        report: null
       },
       lastOperation: null
     });
@@ -519,6 +555,49 @@ export class UniversalAssetLoadingRuntime {
     }
 
     return [];
+  }
+
+  validateCandidateSecurity(candidate = {}, requestProfile = {}) {
+    const report = this.securityManager.validate(candidate, {
+      runtimeVersion: 'v1',
+      registry: this.registry,
+      entries: this.entries,
+      inflight: this.inflight,
+      cacheKey: toCacheKey(candidate),
+      request: requestProfile
+    });
+
+    this.state.security.report = report.report;
+    if (!report.secure) {
+      this.state.metrics.securityRejects += 1;
+    }
+
+    return report;
+  }
+
+  optimizeCandidate(candidate = {}, requestProfile = {}) {
+    const optimization = this.optimizationEngine.optimize(candidate, {
+      request: requestProfile,
+      sceneGraph: requestProfile.sceneGraph,
+      runtimeGraph: requestProfile.runtimeGraph,
+      visualizationStrategy: this.runtime?.metadata?.visualizationStrategy || null
+    });
+
+    this.state.metrics.optimizedAssets += 1;
+    this.state.optimization.report = optimization.report;
+    return optimization.optimized;
+  }
+
+  generateProceduralCandidate(context = {}) {
+    const generated = this.proceduralGenerator.generate({
+      ...context,
+      learningIntent: this.runtime?.metadata?.assetDiscovery?.diagnostics?.learningIntent || {},
+      visualizationStrategy: this.runtime?.metadata?.visualizationStrategy || null
+    });
+
+    this.state.metrics.proceduralFallbacks += 1;
+    this.state.procedural.report = generated.report;
+    return normalizeCandidate(generated.generated);
   }
 
   resolveDependencies(candidate = {}, requestProfile = {}) {
@@ -700,6 +779,18 @@ export class UniversalAssetLoadingRuntime {
   }
 
   async loadCandidateWithRetry(candidate = {}, requestProfile = {}, context = {}) {
+    const secured = this.validateCandidateSecurity(candidate, requestProfile);
+    if (!secured.secure) {
+      return {
+        status: 'failed',
+        error: new Error('Security validation failed.'),
+        attempts: 0,
+        fallbackUsed: context.fallbackUsed === true,
+        candidate
+      };
+    }
+
+    const optimizedCandidate = this.optimizeCandidate(secured.candidate, requestProfile);
     const retries = Math.max(0, toFiniteNumber(requestProfile.maxRetries, 2));
     let attempt = 0;
     let lastError = null;
@@ -710,18 +801,35 @@ export class UniversalAssetLoadingRuntime {
           this.state.metrics.retries += 1;
         }
 
-        const payload = await this.runLoader(candidate, requestProfile, {
+        const payload = await this.runLoader(optimizedCandidate, requestProfile, {
           ...context,
           attempt
         });
 
-        const entry = this.storeAssetEntry(candidate, payload, requestProfile);
+        const postSecurity = this.securityManager.validate({
+          ...optimizedCandidate,
+          computedChecksum: payload?.checksum || payload?.hash || '',
+          corrupted: payload?.corrupted === true
+        }, {
+          runtimeVersion: 'v1',
+          registry: this.registry,
+          entries: this.entries,
+          inflight: this.inflight,
+          cacheKey: toCacheKey(optimizedCandidate),
+          request: requestProfile
+        });
+
+        if (!postSecurity.secure) {
+          throw new Error('Post-load security validation failed.');
+        }
+
+        const entry = this.storeAssetEntry(optimizedCandidate, payload, requestProfile);
         return {
           status: 'loaded',
           entry,
           attempts: attempt + 1,
           fallbackUsed: context.fallbackUsed === true,
-          candidate
+          candidate: optimizedCandidate
         };
       } catch (error) {
         lastError = error;
@@ -763,15 +871,10 @@ export class UniversalAssetLoadingRuntime {
       generated.push(normalizeCandidate(entry, index + generated.length));
     });
 
-    const procedural = buildProceduralCandidate({
-      assetId: `${candidate.assetId}-procedural-fallback`,
-      category: candidate.category,
-      qualityLevel: candidate.qualityLevel,
-      lodLevel: candidate.lodLevel,
-      metadata: {
-        fallbackReason: 'loader-failure',
-        originalAssetId: candidate.assetId
-      }
+    const procedural = this.generateProceduralCandidate({
+      candidate,
+      request: requestProfile,
+      reason: 'loader-failure'
     });
 
     generated.push(procedural);
@@ -863,9 +966,9 @@ export class UniversalAssetLoadingRuntime {
     const candidates = this.normalizeLoadCandidates(requestProfile);
 
     if (!candidates.length) {
-      const procedural = buildProceduralCandidate({
-        assetId: `${requestProfile.requestId}-procedural`,
-        category: 'Adaptive Visualization'
+      const procedural = this.generateProceduralCandidate({
+        request: requestProfile,
+        reason: 'no-candidate-available'
       });
       candidates.push(procedural);
     }
@@ -1245,6 +1348,9 @@ export class UniversalAssetLoadingRuntime {
     const payload = {
       schemaVersion: SCHEMA_VERSION,
       cachePolicy: this.cachePolicy,
+      securityManager: this.securityManager.snapshot(),
+      optimizationEngine: this.optimizationEngine.snapshot(),
+      proceduralGenerator: this.proceduralGenerator.snapshot(),
       entries: [...this.entries.values()].map((entry) => ({
         ...entry,
         payload: entry.cacheLayers?.persistentCache ? entry.payload : null
@@ -1297,6 +1403,10 @@ export class UniversalAssetLoadingRuntime {
 
     this.state = migrateRuntimeStateProfile(parsed.state || {});
     this.cachePolicy = normalizeCachePolicy(parsed.cachePolicy || this.cachePolicy);
+
+    this.securityManager.deserialize(parsed.securityManager || {});
+    this.optimizationEngine.deserialize(parsed.optimizationEngine || {});
+    this.proceduralGenerator.deserialize(parsed.proceduralGenerator || {});
 
     this.state.diagnostics.recoveries += 1;
     this.updateMemoryStats();
@@ -1396,6 +1506,15 @@ export class UniversalAssetLoadingRuntime {
   snapshot() {
     return normalizeRuntimeStateProfile({
       ...this.state,
+      security: {
+        report: this.securityManager.snapshot().lastReport || this.state?.security?.report || null
+      },
+      optimization: {
+        report: this.optimizationEngine.snapshot().lastReport || this.state?.optimization?.report || null
+      },
+      procedural: {
+        report: this.proceduralGenerator.snapshot().lastReport || this.state?.procedural?.report || null
+      },
       cachePolicy: this.cachePolicy,
       cacheStats: {
         ...this.state.cacheStats,

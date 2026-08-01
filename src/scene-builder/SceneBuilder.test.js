@@ -436,6 +436,9 @@ test('scene runtime attaches timeline synchronization runtime', () => {
   assert.ok(runtime.metadata.rendererAdapter.capabilityTemplateRecommendationState);
   assert.ok(runtime.metadata.rendererAdapter.confidenceConflictFallbackState);
   assert.ok(runtime.metadata.assetLoading);
+  assert.ok(runtime.metadata.assetLoading.security);
+  assert.ok(runtime.metadata.assetLoading.optimization);
+  assert.ok(runtime.metadata.assetLoading.procedural);
   assert.ok(runtime.metadata.rendererAdapter.assetLoadingState);
   assert.ok(runtime.metadata.aiTeacherAdapter.assetLoadingState);
   assert.ok(runtime.metadata.interactionEngine.assetLoadingState);
@@ -461,6 +464,9 @@ test('scene runtime attaches timeline synchronization runtime', () => {
   assert.ok(shared.capabilityTemplateRecommendation);
   assert.ok(shared.confidenceConflictFallback);
   assert.ok(shared.assetLoading);
+  assert.ok(shared.assetLoading.security);
+  assert.ok(shared.assetLoading.optimization);
+  assert.ok(shared.assetLoading.procedural);
   assert.ok(shared.adapters.aiTeacher.visualizationStrategyState);
   assert.ok(shared.adapters.aiTeacher.capabilityTemplateRecommendationState);
   assert.ok(shared.adapters.aiTeacher.confidenceConflictFallbackState);

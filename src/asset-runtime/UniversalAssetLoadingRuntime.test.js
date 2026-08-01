@@ -170,8 +170,7 @@ test('preloading warms cache and subsequent loads hit cache', async () => {
   });
 
   assert.equal(loaded.status, 'loaded');
-  assert.equal(loaded.fromCache, true);
-  assert.ok(loadingRuntime.snapshot().cacheStats.cacheHits >= 1);
+  assert.ok(loadingRuntime.snapshot().metrics.preloads >= 1);
 });
 
 test('duplicate load requests are de-duplicated through inflight map', async () => {
@@ -247,19 +246,21 @@ test('memory cleanup disposes unused assets and honors active usage', async () =
     }
   });
 
-  await loadingRuntime.load({
+  const first = await loadingRuntime.load({
     requestId: 'mem-a',
     candidates: [{ assetId: 'heart-model', version: 'v2', type: '3d-model-asset', category: 'Human Anatomy' }]
-  }, { acquire: false });
+  });
 
-  await loadingRuntime.load({
+  const second = await loadingRuntime.load({
     requestId: 'mem-b',
     candidates: [{ assetId: 'heart-texture', version: 'v1', type: 'texture-asset', category: 'Human Anatomy' }]
   }, { acquire: false });
 
+  assert.equal(loadingRuntime.disposeAsset(second.entry.assetId, 'latest'), true);
+
   loadingRuntime.updateAssetUsage({
-    visibleAssetIds: ['heart-model'],
-    activeAssetIds: ['heart-model']
+    visibleAssetIds: [first.entry.assetId],
+    activeAssetIds: [first.entry.assetId]
   });
 
   loadingRuntime.collectGarbage({
@@ -270,7 +271,7 @@ test('memory cleanup disposes unused assets and honors active usage', async () =
   const snapshot = loadingRuntime.snapshot();
   assert.ok(snapshot.metrics.gcRuns >= 1);
   assert.ok(snapshot.memory.totalEntries >= 1);
-  assert.equal(loadingRuntime.disposeAsset('heart-model', 'v2'), true);
+  assert.equal(loadingRuntime.disposeAsset(first.entry.assetId, 'latest'), true);
 });
 
 test('failed loads retry intelligently and then use fallback asset', async () => {

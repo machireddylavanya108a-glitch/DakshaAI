@@ -310,12 +310,48 @@ function resolveAssetLoadingMetadata(scene = {}) {
     idleDisposeMs: Number(source?.cachePolicy?.idleDisposeMs || 10 * 60 * 1000)
   };
 
+  const securityPolicy = {
+    schemaVersion: 'v1',
+    strictMode: source?.securityPolicy?.strictMode === true,
+    blockedFormats: Array.isArray(source?.securityPolicy?.blockedFormats) ? source.securityPolicy.blockedFormats : [],
+    metadataRequiredFields: Array.isArray(source?.securityPolicy?.metadataRequiredFields)
+      ? source.securityPolicy.metadataRequiredFields
+      : ['name']
+  };
+
+  const optimizationProfile = {
+    schemaVersion: 'v1',
+    qualityProfile: String(source?.optimizationProfile?.qualityProfile || 'balanced'),
+    adaptiveLoading: source?.optimizationProfile?.adaptiveLoading !== false,
+    progressive: source?.optimizationProfile?.progressive !== false,
+    compressionLevel: String(source?.optimizationProfile?.compressionLevel || 'balanced')
+  };
+
+  const proceduralFallbackProfile = {
+    schemaVersion: 'v1',
+    strategy: String(source?.proceduralFallbackProfile?.strategy || 'adaptive-procedural'),
+    enabled: source?.proceduralFallbackProfile?.enabled !== false,
+    fallbackFamilies: Array.isArray(source?.proceduralFallbackProfile?.fallbackFamilies)
+      ? source.proceduralFallbackProfile.fallbackFamilies
+      : [
+        'procedural-geometry',
+        'primitive-objects',
+        'generated-diagram',
+        'symbolic-educational-object',
+        'adaptive-placeholder',
+        'future-procedural-asset-type'
+      ]
+  };
+
   return {
     profile: {
       schemaVersion: String(source?.schemaVersion || 'v1'),
       status: String(source?.status || 'ready'),
       requests,
       cachePolicy,
+      securityPolicy,
+      optimizationProfile,
+      proceduralFallbackProfile,
       diagnostics: source?.diagnostics || {},
       metadata: {
         ...(source?.metadata || {}),
@@ -330,7 +366,9 @@ function resolveAssetLoadingMetadata(scene = {}) {
       requestCount: requests.length,
       primaryAssetId: requests[0]?.candidates?.[0]?.assetId || null,
       preloadCount: requests.filter((entry) => entry?.preload === true).length,
-      backgroundCount: requests.filter((entry) => entry?.background === true).length
+      backgroundCount: requests.filter((entry) => entry?.background === true).length,
+      strictSecurityEnabled: securityPolicy.strictMode === true,
+      proceduralFallbackEnabled: proceduralFallbackProfile.enabled !== false
     }
   };
 }
@@ -1050,7 +1088,9 @@ export function buildRuntimeSceneGraph(validatedSceneJson = {}) {
         requestCount: assetLoadingMetadata.summary.requestCount,
         preloadCount: assetLoadingMetadata.summary.preloadCount,
         backgroundCount: assetLoadingMetadata.summary.backgroundCount,
-        primaryAssetId: assetLoadingMetadata.summary.primaryAssetId
+        primaryAssetId: assetLoadingMetadata.summary.primaryAssetId,
+        strictSecurityEnabled: assetLoadingMetadata.summary.strictSecurityEnabled,
+        proceduralFallbackEnabled: assetLoadingMetadata.summary.proceduralFallbackEnabled
       }
     };
     registry.update(rootNode.id, rootNode);
