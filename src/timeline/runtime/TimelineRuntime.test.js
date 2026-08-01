@@ -809,6 +809,32 @@ test('84 synchronization runtime updates shared adapter state', () => {
         diagnostics: {},
         metadata: {}
       },
+      confidenceConflictFallback: {
+        schemaVersion: 'v2',
+        overallConfidence: 0.55,
+        reasoningConfidence: 0.6,
+        visualizationConfidence: 0.58,
+        templateConfidence: 0.52,
+        interactionConfidence: 0.5,
+        narrationConfidence: 0.54,
+        recoveryConfidence: 0.63,
+        additionalConfidenceMetrics: [],
+        conflicts: [],
+        conflictResolution: {
+          resolutions: [],
+          unresolved: [],
+          allResolved: true
+        },
+        fallbackPlan: {
+          recommended: false,
+          reason: 'confidence-acceptable',
+          actions: [],
+          preserveLearningQuality: true,
+          supportsUnknownFutureFallbackModes: true
+        },
+        diagnostics: {},
+        metadata: {}
+      },
       timeline: {
         timelineId: 'runtime-timeline-1',
         version: 'v2',
@@ -851,6 +877,10 @@ test('84 synchronization runtime updates shared adapter state', () => {
   assert.equal(state.adapters.aiTeacher.capabilityTemplateRecommendationState.schemaVersion, 'v2');
   assert.equal(state.adapters.rendererAdapter.capabilityTemplateRecommendationState.schemaVersion, 'v2');
   assert.equal(state.adapters.interactionEngine.capabilityTemplateRecommendationState.schemaVersion, 'v2');
+  assert.equal(state.confidenceConflictFallback.schemaVersion, 'v2');
+  assert.equal(state.adapters.aiTeacher.confidenceConflictFallbackState.schemaVersion, 'v2');
+  assert.equal(state.adapters.rendererAdapter.confidenceConflictFallbackState.schemaVersion, 'v2');
+  assert.equal(state.adapters.interactionEngine.confidenceConflictFallbackState.schemaVersion, 'v2');
 });
 
 test('85 synchronization runtime persists and recovers shared session', () => {

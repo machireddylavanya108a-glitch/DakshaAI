@@ -6,6 +6,7 @@ import { analyzeUniversalLearningIntent } from '../intent-analysis/index.js';
 import { analyzeVisualizationStrategy } from '../visualization-strategy/index.js';
 import { normalizeVisualizationStrategyProfile } from '../visualization-strategy/index.js';
 import { analyzeCapabilityTemplateRecommendation } from '../recommendation/index.js';
+import { analyzeUniversalConfidenceConflictFallback } from '../confidence-fallback/index.js';
 import {
   normalizeVisionOutput,
   deriveDeterministicCounts,
@@ -442,6 +443,7 @@ export function buildUniversalLearningArtifacts({ sourceMeta, sourceModel, learn
     sourceMeta?.visualizationStrategy || learningSession?.visualizationStrategy || {}
   );
   const capabilityTemplateRecommendation = sourceMeta?.capabilityTemplateRecommendation || null;
+  const confidenceConflictFallback = sourceMeta?.confidenceConflictFallback || null;
 
   const aiTeacher = {
     ...learningSession?.aiTeacher,
@@ -485,6 +487,7 @@ export function buildUniversalLearningArtifacts({ sourceMeta, sourceModel, learn
     detections,
     visualizationStrategy,
     capabilityTemplateRecommendation,
+    confidenceConflictFallback,
     aiTeacher,
     lesson3d: {
       topic: sourceMeta?.subject || learningSession?.title || 'Universal lesson',
@@ -636,6 +639,35 @@ export async function runUniversalLearningPipeline({
     examples: [],
     interactions: []
   });
+  const confidenceConflictFallback = analyzeUniversalConfidenceConflictFallback({
+    learningIntent: intentProfile,
+    visualizationStrategy,
+    templateRecommendation: capabilityTemplateRecommendation,
+    sceneGraph: {
+      nodeCount: 0,
+      relationshipCount: 0
+    },
+    timeline: [],
+    runtimeGraph: {
+      nodeCount: 0,
+      relationshipCount: 0
+    },
+    aiConfidenceMetadata: {
+      confidence: Number(intentProfile?.confidenceScore || 0.5),
+      overallConfidence: Number(intentProfile?.confidenceScore || 0.5),
+      metrics: {
+        intentConfidence: Number(intentProfile?.confidenceScore || 0.5),
+        strategyConfidence: Number(visualizationStrategy?.confidenceScore || 0.5),
+        templateConfidence: Number(capabilityTemplateRecommendation?.confidenceScore || 0.5)
+      }
+    },
+    scene: {
+      title: normalizedContent.topicResolution.title || normalizedName,
+      subject: normalizedContent.topicResolution.subject || normalizedContent.subject,
+      timeline: [],
+      objects: []
+    }
+  });
 
   const sourceModel = buildSourceModel({
     sourceName: normalizedName,
@@ -665,6 +697,7 @@ export async function runUniversalLearningPipeline({
     intentProfile,
     visualizationStrategy,
     capabilityTemplateRecommendation,
+    confidenceConflictFallback,
     detectDiagrams: detections.hasDiagrams,
     detectFormulas: detections.hasFormulas,
     detectTables: detections.hasTables,
@@ -711,6 +744,7 @@ export async function runUniversalLearningPipeline({
       intentPathway: intentProfile.learningPathway,
       visualizationStrategy,
       capabilityTemplateRecommendation,
+      confidenceConflictFallback,
       chapters: intelligenceProfile?.chapters || [],
       topics: normalizedContent.topicResolution.subtopics || intelligenceProfile?.topics || [],
       subtopics: normalizedContent.topicResolution.subtopics || intelligenceProfile?.subtopics || [],

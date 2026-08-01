@@ -132,6 +132,9 @@ test('successful structured AI scene response', async () => {
   assert.ok(result.scene?.metadata?.visualizationStrategy?.primaryStrategy);
   assert.ok(result.scene?.metadata?.capabilityTemplateRecommendation);
   assert.equal(typeof result.scene?.metadata?.capabilityTemplateRecommendation?.confidenceScore, 'number');
+  assert.ok(result.scene?.metadata?.confidenceConflictFallback);
+  assert.equal(typeof result.scene?.metadata?.confidenceConflictFallback?.overallConfidence, 'number');
+  assert.ok(result.scene?.metadata?.adaptiveFallbackDecision);
   assert.ok(result.runtimeGraph?.nodes?.length >= 1);
   assert.ok(result.rendererPayload?.objects?.length >= 1);
 });

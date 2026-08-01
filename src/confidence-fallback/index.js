@@ -1,0 +1,7 @@
+export {
+  UniversalConfidenceConflictAdaptiveFallbackEngine,
+  createUniversalConfidenceConflictAdaptiveFallbackEngine,
+  analyzeUniversalConfidenceConflictFallback,
+  normalizeConfidenceConflictFallbackProfile,
+  migrateConfidenceConflictFallbackProfile
+} from './UniversalConfidenceConflictAdaptiveFallbackEngine.js';

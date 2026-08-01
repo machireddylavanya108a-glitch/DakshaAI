@@ -36,6 +36,32 @@ test('buildUniversalLearningArtifacts returns the full learning suite', () => {
         },
         diagnostics: {},
         metadata: {}
+      },
+      confidenceConflictFallback: {
+        schemaVersion: 'v2',
+        overallConfidence: 0.6,
+        reasoningConfidence: 0.6,
+        visualizationConfidence: 0.6,
+        templateConfidence: 0.6,
+        interactionConfidence: 0.6,
+        narrationConfidence: 0.6,
+        recoveryConfidence: 0.6,
+        additionalConfidenceMetrics: [],
+        conflicts: [],
+        conflictResolution: {
+          resolutions: [],
+          unresolved: [],
+          allResolved: true
+        },
+        fallbackPlan: {
+          recommended: false,
+          reason: 'confidence-acceptable',
+          actions: [],
+          preserveLearningQuality: true,
+          supportsUnknownFutureFallbackModes: true
+        },
+        diagnostics: {},
+        metadata: {}
       }
     },
     sourceModel: {
@@ -86,5 +112,7 @@ test('buildUniversalLearningArtifacts returns the full learning suite', () => {
   assert.ok(Array.isArray(suite.visualizationStrategy.strategies));
   assert.ok(suite.capabilityTemplateRecommendation);
   assert.equal(suite.capabilityTemplateRecommendation.schemaVersion, 'v2');
+  assert.ok(suite.confidenceConflictFallback);
+  assert.equal(suite.confidenceConflictFallback.schemaVersion, 'v2');
   assert.ok(suite.aiTeacher.narrationStrategy);
 });

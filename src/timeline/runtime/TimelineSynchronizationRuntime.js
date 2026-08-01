@@ -188,6 +188,7 @@ export class TimelineSynchronizationRuntime {
     const accessibilityRecoveryState = this.accessibilityStateRecoveryRuntime?.snapshot?.() || this.runtime?.metadata?.accessibilityRecovery || null;
     const visualizationStrategyState = this.runtime?.metadata?.visualizationStrategy || null;
     const capabilityTemplateRecommendationState = this.runtime?.metadata?.capabilityTemplateRecommendation || null;
+    const confidenceConflictFallbackState = this.runtime?.metadata?.confidenceConflictFallback || null;
     const previousSession = this.sharedState?.session || {
       persistenceKey: this.persistenceKey,
       recovered: false,
@@ -216,6 +217,7 @@ export class TimelineSynchronizationRuntime {
       accessibilityRecovery: accessibilityRecoveryState,
       visualizationStrategy: visualizationStrategyState,
       capabilityTemplateRecommendation: capabilityTemplateRecommendationState,
+      confidenceConflictFallback: confidenceConflictFallbackState,
       playback,
       sceneGraph: {
         nodeCount: graphSummary.nodeCount,
@@ -243,6 +245,7 @@ export class TimelineSynchronizationRuntime {
           accessibilityRecoveryState,
           visualizationStrategyState,
           capabilityTemplateRecommendationState,
+          confidenceConflictFallbackState,
           updatedAt: Date.now()
         },
         rendererAdapter: {
@@ -261,6 +264,7 @@ export class TimelineSynchronizationRuntime {
           accessibilityRecoveryState,
           visualizationStrategyState,
           capabilityTemplateRecommendationState,
+          confidenceConflictFallbackState,
           updatedAt: Date.now()
         },
         interactionEngine: {
@@ -278,6 +282,7 @@ export class TimelineSynchronizationRuntime {
           accessibilityRecoveryState,
           visualizationStrategyState,
           capabilityTemplateRecommendationState,
+          confidenceConflictFallbackState,
           updatedAt: Date.now()
         }
       },
@@ -466,7 +471,8 @@ export class TimelineSynchronizationRuntime {
         educationalInspectionState: this.sharedState.educationalInspection,
         accessibilityRecoveryState: this.sharedState.accessibilityRecovery,
         visualizationStrategyState: this.sharedState.visualizationStrategy,
-        capabilityTemplateRecommendationState: this.sharedState.capabilityTemplateRecommendation
+        capabilityTemplateRecommendationState: this.sharedState.capabilityTemplateRecommendation,
+        confidenceConflictFallbackState: this.sharedState.confidenceConflictFallback
       },
       interactionContract: {
         ...(this.runtime.metadata?.interactionContract || {}),
@@ -487,6 +493,8 @@ export class TimelineSynchronizationRuntime {
       visualizationStrategy: this.sharedState.visualizationStrategy || this.runtime.metadata?.visualizationStrategy || null,
       capabilityTemplateRecommendation:
         this.sharedState.capabilityTemplateRecommendation || this.runtime.metadata?.capabilityTemplateRecommendation || null,
+      confidenceConflictFallback:
+        this.sharedState.confidenceConflictFallback || this.runtime.metadata?.confidenceConflictFallback || null,
       rendererAdapter: {
         ...(this.runtime.metadata?.rendererAdapter || {}),
         timelineState: this.sharedState.adapters.rendererAdapter,
@@ -494,7 +502,8 @@ export class TimelineSynchronizationRuntime {
         educationalInspectionState: this.sharedState.educationalInspection,
         accessibilityRecoveryState: this.sharedState.accessibilityRecovery,
         visualizationStrategyState: this.sharedState.visualizationStrategy,
-        capabilityTemplateRecommendationState: this.sharedState.capabilityTemplateRecommendation
+        capabilityTemplateRecommendationState: this.sharedState.capabilityTemplateRecommendation,
+        confidenceConflictFallbackState: this.sharedState.confidenceConflictFallback
       },
       aiTeacherAdapter: {
         ...(this.runtime.metadata?.aiTeacherAdapter || {}),
@@ -503,7 +512,8 @@ export class TimelineSynchronizationRuntime {
         educationalInspectionState: this.sharedState.educationalInspection,
         accessibilityRecoveryState: this.sharedState.accessibilityRecovery,
         visualizationStrategyState: this.sharedState.visualizationStrategy,
-        capabilityTemplateRecommendationState: this.sharedState.capabilityTemplateRecommendation
+        capabilityTemplateRecommendationState: this.sharedState.capabilityTemplateRecommendation,
+        confidenceConflictFallbackState: this.sharedState.confidenceConflictFallback
       }
     };
 

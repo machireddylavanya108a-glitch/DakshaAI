@@ -26,6 +26,7 @@ import { SceneGenerationError, toSceneGenerationError } from './SceneGenerationE
 import { resolveVisualizationCapabilities } from '../visualization-capabilities/index.js';
 import { analyzeVisualizationStrategy, normalizeVisualizationStrategyProfile } from '../visualization-strategy/index.js';
 import { analyzeCapabilityTemplateRecommendation } from '../recommendation/index.js';
+import { analyzeUniversalConfidenceConflictFallback } from '../confidence-fallback/index.js';
 import {
   generateVisualizationTemplate,
   selectVisualizationTemplate
@@ -532,6 +533,54 @@ function summarizeTemplateGeneration(generation = {}) {
   };
 }
 
+function buildAiConfidenceMetadata(scene = {}, selection = {}, recommendation = {}) {
+  const sceneConfidence = Number(scene?.metadata?.confidence || scene?.classification?.confidence || 0);
+  const selectionConfidence = Number(selection?.confidence || 0);
+  const recommendationConfidence = Number(recommendation?.confidenceScore || 0);
+  const aggregate = (sceneConfidence * 0.34) + (selectionConfidence * 0.33) + (recommendationConfidence * 0.33);
+
+  return {
+    confidence: aggregate,
+    overallConfidence: aggregate,
+    metrics: {
+      sceneConfidence,
+      selectionConfidence,
+      recommendationConfidence
+    },
+    conflicts: []
+  };
+}
+
+function applyAdaptiveFallbackActions(scene = {}, profile = {}) {
+  const actions = new Set(Array.isArray(profile?.fallbackPlan?.actions) ? profile.fallbackPlan.actions : []);
+  const next = {
+    ...scene,
+    classification: {
+      ...(scene?.classification || {})
+    },
+    metadata: {
+      ...(scene?.metadata || {})
+    }
+  };
+
+  if (actions.has('downgrade-visualization-complexity')) {
+    next.classification.sceneComplexity = 'low';
+    next.metadata.fallbackVisualizationComplexity = 'low';
+  }
+
+  if (actions.has('switch-adaptive-2d-visualization')) {
+    next.classification.renderMode = 'abstract';
+    next.metadata.visualizationMode = 'adaptive-2d';
+    next.metadata.visualizationFallbackMode = '2d-adaptive';
+  }
+
+  if (actions.has('switch-procedural-generation')) {
+    next.metadata.forceProceduralGeneration = true;
+  }
+
+  return next;
+}
+
 async function attachVisualizationCapabilityMetadata(scene, normalizedInput, config, options = {}) {
   if (!scene || typeof scene !== 'object') return scene;
 
@@ -622,21 +671,69 @@ async function attachVisualizationCapabilityMetadata(scene, normalizedInput, con
     maxResults: options.maxTemplateResults ?? 8
   });
 
+  const preObjectConfidenceProfile = analyzeUniversalConfidenceConflictFallback({
+    learningIntent: normalizedInput.classification?.intentProfile || normalizedInput.metadata?.intentProfile || null,
+    visualizationStrategy: normalizedInput.visualizationStrategy,
+    templateRecommendation: recommendation,
+    sceneGraph: {
+      sceneId: scene.sceneId,
+      nodeCount: Array.isArray(scene.objects) ? scene.objects.length : 0,
+      relationshipCount: Array.isArray(scene.relationships) ? scene.relationships.length : 0
+    },
+    timeline: scene.timeline || [],
+    runtimeGraph: {
+      nodeCount: Array.isArray(scene.objects) ? scene.objects.length : 0,
+      relationshipCount: Array.isArray(scene.relationships) ? scene.relationships.length : 0
+    },
+    aiConfidenceMetadata: buildAiConfidenceMetadata(scene, selection, recommendation),
+    scene
+  }, {
+    minimumConfidenceThreshold: options.minimumConfidenceThreshold ?? 0.45
+  });
+
+  const recommendedFallbackActions = Array.isArray(preObjectConfidenceProfile?.fallbackPlan?.actions)
+    ? preObjectConfidenceProfile.fallbackPlan.actions
+    : [];
+
   const generationDecision = shouldGenerateTemplateFromRecommendation(selection, recommendation, options);
+  const shouldForceGenerationFromConfidence = recommendedFallbackActions.includes('switch-procedural-generation')
+    || recommendedFallbackActions.includes('retry-pipeline');
+
+  const adaptedScene = applyAdaptiveFallbackActions(scene, preObjectConfidenceProfile);
+  const adaptedTemplateContext = {
+    ...templateContext,
+    metadata: {
+      ...(templateContext.metadata || {}),
+      confidenceConflictFallback: preObjectConfidenceProfile
+    }
+  };
+
   let generated = null;
 
-  if (generationDecision.generate) {
+  if (generationDecision.generate || shouldForceGenerationFromConfidence) {
+    const alternateTemplate = recommendedFallbackActions.includes('select-alternate-template')
+      ? recommendation?.recommendedTemplates?.[1] || recommendation?.recommendedTemplates?.[0] || null
+      : null;
+
+    const alternateSelectedTemplate = alternateTemplate
+      ? {
+        ...(selection.selectedTemplate || {}),
+        templateId: alternateTemplate.templateId || selection?.selectedTemplate?.templateId,
+        version: alternateTemplate.version || selection?.selectedTemplate?.version
+      }
+      : selection.selectedTemplate;
+
     generated = await generateVisualizationTemplate({
-      ...templateContext,
-      preferredTemplate: selection.selectedTemplate,
+      ...adaptedTemplateContext,
+      preferredTemplate: alternateSelectedTemplate,
       failedTemplateSelection: selection,
       metadata: {
-        ...(templateContext.metadata || {}),
+        ...(adaptedTemplateContext.metadata || {}),
         confidence: Number(selection.confidence || 0.6)
       }
     }, {
       signal: options.signal,
-      forceGenerate: options.forceTemplateGeneration === true,
+      forceGenerate: options.forceTemplateGeneration === true || shouldForceGenerationFromConfidence,
       useCache: options.useTemplateGenerationCache !== false,
       registerGeneratedTemplate: options.registerGeneratedTemplate !== false,
       qualityThreshold: options.minimumTemplateQuality ?? 65,
@@ -666,7 +763,10 @@ async function attachVisualizationCapabilityMetadata(scene, normalizedInput, con
       topic: normalizedInput.topic,
       content: normalizedInput.content
     },
-    classification: normalizedInput.classification,
+    classification: {
+      ...(normalizedInput.classification || {}),
+      sceneComplexity: adaptedScene?.classification?.sceneComplexity || normalizedInput?.classification?.sceneComplexity
+    },
     visualizationRequirements: resolved.visualizationRequirements,
     selectedCapabilities: resolved.selectedCapabilities,
     capabilityComposition: resolved.capabilityComposition,
@@ -694,7 +794,10 @@ async function attachVisualizationCapabilityMetadata(scene, normalizedInput, con
         maxTemplateComplexity: Number(options.maxTemplateComplexity || 80)
       }
     },
-    metadata: scene.metadata || {}
+    metadata: {
+      ...(adaptedScene.metadata || scene.metadata || {}),
+      confidenceConflictFallback: preObjectConfidenceProfile
+    }
   }, {
     signal: options.signal,
     useCache: options.useObjectGenerationCache !== false,
@@ -707,12 +810,35 @@ async function attachVisualizationCapabilityMetadata(scene, normalizedInput, con
     fallbackEnabled: options.objectFallbackEnabled !== false
   });
 
+  const finalConfidenceProfile = analyzeUniversalConfidenceConflictFallback({
+    learningIntent: normalizedInput.classification?.intentProfile || normalizedInput.metadata?.intentProfile || null,
+    visualizationStrategy: normalizedInput.visualizationStrategy,
+    templateRecommendation: recommendation,
+    sceneGraph: {
+      sceneId: adaptedScene.sceneId,
+      nodeCount: Array.isArray(adaptedScene.objects) ? adaptedScene.objects.length : 0,
+      relationshipCount: Array.isArray(adaptedScene.relationships) ? adaptedScene.relationships.length : 0
+    },
+    timeline: adaptedScene.timeline || [],
+    runtimeGraph: {
+      nodeCount: Array.isArray(adaptedScene.objects) ? adaptedScene.objects.length : 0,
+      relationshipCount: Array.isArray(adaptedScene.relationships) ? adaptedScene.relationships.length : 0
+    },
+    aiConfidenceMetadata: buildAiConfidenceMetadata(adaptedScene, selection, recommendation),
+    scene: {
+      ...adaptedScene,
+      educationalObjects: objectGeneration.objects || adaptedScene.educationalObjects || []
+    }
+  }, {
+    minimumConfidenceThreshold: options.minimumConfidenceThreshold ?? 0.45
+  });
+
   return {
-    ...scene,
+    ...adaptedScene,
     educationalObjects: objectGeneration.objects || scene.educationalObjects || [],
     educationalObjectInstances: objectGeneration.objectInstances || scene.educationalObjectInstances || [],
     metadata: {
-      ...(scene.metadata && typeof scene.metadata === 'object' ? scene.metadata : {}),
+      ...(adaptedScene.metadata && typeof adaptedScene.metadata === 'object' ? adaptedScene.metadata : {}),
       visualizationStrategy: normalizedInput.visualizationStrategy,
       visualizationCapabilities: {
         visualizationRequirements: resolved.visualizationRequirements,
@@ -726,6 +852,7 @@ async function attachVisualizationCapabilityMetadata(scene, normalizedInput, con
       templateSelection: summarizeTemplateSelection(selection),
       capabilityTemplateRecommendation: summarizeCapabilityTemplateRecommendation(recommendation),
       templateGeneration: generated ? summarizeTemplateGeneration(generated) : null,
+      confidenceConflictFallback: finalConfidenceProfile,
       selectedTemplate: selectedTemplate,
       selectedTemplateInstance: selectedTemplateInstance,
       templateComposition: selectedComposition,
@@ -736,6 +863,13 @@ async function attachVisualizationCapabilityMetadata(scene, normalizedInput, con
       recommendationDrivenDecision: {
         ...generationDecision,
         confidenceScore: Number(recommendation?.confidenceScore || 0)
+      },
+      adaptiveFallbackDecision: {
+        reason: finalConfidenceProfile?.fallbackPlan?.reason || preObjectConfidenceProfile?.fallbackPlan?.reason || 'confidence-acceptable',
+        actions: finalConfidenceProfile?.fallbackPlan?.actions || preObjectConfidenceProfile?.fallbackPlan?.actions || [],
+        overallConfidence: Number(finalConfidenceProfile?.overallConfidence || preObjectConfidenceProfile?.overallConfidence || 0),
+        minimumConfidenceThreshold: Number(options.minimumConfidenceThreshold ?? 0.45),
+        preserveLearningQuality: finalConfidenceProfile?.fallbackPlan?.preserveLearningQuality !== false
       },
       generatedEducationalObjects: objectGeneration.objects || [],
       educationalObjectGeneration: {
