@@ -2,6 +2,7 @@ import { createAssetManager } from './assetManager.js';
 import { buildAnimationPlan, buildAutoAnimationState } from './aiAnimationEngine.js';
 import { processSceneJsonPipeline } from '../scene-generator/SceneVersionManager.js';
 import { loadScene } from '../scene-builder/SceneRuntime.js';
+import { analyzeUniversalLearningIntent } from '../intent-analysis/index.js';
 
 const STOP_WORDS = new Set([
   'a', 'an', 'the', 'and', 'or', 'to', 'of', 'for', 'on', 'in', 'with', 'from', 'by', 'at', 'as', 'into', 'about',
@@ -225,22 +226,33 @@ export function classifyUniversalSubject(content = '', sourceType = 'typed-topic
     return buildClassificationFallback();
   }
 
+  const intent = analyzeUniversalLearningIntent({
+    sourceType,
+    content: normalizedContent
+  });
+
   const semanticAnchor = topTerms.slice(0, 2).join(' ');
-  const inferredDomain = topAsset?.category
-    ? toTitleCase(topAsset.category)
-    : topTerms[0]
-      ? toTitleCase(topTerms[0])
-      : 'Custom';
+  const inferredDomain = intent.knowledgeDomain
+    ? toTitleCase(intent.knowledgeDomain)
+    : topAsset?.category
+      ? toTitleCase(topAsset.category)
+      : topTerms[0]
+        ? toTitleCase(topTerms[0])
+        : 'Custom';
 
-  const inferredSubDomain = topAsset?.name
-    ? toTitleCase(topAsset.name)
-    : semanticAnchor
-      ? toTitleCase(semanticAnchor)
-      : `${toTitleCase(sourceType || 'topic')} Focus`;
+  const inferredSubDomain = intent.subDomain
+    ? toTitleCase(intent.subDomain)
+    : topAsset?.name
+      ? toTitleCase(topAsset.name)
+      : semanticAnchor
+        ? toTitleCase(semanticAnchor)
+        : `${toTitleCase(sourceType || 'topic')} Focus`;
 
-  const visualization = deriveVisualizationStyle(topTerms, inferredSubDomain);
+  const visualization = intent.visualizationComplexity === 'high'
+    ? `${deriveVisualizationStyle(topTerms, inferredSubDomain)} Layered`
+    : deriveVisualizationStyle(topTerms, inferredSubDomain);
   const interactionCategory = deriveInteractionCategory(topTerms, inferredSubDomain);
-  const sceneComplexity = inferComplexity(normalizedContent, topTerms, rankedAssets);
+  const sceneComplexity = intent.interactionComplexity || inferComplexity(normalizedContent, topTerms, rankedAssets);
   const renderMode = deriveRenderMode(normalizedContent, rankedAssets);
   const objectCategory = inferredDomain === 'Custom' ? 'Dynamic' : inferredDomain;
 
@@ -253,7 +265,11 @@ export function classifyUniversalSubject(content = '', sourceType = 'typed-topic
     objectCategory,
     animationCategory: sceneComplexity === 'high' ? 'Layered Motion' : 'Guided Motion',
     interactionCategory,
-    interaction: interactionCategory
+    interaction: interactionCategory,
+    learningIntent: intent.learningIntent,
+    educationalStrategy: intent.educationalStrategy,
+    reasoningStyle: intent.reasoningStyle,
+    intentConfidence: intent.confidenceScore
   };
 }
 

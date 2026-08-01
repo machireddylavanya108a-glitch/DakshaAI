@@ -1,3 +1,5 @@
+import { analyzeUniversalLearningIntent } from '../intent-analysis/index.js';
+
 function safeString(value) {
   return String(value || '').trim();
 }
@@ -72,13 +74,12 @@ function extractConcepts(value = '') {
   return Array.from(new Set(words.map((word) => `${word[0].toUpperCase()}${word.slice(1).toLowerCase()}`))).slice(0, 8);
 }
 
-function inferSubjectFromConcepts(concepts = [], fallbackText = '') {
-  const joined = `${concepts.join(' ')} ${fallbackText}`.toLowerCase();
-  if (/education|learning|classroom|edtech/.test(joined)) return 'Education Technology';
-  if (/biology|anatomy|bioinformatics|genomics|medical/.test(joined)) return 'Biology';
-  if (/programming|software|algorithm|code|react|python/.test(joined)) return 'Computer Science';
-  if (/physics|chemistry|mathematics/.test(joined)) return 'STEM';
-  return 'General Learning';
+function inferSubjectFromConcepts(concepts = [], fallbackText = '', sourceType = 'text') {
+  const intent = analyzeUniversalLearningIntent({
+    sourceType,
+    content: `${concepts.join(' ')} ${fallbackText}`
+  });
+  return intent.knowledgeDomain || 'Open Knowledge Domain';
 }
 
 function inferLanguage(rawExtractedContent = '', detectedText = '') {
@@ -197,7 +198,7 @@ function buildTitleFromConcepts(concepts = [], subject = 'General Learning', raw
 export function resolveLearningTopic(content = {}) {
   const filename = cleanFilename(content.sourceName || content.filename || '');
   const concepts = Array.isArray(content.detectedConcepts) ? content.detectedConcepts : [];
-  const subject = safeString(content.subject) || inferSubjectFromConcepts(concepts, content.rawExtractedContent);
+  const subject = safeString(content.subject) || inferSubjectFromConcepts(concepts, content.rawExtractedContent, content.sourceType);
 
   const candidates = [];
   const concreteTitle = deriveSpecificTopicFromText(`${content.detectedText || ''} ${content.visualDescription || ''} ${content.rawExtractedContent || ''}`);
@@ -311,7 +312,7 @@ export function normalizeVisionOutput({
   const safeVisual = stripBase64(visualDescription || rawExtractedContent);
   const ocrText = stripBase64(detectedText || collectDetectedText(safeRaw));
   const detectedConcepts = extractConcepts(`${safeVisual}\n${ocrText}`);
-  const subject = inferSubjectFromConcepts(detectedConcepts, `${safeVisual} ${ocrText} ${sourceName}`);
+  const subject = inferSubjectFromConcepts(detectedConcepts, `${safeVisual} ${ocrText} ${sourceName}`, sourceType);
   const topicResolution = resolveLearningTopic({
     sourceName,
     sourceType,

@@ -2,6 +2,7 @@ import { getDakshaLessonPackage } from './aiService.js';
 import { buildContentIntelligenceProfile } from '../utils/contentIntelligenceEngine.js';
 import { buildKnowledgeGraph } from '../utils/knowledgeGraphEngine.js';
 import { normalizeInput } from '../utils/inputNormalization.js';
+import { analyzeUniversalLearningIntent } from '../intent-analysis/index.js';
 import {
   normalizeVisionOutput,
   deriveDeterministicCounts,
@@ -240,24 +241,6 @@ function detectLanguage(text = '') {
   if (/[\u0900-\u097F]/.test(text)) return 'Hindi';
   if (/[\u4E00-\u9FFF]/.test(text)) return 'Chinese';
   return 'English';
-}
-
-function detectSubject(text = '') {
-  const normalized = text.toLowerCase();
-  const subjectKeywords = [
-    ['Mathematics', /(equation|algebra|calculus|theorem|matrix|integral)/],
-    ['Physics', /(force|motion|energy|quantum|velocity|acceleration)/],
-    ['Chemistry', /(molecule|reaction|compound|acid|base|periodic)/],
-    ['Biology', /(cell|organism|genetics|anatomy|evolution|enzyme)/],
-    ['Computer Science', /(algorithm|function|class|database|network|code|programming)/],
-    ['Economics', /(market|inflation|gdp|demand|supply|fiscal)/],
-    ['Business', /(strategy|management|leadership|operations|revenue)/],
-    ['Medicine', /(diagnosis|treatment|patient|clinical|surgery)/],
-    ['Engineering', /(design|system|circuit|manufacturing|prototype)/]
-  ];
-
-  const matched = subjectKeywords.find(([, regex]) => regex.test(normalized));
-  return matched ? matched[0] : 'General Learning';
 }
 
 function detectDifficulty(text = '') {
@@ -598,6 +581,12 @@ export async function runUniversalLearningPipeline({
     sourceType,
     visionSummary: normalizedContent.visualDescription || extracted.visionSummary || ''
   });
+  const intentProfile = analyzeUniversalLearningIntent({
+    sourceType,
+    sourceName: normalizedName,
+    content: normalizedContent.detectedText || extracted.extractedText,
+    visualDescription: normalizedContent.visualDescription || extracted.visionSummary || ''
+  });
 
   const sourceModel = buildSourceModel({
     sourceName: normalizedName,
@@ -616,14 +605,15 @@ export async function runUniversalLearningPipeline({
   const metadata = {
     sourceType,
     sourceName: normalizedName,
-    language: normalizedContent.language || detectLanguage(sourceModel.extractedText),
-    subject: normalizedContent.subject || detectSubject(sourceModel.extractedText),
+    language: intentProfile.language || normalizedContent.language || detectLanguage(sourceModel.extractedText),
+    subject: intentProfile.knowledgeDomain || normalizedContent.subject,
     difficulty: normalizedContent.difficulty?.level || detectDifficulty(sourceModel.extractedText),
     difficultyScore: normalizedContent.difficulty?.score || 35,
     difficultyReason: normalizedContent.difficulty?.reason || '',
     contentClassification: normalizedContent.classification,
     contentPurpose: normalizedContent.contentPurpose,
     topic: normalizedContent.topic,
+    intentProfile,
     detectDiagrams: detections.hasDiagrams,
     detectFormulas: detections.hasFormulas,
     detectTables: detections.hasTables,
@@ -661,6 +651,13 @@ export async function runUniversalLearningPipeline({
       ...metadata,
       title: normalizedContent.topicResolution.title || intelligenceProfile?.title || metadata.sourceName,
       subject: normalizedContent.topicResolution.subject || intelligenceProfile?.subject || metadata.subject,
+      learningIntent: intentProfile.learningIntent,
+      knowledgeDomain: intentProfile.knowledgeDomain,
+      subDomain: intentProfile.subDomain,
+      educationalStrategy: intentProfile.educationalStrategy,
+      reasoningStyle: intentProfile.reasoningStyle,
+      intentConfidence: intentProfile.confidenceScore,
+      intentPathway: intentProfile.learningPathway,
       chapters: intelligenceProfile?.chapters || [],
       topics: normalizedContent.topicResolution.subtopics || intelligenceProfile?.topics || [],
       subtopics: normalizedContent.topicResolution.subtopics || intelligenceProfile?.subtopics || [],

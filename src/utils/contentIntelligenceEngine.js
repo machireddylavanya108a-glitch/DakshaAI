@@ -1,3 +1,5 @@
+import { analyzeUniversalLearningIntent } from '../intent-analysis/index.js';
+
 function normalizeText(value = '') {
   return String(value || '').trim().replace(/\s+/g, ' ');
 }
@@ -38,23 +40,6 @@ function detectLanguage(text = '') {
   if (/\b(telugu|తెలుగు|నేను|మీ)\b/.test(normalized)) return 'Telugu';
   if (/\b(chinese|中文|你|我们)\b/.test(normalized)) return 'Chinese';
   return 'English';
-}
-
-function detectSubject(text = '') {
-  const normalized = normalizeText(text).toLowerCase();
-  const rules = [
-    ['Biology', /(cell|organism|anatomy|photosynthesis|gene|dna|plant|animal|biology)/],
-    ['Chemistry', /(molecule|reaction|compound|acid|base|periodic|chemistry)/],
-    ['Physics', /(force|motion|energy|velocity|acceleration|quantum|physics)/],
-    ['Computer Science', /(algorithm|programming|code|function|class|database|network|computer)/],
-    ['Mathematics', /(equation|integral|derivative|matrix|geometry|algebra|theorem)/],
-    ['History', /(history|war|empire|civilization|timeline)/],
-    ['Business', /(market|strategy|revenue|management|leadership|business)/],
-    ['Medicine', /(surgery|patient|diagnosis|medical|clinical)/],
-    ['Engineering', /(circuit|prototype|design|engineering|system)/]
-  ];
-  const match = rules.find(([, regex]) => regex.test(normalized));
-  return match ? match[0] : 'General Learning';
 }
 
 function detectDifficulty(text = '') {
@@ -121,13 +106,20 @@ export function buildContentIntelligenceProfile({ sourceText = '', sourceName = 
   const hasUsefulText = Boolean(cleanedText && cleanedText.length >= 20 && !weakSignal.test(cleanedText.toLowerCase()));
   const isWeakContent = !hasUsefulText || (sourceType === 'image' && !cleanedText && /screenshot|image|photo/i.test(safeName));
 
+  const intentProfile = analyzeUniversalLearningIntent({
+    sourceType,
+    sourceName: safeName,
+    content: cleanedText,
+    visualDescription: visionSummary
+  });
+
   const title = !isWeakContent
-    ? inferTitle(cleanedText || safeName, detectSubject(cleanedText || visionSummary || safeName))
+    ? inferTitle(cleanedText || safeName, intentProfile.knowledgeDomain)
     : 'Topic not detected yet';
 
-  const subject = detectSubject(cleanedText || visionSummary || safeName);
+  const subject = intentProfile.knowledgeDomain || 'Open Knowledge Domain';
   const difficulty = detectDifficulty(cleanedText || visionSummary || safeName);
-  const language = detectLanguage(cleanedText || visionSummary || safeName);
+  const language = intentProfile.language || detectLanguage(cleanedText || visionSummary || safeName);
   const keywords = extractKeywords(cleanedText || visionSummary || safeName);
   const entities = extractEntities(cleanedText || visionSummary || safeName);
   const relationships = extractRelationships(cleanedText || visionSummary || safeName);
@@ -184,6 +176,7 @@ export function buildContentIntelligenceProfile({ sourceText = '', sourceName = 
   return {
     title,
     subject,
+    intent: intentProfile,
     chapters,
     topics,
     subtopics,

@@ -11,6 +11,9 @@ test('buildSceneBlueprint emits universal classification and assets', () => {
   assert.ok(blueprint.classification.visualization);
   assert.ok(blueprint.classification.objectCategory);
   assert.ok(blueprint.classification.interactionCategory);
+  assert.ok(blueprint.classification.learningIntent);
+  assert.ok(blueprint.classification.educationalStrategy);
+  assert.ok(blueprint.classification.reasoningStyle);
   assert.ok(blueprint.entities.length >= 3);
   assert.ok(blueprint.assetPlan.length >= 1);
   assert.ok(blueprint.assetPlan[0].assetId);

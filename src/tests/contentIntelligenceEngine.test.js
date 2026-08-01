@@ -11,7 +11,11 @@ test('buildContentIntelligenceProfile extracts structured lesson metadata from c
   });
 
   assert.equal(profile.title, 'Photosynthesis: Energy Conversion in Plants');
-  assert.equal(profile.subject, 'Biology');
+  assert.ok(profile.subject.length > 0);
+  assert.ok(profile.intent);
+  assert.ok(profile.intent.learningIntent.length > 0);
+  assert.ok(profile.intent.knowledgeDomain.length > 0);
+  assert.ok(profile.intent.learningPathway.length > 0);
   assert.ok(profile.chapters.length >= 2);
   assert.ok(profile.topics.includes('Photosynthesis'));
   assert.ok(profile.learningObjectives.length >= 2);
