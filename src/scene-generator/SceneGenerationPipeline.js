@@ -36,6 +36,7 @@ import {
   ensureSceneEducationalObjectBehaviorMetadata,
   createEducationalObjectBehaviorRuntime
 } from '../educational-objects/index.js';
+import { getUniversalAssetRegistryState, resolveAssetFromRegistry } from '../utils/assetManager.js';
 
 function stableHash(input = '') {
   const text = String(input || '');
@@ -551,6 +552,52 @@ function buildAiConfidenceMetadata(scene = {}, selection = {}, recommendation = 
   };
 }
 
+function buildAssetRegistrySceneMetadata(scene = {}, objectGeneration = {}) {
+  const ids = [];
+  const sceneAssetPlan = Array.isArray(scene?.assetPlan) ? scene.assetPlan : [];
+  const reusableAssets = Array.isArray(scene?.reusableAssets) ? scene.reusableAssets : [];
+  const generatedObjects = Array.isArray(objectGeneration?.objects) ? objectGeneration.objects : [];
+
+  const collectId = (value) => {
+    const id = String(value || '').trim();
+    if (id && !ids.includes(id)) {
+      ids.push(id);
+    }
+  };
+
+  sceneAssetPlan.forEach((entry) => collectId(entry?.assetId || entry?.id));
+  reusableAssets.forEach((entry) => collectId(entry));
+  generatedObjects.forEach((entry) => {
+    collectId(entry?.assetId || entry?.representation?.assetId || entry?.metadata?.assetId);
+  });
+
+  const resolvedAssets = ids
+    .map((id) => resolveAssetFromRegistry(id, 'latest'))
+    .filter(Boolean)
+    .map((asset) => ({
+      assetId: asset.id,
+      version: asset.version || 'latest',
+      type: asset.type || 'unknown-asset-type',
+      category: asset.category || 'General',
+      source: asset.source || 'registry',
+      tags: Array.isArray(asset.tags) ? asset.tags : []
+    }));
+
+  const registry = getUniversalAssetRegistryState();
+
+  return {
+    schemaVersion: 'v1',
+    registry: {
+      schemaVersion: registry?.schemaVersion || 'v2',
+      registryVersion: Number(registry?.registryVersion || 1),
+      contractCount: Number(registry?.entries?.length || 0)
+    },
+    assetIds: ids,
+    resolvedAssets,
+    unresolvedAssetIds: ids.filter((id) => !resolvedAssets.some((entry) => entry.assetId === id))
+  };
+}
+
 function applyAdaptiveFallbackActions(scene = {}, profile = {}) {
   const actions = new Set(Array.isArray(profile?.fallbackPlan?.actions) ? profile.fallbackPlan.actions : []);
   const next = {
@@ -833,6 +880,8 @@ async function attachVisualizationCapabilityMetadata(scene, normalizedInput, con
     minimumConfidenceThreshold: options.minimumConfidenceThreshold ?? 0.45
   });
 
+  const assetRegistryMetadata = buildAssetRegistrySceneMetadata(adaptedScene, objectGeneration);
+
   return {
     ...adaptedScene,
     educationalObjects: objectGeneration.objects || scene.educationalObjects || [],
@@ -860,6 +909,7 @@ async function attachVisualizationCapabilityMetadata(scene, normalizedInput, con
       visualizationTemplate: selectedTemplate,
       visualizationTemplateInstance: selectedTemplateInstance,
       templateDiagnostics: selectedDiagnostics,
+      assetRegistry: assetRegistryMetadata,
       recommendationDrivenDecision: {
         ...generationDecision,
         confidenceScore: Number(recommendation?.confidenceScore || 0)

@@ -189,6 +189,7 @@ export class TimelineSynchronizationRuntime {
     const visualizationStrategyState = this.runtime?.metadata?.visualizationStrategy || null;
     const capabilityTemplateRecommendationState = this.runtime?.metadata?.capabilityTemplateRecommendation || null;
     const confidenceConflictFallbackState = this.runtime?.metadata?.confidenceConflictFallback || null;
+    const assetRegistryState = this.runtime?.metadata?.assetRegistry || null;
     const previousSession = this.sharedState?.session || {
       persistenceKey: this.persistenceKey,
       recovered: false,
@@ -218,6 +219,7 @@ export class TimelineSynchronizationRuntime {
       visualizationStrategy: visualizationStrategyState,
       capabilityTemplateRecommendation: capabilityTemplateRecommendationState,
       confidenceConflictFallback: confidenceConflictFallbackState,
+      assetRegistry: assetRegistryState,
       playback,
       sceneGraph: {
         nodeCount: graphSummary.nodeCount,
@@ -246,6 +248,7 @@ export class TimelineSynchronizationRuntime {
           visualizationStrategyState,
           capabilityTemplateRecommendationState,
           confidenceConflictFallbackState,
+          assetRegistryState,
           updatedAt: Date.now()
         },
         rendererAdapter: {
@@ -265,6 +268,7 @@ export class TimelineSynchronizationRuntime {
           visualizationStrategyState,
           capabilityTemplateRecommendationState,
           confidenceConflictFallbackState,
+          assetRegistryState,
           updatedAt: Date.now()
         },
         interactionEngine: {
@@ -283,6 +287,7 @@ export class TimelineSynchronizationRuntime {
           visualizationStrategyState,
           capabilityTemplateRecommendationState,
           confidenceConflictFallbackState,
+          assetRegistryState,
           updatedAt: Date.now()
         }
       },
@@ -472,7 +477,8 @@ export class TimelineSynchronizationRuntime {
         accessibilityRecoveryState: this.sharedState.accessibilityRecovery,
         visualizationStrategyState: this.sharedState.visualizationStrategy,
         capabilityTemplateRecommendationState: this.sharedState.capabilityTemplateRecommendation,
-        confidenceConflictFallbackState: this.sharedState.confidenceConflictFallback
+        confidenceConflictFallbackState: this.sharedState.confidenceConflictFallback,
+        assetRegistryState: this.sharedState.assetRegistry
       },
       interactionContract: {
         ...(this.runtime.metadata?.interactionContract || {}),
@@ -495,6 +501,8 @@ export class TimelineSynchronizationRuntime {
         this.sharedState.capabilityTemplateRecommendation || this.runtime.metadata?.capabilityTemplateRecommendation || null,
       confidenceConflictFallback:
         this.sharedState.confidenceConflictFallback || this.runtime.metadata?.confidenceConflictFallback || null,
+      assetRegistry:
+        this.sharedState.assetRegistry || this.runtime.metadata?.assetRegistry || null,
       rendererAdapter: {
         ...(this.runtime.metadata?.rendererAdapter || {}),
         timelineState: this.sharedState.adapters.rendererAdapter,
@@ -503,7 +511,8 @@ export class TimelineSynchronizationRuntime {
         accessibilityRecoveryState: this.sharedState.accessibilityRecovery,
         visualizationStrategyState: this.sharedState.visualizationStrategy,
         capabilityTemplateRecommendationState: this.sharedState.capabilityTemplateRecommendation,
-        confidenceConflictFallbackState: this.sharedState.confidenceConflictFallback
+        confidenceConflictFallbackState: this.sharedState.confidenceConflictFallback,
+        assetRegistryState: this.sharedState.assetRegistry
       },
       aiTeacherAdapter: {
         ...(this.runtime.metadata?.aiTeacherAdapter || {}),
@@ -513,7 +522,8 @@ export class TimelineSynchronizationRuntime {
         accessibilityRecoveryState: this.sharedState.accessibilityRecovery,
         visualizationStrategyState: this.sharedState.visualizationStrategy,
         capabilityTemplateRecommendationState: this.sharedState.capabilityTemplateRecommendation,
-        confidenceConflictFallbackState: this.sharedState.confidenceConflictFallback
+        confidenceConflictFallbackState: this.sharedState.confidenceConflictFallback,
+        assetRegistryState: this.sharedState.assetRegistry
       }
     };
 

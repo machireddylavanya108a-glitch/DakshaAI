@@ -1,4 +1,4 @@
-import { createAssetManager } from './assetManager.js';
+import { createAssetManager, resolveAssetFromRegistry } from './assetManager.js';
 import { buildAnimationPlan, buildAutoAnimationState } from './aiAnimationEngine.js';
 import { processSceneJsonPipeline } from '../scene-generator/SceneVersionManager.js';
 import { loadScene } from '../scene-builder/SceneRuntime.js';
@@ -197,15 +197,23 @@ function buildRendererPayloadFromRuntimeScene(runtimeScene, fallbacks = {}) {
   const labels = materializeLabels(runtimeScene, objects);
   const hotspots = materializeHotspots(runtimeScene, objects);
   const timeline = materializeTimeline(runtimeScene, baseTimeline);
-  const models = objects.map((object, index) => ({
-    id: `model-${index + 1}`,
-    label: object.label,
-    assetId: object.asset,
-    category: object.category,
-    position: object.position,
-    size: object.size,
-    color: object.color
-  }));
+  const models = objects.map((object, index) => {
+    const resolvedAsset = resolveAssetFromRegistry(object.asset || '', 'latest');
+    return {
+      id: `model-${index + 1}`,
+      label: object.label,
+      assetId: resolvedAsset?.id || object.asset,
+      category: object.category,
+      position: object.position,
+      size: object.size,
+      color: object.color,
+      assetRef: {
+        registryAssetId: resolvedAsset?.id || object.asset || null,
+        registryVersion: resolvedAsset?.version || 'latest',
+        source: resolvedAsset?.source || 'registry'
+      }
+    };
+  });
 
   return {
     objects,
@@ -316,6 +324,10 @@ function buildAssetPlan(content = '', domain = 'General', entities = []) {
 
   return selected.map((asset, index) => ({
     assetId: asset.assetId || asset.id,
+    assetRef: {
+      registryAssetId: asset.assetId || asset.id,
+      registryVersion: asset.version || 'latest'
+    },
     label: asset.label || asset.name,
     category: asset.category,
     icon: asset.icon || asset.category,

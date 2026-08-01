@@ -1,3 +1,5 @@
+import { getDefaultUniversalAssetRegistry } from '../asset-registry/index.js';
+
 export const assetCatalog = [
   { id: 'heart-anatomy', name: 'Heart Anatomy', category: 'Human Anatomy', tags: ['heart', 'circulation', 'organ', 'surgery'], description: 'Detailed heart anatomy for medical lessons.', price: 0, enabled: true },
   { id: 'skeleton', name: 'Skeleton', category: 'Skeleton', tags: ['bone', 'skeletal', 'body', 'anatomy'], description: 'Full skeletal system model.', price: 0, enabled: true },
@@ -33,6 +35,166 @@ export const assetCatalog = [
 ];
 
 const assetCache = new Map();
+const ASSET_REGISTRY_SOURCE = 'daksha-legacy-catalog';
+
+function safeString(value) {
+  return String(value || '').trim();
+}
+
+function asArray(value) {
+  return Array.isArray(value) ? value : [];
+}
+
+function clamp(value, minimum = 0, maximum = 1) {
+  const parsed = Number(value);
+  const safe = Number.isFinite(parsed) ? parsed : minimum;
+  return Math.min(Math.max(safe, minimum), maximum);
+}
+
+function inferAssetType(asset = {}) {
+  const category = safeString(asset.category).toLowerCase();
+  if (!category) return 'generic-educational-asset';
+  if (category.includes('space')) return 'astronomy-asset';
+  if (category.includes('robot')) return 'robotics-asset';
+  if (category.includes('anatomy') || category.includes('brain') || category.includes('dna')) return 'biology-asset';
+  return `${category.replace(/\s+/g, '-') || 'generic'}-asset`;
+}
+
+function deriveQualityLevels(lod = 'medium') {
+  if (lod === 'high') {
+    return {
+      low: 0.62,
+      medium: 0.78,
+      high: 0.95,
+      default: 'high'
+    };
+  }
+
+  if (lod === 'low') {
+    return {
+      low: 0.5,
+      medium: 0.68,
+      high: 0.86,
+      default: 'low'
+    };
+  }
+
+  return {
+    low: 0.55,
+    medium: 0.74,
+    high: 0.9,
+    default: 'medium'
+  };
+}
+
+function toUniversalAssetContract(asset = {}) {
+  const profile = createBaseAssetProfile(asset);
+  return {
+    schemaVersion: 'v2',
+    id: profile.id,
+    version: 'v1',
+    type: inferAssetType(profile),
+    category: profile.category,
+    tags: asArray(profile.tags),
+    source: ASSET_REGISTRY_SOURCE,
+    metadata: {
+      name: profile.name,
+      description: profile.description,
+      enabled: asset.enabled !== false,
+      legacyPrice: Number(asset.price || 0),
+      legacyCatalogSeed: true
+    },
+    qualityLevels: deriveQualityLevels(profile.lod),
+    lodSupport: {
+      supported: true,
+      levels: ['high', 'medium', 'low'],
+      autoSelect: true,
+      defaultLevel: profile.lod || 'medium'
+    },
+    capabilities: [
+      'renderer-compatible',
+      'lesson-asset',
+      'metadata-driven'
+    ],
+    fallbackOptions: {
+      mode: 'adaptive-fallback',
+      fallbackAssetIds: [],
+      supportsProceduralFallback: true,
+      supportsUnknownFutureTypes: true
+    },
+    dependencies: []
+  };
+}
+
+function ensureDefaultRegistrySeeded(registry) {
+  const targetRegistry = registry || getDefaultUniversalAssetRegistry();
+  const diagnostics = targetRegistry.getDiagnostics();
+  if (diagnostics.assetCount > 0) return targetRegistry;
+
+  assetCatalog.forEach((asset) => {
+    targetRegistry.register(toUniversalAssetContract(asset), { allowUpdate: true });
+  });
+  targetRegistry.persist();
+  return targetRegistry;
+}
+
+function categoryMatches(asset = {}, category = '') {
+  const normalizedCategory = safeString(category).toLowerCase();
+  if (!normalizedCategory) return true;
+
+  const assetCategory = safeString(asset.category).toLowerCase();
+  if (assetCategory === normalizedCategory) return true;
+  if (normalizedCategory.includes(assetCategory) || assetCategory.includes(normalizedCategory)) return true;
+  if (asArray(asset.tags).some((tag) => safeString(tag).toLowerCase().includes(normalizedCategory))) return true;
+  return false;
+}
+
+function normalizeRegistryContractToAssetProfile(contract = {}) {
+  const metadata = contract.metadata || {};
+  const qualityLevels = contract.qualityLevels || {};
+  const defaultLod = safeString(contract?.lodSupport?.defaultLevel || qualityLevels.default || 'medium').toLowerCase();
+  const lod = ['high', 'medium', 'low'].includes(defaultLod) ? defaultLod : 'medium';
+
+  return {
+    id: safeString(contract.id),
+    name: safeString(metadata.name || contract.id),
+    category: safeString(contract.category || 'General') || 'General',
+    tags: asArray(contract.tags),
+    description: safeString(metadata.description || ''),
+    type: safeString(contract.type || 'unknown-asset-type') || 'unknown-asset-type',
+    version: safeString(contract.version || 'v1') || 'v1',
+    source: safeString(contract.source || ASSET_REGISTRY_SOURCE) || ASSET_REGISTRY_SOURCE,
+    capabilities: asArray(contract.capabilities),
+    dependencies: asArray(contract.dependencies),
+    lod,
+    compression: {
+      enabled: true,
+      level: lod === 'high' ? 'balanced' : 'aggressive'
+    },
+    lazyLoading: {
+      enabled: true,
+      preloadDistance: lod === 'high' ? 6 : 3
+    },
+    optimization: {
+      culling: true,
+      instancing: lod !== 'high',
+      batchSize: lod === 'high' ? 24 : 12
+    },
+    qualityLevels: {
+      low: clamp(qualityLevels.low, 0, 1),
+      medium: clamp(qualityLevels.medium, 0, 1),
+      high: clamp(qualityLevels.high, 0, 1),
+      default: qualityLevels.default || lod
+    },
+    fallbackOptions: contract.fallbackOptions || {
+      mode: 'adaptive-fallback',
+      fallbackAssetIds: [],
+      supportsProceduralFallback: true,
+      supportsUnknownFutureTypes: true
+    },
+    metadata
+  };
+}
 
 function createBaseAssetProfile(asset) {
   const lod = asset.id === 'heart-anatomy' ? 'high' : asset.id === 'solar-system' ? 'medium' : 'low';
@@ -72,6 +234,12 @@ function scoreAsset(asset, query = '', category = '') {
   return score;
 }
 
+function getRegistryBackedAssets(registry) {
+  const seeded = ensureDefaultRegistrySeeded(registry);
+  const contracts = seeded.listContracts();
+  return contracts.map((contract) => normalizeRegistryContractToAssetProfile(contract));
+}
+
 function buildCompositeAssetPlan(query = '', category = '') {
   const manager = createAssetManager();
   const ranked = manager.rankAssets(query, category);
@@ -88,7 +256,8 @@ function buildCompositeAssetPlan(query = '', category = '') {
 }
 
 export function createAssetManager() {
-  const assets = assetCatalog.map((asset) => createBaseAssetProfile(asset));
+  const registry = ensureDefaultRegistrySeeded(getDefaultUniversalAssetRegistry());
+  const assets = getRegistryBackedAssets(registry);
   const categoryIndex = new Map();
 
   assets.forEach((asset) => {
@@ -98,6 +267,8 @@ export function createAssetManager() {
   });
 
   const manager = {
+    getRegistry: () => registry,
+    getRegistryState: () => registry.exportSnapshot(),
     getAllAssets: () => assets,
     getAssetsByCategory: (category) => {
       const exact = (categoryIndex.get(category) || []).slice();
@@ -113,7 +284,13 @@ export function createAssetManager() {
       const unique = combined.filter((asset, index, list) => list.findIndex((item) => item.id === asset.id) === index);
       return unique.slice();
     },
-    getAssetById: (id) => assets.find((asset) => asset.id === id) || null,
+    getAssetById: (id) => {
+      const match = registry.lookup(id, 'latest');
+      if (match) {
+        return normalizeRegistryContractToAssetProfile(match);
+      }
+      return assets.find((asset) => asset.id === id) || null;
+    },
     rankAssets: (query = '', category = '') => {
       const ranked = assets
         .map((asset) => ({ asset, score: scoreAsset(asset, query, category) }))
@@ -176,15 +353,16 @@ export function createAssetManager() {
 
 export function searchAssets(query = '') {
   const normalized = String(query || '').toLowerCase().trim();
-  if (!normalized) return assetCatalog.map((asset) => createBaseAssetProfile(asset));
+  const manager = createAssetManager();
+  const allAssets = manager.getAllAssets();
+  if (!normalized) return allAssets;
 
   const terms = normalized.split(/\s+/).filter(Boolean);
-  return assetCatalog
+  return allAssets
     .filter((asset) => {
       const searchable = [asset.name, asset.category, asset.description, ...asset.tags].map((field) => String(field).toLowerCase());
       return terms.every((term) => searchable.some((field) => field.includes(term)));
-    })
-    .map((asset) => createBaseAssetProfile(asset));
+    });
 }
 
 export function recommendAssets(query = '') {
@@ -219,6 +397,25 @@ export function getAssetRecommendation(query = '', category = '') {
     cacheKey: getAssetCacheKey(query),
     requiresComposition: !match || ranked.length < 2
   };
+}
+
+export function getUniversalAssetRegistryState() {
+  const registry = ensureDefaultRegistrySeeded(getDefaultUniversalAssetRegistry());
+  return registry.exportSnapshot();
+}
+
+export function registerUniversalAssetContract(contract = {}, options = {}) {
+  const registry = ensureDefaultRegistrySeeded(getDefaultUniversalAssetRegistry());
+  const result = registry.register(contract, options);
+  registry.persist();
+  return result;
+}
+
+export function resolveAssetFromRegistry(id = '', version = 'latest') {
+  const registry = ensureDefaultRegistrySeeded(getDefaultUniversalAssetRegistry());
+  const match = registry.lookup(id, version);
+  if (!match) return null;
+  return normalizeRegistryContractToAssetProfile(match);
 }
 
 export function optimizeAsset(asset) {

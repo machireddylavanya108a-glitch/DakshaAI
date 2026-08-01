@@ -42,7 +42,9 @@ export async function generateAutomaticScene({ content = '', sourceType = 'typed
         assessment: plan.assessment,
         practiceMode: plan.practiceMode,
         syncCues: plan.syncCues,
-        reusableAssets: generated.rendererPayload.models.map((item) => item.id),
+        reusableAssets: generated.rendererPayload.models
+          .map((item) => item?.assetRef?.registryAssetId || item.assetId || null)
+          .filter(Boolean),
         runtimeSceneGraph: generated.runtimeGraph,
         diagnostics: generated.diagnostics
       }

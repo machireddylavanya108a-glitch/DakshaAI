@@ -1,6 +1,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createAssetManager, searchAssets, recommendAssets } from './assetManager.js';
+import {
+  createAssetManager,
+  searchAssets,
+  recommendAssets,
+  getUniversalAssetRegistryState,
+  resolveAssetFromRegistry
+} from './assetManager.js';
 
 test('asset manager returns reusable assets for anatomy and robotics', () => {
   const manager = createAssetManager();
@@ -27,4 +33,16 @@ test('asset planner builds an optimized plan for a lesson topic', () => {
   assert.ok(plan[0].lod);
   assert.ok(plan[0].compression);
   assert.equal(plan[0].lazyLoading.enabled, true);
+});
+
+test('asset manager is backed by universal asset registry metadata', () => {
+  const manager = createAssetManager();
+  const state = manager.getRegistryState();
+  const registrySnapshot = getUniversalAssetRegistryState();
+  const heart = resolveAssetFromRegistry('heart-anatomy', 'latest');
+
+  assert.ok(state.entries.length >= 1);
+  assert.ok(registrySnapshot.entries.length >= 1);
+  assert.equal(heart?.id, 'heart-anatomy');
+  assert.ok(Array.isArray(heart?.tags));
 });

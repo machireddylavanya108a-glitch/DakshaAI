@@ -11,6 +11,7 @@ import { buildTimeline } from '../timeline/index.js';
 import { normalizeVisualizationStrategyProfile } from '../visualization-strategy/index.js';
 import { normalizeCapabilityTemplateRecommendation } from '../recommendation/index.js';
 import { normalizeConfidenceConflictFallbackProfile } from '../confidence-fallback/index.js';
+import { getUniversalAssetRegistryState, resolveAssetFromRegistry } from '../utils/assetManager.js';
 
 const UNIVERSAL_INTERACTION_TYPES = new Set([
   'click',
@@ -162,6 +163,62 @@ function resolveConfidenceConflictFallbackMetadata(scene = {}) {
       conflictCount: Array.isArray(profile.conflicts) ? profile.conflicts.length : 0,
       fallbackActionCount: Array.isArray(profile?.fallbackPlan?.actions) ? profile.fallbackPlan.actions.length : 0,
       fallbackRecommended: profile?.fallbackPlan?.recommended === true
+    }
+  };
+}
+
+function resolveAssetRegistryMetadata(scene = {}) {
+  const sceneAssetPlan = Array.isArray(scene?.assetPlan) ? scene.assetPlan : [];
+  const reusableAssets = Array.isArray(scene?.reusableAssets) ? scene.reusableAssets : [];
+  const assetIds = [];
+
+  sceneAssetPlan.forEach((entry) => {
+    const id = String(entry?.assetId || entry?.id || '').trim();
+    if (id && !assetIds.includes(id)) {
+      assetIds.push(id);
+    }
+  });
+
+  reusableAssets.forEach((entry) => {
+    const id = String(entry || '').trim();
+    if (id && !assetIds.includes(id)) {
+      assetIds.push(id);
+    }
+  });
+
+  const resolvedAssets = assetIds
+    .map((assetId) => resolveAssetFromRegistry(assetId, 'latest'))
+    .filter(Boolean)
+    .map((asset) => ({
+      assetId: asset.id,
+      version: asset.version || 'latest',
+      type: asset.type || 'unknown-asset-type',
+      category: asset.category || 'General',
+      source: asset.source || 'registry',
+      tags: Array.isArray(asset.tags) ? asset.tags : []
+    }));
+
+  const registryState = getUniversalAssetRegistryState();
+
+  return {
+    profile: {
+      schemaVersion: 'v1',
+      registry: {
+        schemaVersion: registryState?.schemaVersion || 'v2',
+        registryVersion: Number(registryState?.registryVersion || 1),
+        contractCount: Number(registryState?.entries?.length || 0)
+      },
+      sceneAssetPlan,
+      reusableAssets,
+      resolvedAssets
+    },
+    summary: {
+      schemaVersion: 'v1',
+      referencedAssetCount: assetIds.length,
+      resolvedAssetCount: resolvedAssets.length,
+      unresolvedAssetCount: Math.max(0, assetIds.length - resolvedAssets.length),
+      registryVersion: Number(registryState?.registryVersion || 1),
+      contractCount: Number(registryState?.entries?.length || 0)
     }
   };
 }
@@ -800,6 +857,7 @@ export function buildRuntimeSceneGraph(validatedSceneJson = {}) {
   const visualizationStrategyMetadata = resolveVisualizationStrategyMetadata(validatedSceneJson);
   const capabilityTemplateRecommendationMetadata = resolveCapabilityTemplateRecommendationMetadata(validatedSceneJson);
   const confidenceConflictFallbackMetadata = resolveConfidenceConflictFallbackMetadata(validatedSceneJson);
+  const assetRegistryMetadata = resolveAssetRegistryMetadata(validatedSceneJson);
   const rootNode = graph.getNode(validatedSceneJson.sceneId);
   if (rootNode) {
     rootNode.runtimeData = {
@@ -855,6 +913,14 @@ export function buildRuntimeSceneGraph(validatedSceneJson = {}) {
         conflictCount: confidenceConflictFallbackMetadata.summary.conflictCount,
         fallbackActionCount: confidenceConflictFallbackMetadata.summary.fallbackActionCount,
         fallbackRecommended: confidenceConflictFallbackMetadata.summary.fallbackRecommended
+      },
+      assetRegistry: {
+        schemaVersion: assetRegistryMetadata.summary.schemaVersion,
+        referencedAssetCount: assetRegistryMetadata.summary.referencedAssetCount,
+        resolvedAssetCount: assetRegistryMetadata.summary.resolvedAssetCount,
+        unresolvedAssetCount: assetRegistryMetadata.summary.unresolvedAssetCount,
+        registryVersion: assetRegistryMetadata.summary.registryVersion,
+        contractCount: assetRegistryMetadata.summary.contractCount
       }
     };
     registry.update(rootNode.id, rootNode);
@@ -873,6 +939,7 @@ export function buildRuntimeSceneGraph(validatedSceneJson = {}) {
       visualizationStrategy: visualizationStrategyMetadata.profile,
       capabilityTemplateRecommendation: capabilityTemplateRecommendationMetadata.recommendation,
       confidenceConflictFallback: confidenceConflictFallbackMetadata.profile,
+      assetRegistry: assetRegistryMetadata.profile,
       timeline: timelineMetadata,
       timelineData: runtimeTimeline.timelineData,
       narration: narrationMetadata,
@@ -930,7 +997,8 @@ export function buildRuntimeSceneGraph(validatedSceneJson = {}) {
         },
         visualizationStrategyState: visualizationStrategyMetadata.profile,
         capabilityTemplateRecommendationState: capabilityTemplateRecommendationMetadata.recommendation,
-        confidenceConflictFallbackState: confidenceConflictFallbackMetadata.profile
+        confidenceConflictFallbackState: confidenceConflictFallbackMetadata.profile,
+        assetRegistryState: assetRegistryMetadata.profile
       },
       interactionEngine: {
         timelineState: {
@@ -990,7 +1058,8 @@ export function buildRuntimeSceneGraph(validatedSceneJson = {}) {
         },
         visualizationStrategyState: visualizationStrategyMetadata.profile,
         capabilityTemplateRecommendationState: capabilityTemplateRecommendationMetadata.recommendation,
-        confidenceConflictFallbackState: confidenceConflictFallbackMetadata.profile
+        confidenceConflictFallbackState: confidenceConflictFallbackMetadata.profile,
+        assetRegistryState: assetRegistryMetadata.profile
       },
       speechPlayback: {
         playbackState: 'Ready',
@@ -1430,7 +1499,8 @@ export function buildRuntimeSceneGraph(validatedSceneJson = {}) {
         },
         visualizationStrategyState: visualizationStrategyMetadata.profile,
         capabilityTemplateRecommendationState: capabilityTemplateRecommendationMetadata.recommendation,
-        confidenceConflictFallbackState: confidenceConflictFallbackMetadata.profile
+        confidenceConflictFallbackState: confidenceConflictFallbackMetadata.profile,
+        assetRegistryState: assetRegistryMetadata.profile
       }
     }
   };
