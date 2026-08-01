@@ -10,6 +10,7 @@ import { createUniversalInputCameraControlRuntime } from '../input-camera/index.
 import { createUniversalEducationalInspectionRuntime } from '../inspection/index.js';
 import { createUniversalAccessibilityStateRecoveryRuntime } from '../accessibility/index.js';
 import { createUniversalAssetLoadingRuntime } from '../asset-runtime/index.js';
+import { createUniversalRendererCore } from '../renderer-core/index.js';
 
 let activeRuntime = null;
 let educationalObjectLifecycleManager = null;
@@ -262,6 +263,48 @@ function attachAssetLoadingRuntime(runtime) {
   return runtime;
 }
 
+function attachUniversalRendererCore(runtime) {
+  if (!runtime || typeof runtime !== 'object') return runtime;
+
+  const rendererCore = createUniversalRendererCore(runtime, {
+    adapterProfile: {
+      strictInputValidation: false,
+      includeGenericUnknownNodes: true
+    }
+  });
+
+  runtime.rendererCore = rendererCore;
+
+  const recovered = rendererCore.recoverSession();
+  const initializeResult = rendererCore.initialize({
+    sceneId: runtime.sceneId
+  });
+  const buildResult = rendererCore.build({
+    runtimeGraph: runtime.graph?.toJSON?.() || { nodes: [], edges: [] }
+  });
+  const snapshot = rendererCore.synchronize('attach', {
+    recovered,
+    initializeStatus: initializeResult.status,
+    buildStatus: buildResult.status
+  });
+
+  runtime.metadata = {
+    ...(runtime.metadata || {}),
+    rendererCore: {
+      ...snapshot,
+      recovered,
+      channels: rendererCore.constructor.supportedChannels()
+    },
+    rendererAdapter: {
+      ...(runtime.metadata?.rendererAdapter || {}),
+      rendererCoreState: snapshot,
+      channels: rendererCore.constructor.supportedChannels()
+    }
+  };
+
+  return runtime;
+}
+
 function runLifecycleCleanupForRuntime(runtime) {
   if (!educationalObjectLifecycleManager || typeof educationalObjectLifecycleManager.cleanupScene !== 'function') {
     return;
@@ -288,6 +331,7 @@ function ensureRuntime() {
 
 export function buildScene(validatedSceneJson = {}) {
   activeRuntime = attachTimelineSynchronizationRuntime(
+    attachUniversalRendererCore(
     attachAssetLoadingRuntime(
     attachAccessibilityStateRecoveryRuntime(
       attachEducationalInspectionRuntime(
@@ -307,6 +351,7 @@ export function buildScene(validatedSceneJson = {}) {
       )
     )
     )
+    )
   );
   return activeRuntime;
 }
@@ -314,6 +359,7 @@ export function buildScene(validatedSceneJson = {}) {
 export function loadScene(sceneJson = {}) {
   const validatedScene = processSceneJsonPipeline(sceneJson || {}, { sourceType: 'runtime' });
   activeRuntime = attachTimelineSynchronizationRuntime(
+    attachUniversalRendererCore(
     attachAssetLoadingRuntime(
     attachAccessibilityStateRecoveryRuntime(
       attachEducationalInspectionRuntime(
@@ -333,14 +379,20 @@ export function loadScene(sceneJson = {}) {
       )
     )
     )
+    )
   );
   activeRuntime.stateManager.setActiveAll();
+  activeRuntime.rendererCore?.update?.({
+    commands: [{ action: 'scene-load', nodeId: 'runtime-root' }]
+  });
+  activeRuntime.rendererCore?.synchronize?.('scene-loaded');
   return activeRuntime;
 }
 
 export function destroyScene() {
   const runtime = ensureRuntime();
   runLifecycleCleanupForRuntime(runtime);
+  runtime.rendererCore?.persistSession?.();
   runtime.timelineSynchronizationRuntime?.persistSession?.();
   runtime.speechPlaybackRuntime?.persistSession?.();
   runtime.adaptiveTeachingRuntime?.persistSession?.();
@@ -349,6 +401,7 @@ export function destroyScene() {
   runtime.educationalInspectionRuntime?.persistSession?.();
   runtime.accessibilityStateRecoveryRuntime?.persistSession?.();
   runtime.assetLoadingRuntime?.persistSession?.();
+  runtime.rendererCore?.destroy?.();
   runtime.timelineSynchronizationRuntime?.destroy?.();
   runtime.speechPlaybackRuntime?.destroy?.();
   runtime.adaptiveTeachingRuntime?.destroy?.();
@@ -382,14 +435,20 @@ export function resetScene() {
   runtime.accessibilityStateRecoveryRuntime?.synchronize?.('reset');
   runtime.narrationSynchronizationRuntime?.reset?.();
   runtime.sceneEventRuntime?.reset?.();
+  runtime.rendererCore?.reset?.();
+  runtime.rendererCore?.build?.({
+    runtimeGraph: runtime.graph?.toJSON?.() || { nodes: [], edges: [] }
+  });
   runtime.stateManager.resetAll();
   runtime.stateManager.initializeAll();
+  runtime.rendererCore?.synchronize?.('reset');
   runtime.timelineSynchronizationRuntime?.synchronize?.('reset-after-state-manager');
   return runtime;
 }
 
 export function pauseScene() {
   const runtime = ensureRuntime();
+  runtime.rendererCore?.pause?.('scene-runtime');
   runtime.timelineSynchronizationRuntime?.pause?.('scene-runtime');
   runtime.speechPlaybackRuntime?.pause?.('scene-runtime');
   runtime.adaptiveTeachingRuntime?.markInterrupted?.('scene-paused');
@@ -400,12 +459,14 @@ export function pauseScene() {
   runtime.assetLoadingRuntime?.handleExternalTimelineMutation?.('pause', { source: 'scene-runtime' });
   runtime.narrationSynchronizationRuntime?.pause?.('scene-runtime');
   runtime.stateManager.pauseAll();
+  runtime.rendererCore?.synchronize?.('pause-scene-state-manager');
   runtime.timelineSynchronizationRuntime?.synchronize?.('pause-scene-state-manager');
   return runtime;
 }
 
 export function resumeScene() {
   const runtime = ensureRuntime();
+  runtime.rendererCore?.resume?.('scene-runtime');
   runtime.timelineSynchronizationRuntime?.resume?.('scene-runtime');
   runtime.speechPlaybackRuntime?.resume?.('scene-runtime');
   runtime.adaptiveTeachingRuntime?.synchronize?.('scene-resumed');
@@ -416,6 +477,10 @@ export function resumeScene() {
   runtime.assetLoadingRuntime?.handleExternalTimelineMutation?.('resume', { source: 'scene-runtime' });
   runtime.narrationSynchronizationRuntime?.resume?.('scene-runtime');
   runtime.stateManager.resumeAll();
+  runtime.rendererCore?.update?.({
+    commands: [{ action: 'resume-frame', nodeId: 'runtime-root' }]
+  });
+  runtime.rendererCore?.synchronize?.('resume-scene-state-manager');
   runtime.timelineSynchronizationRuntime?.synchronize?.('resume-scene-state-manager');
   return runtime;
 }
@@ -438,6 +503,10 @@ export function getActiveSharedRuntimeState() {
 
 export function getActiveRuntimeScene() {
   return activeRuntime;
+}
+
+export function getActiveRendererCore() {
+  return ensureRuntime()?.rendererCore || null;
 }
 
 export function setEducationalObjectLifecycleManager(manager) {
