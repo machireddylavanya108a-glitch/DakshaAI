@@ -14,7 +14,8 @@ import {
   resumeScene,
   setEducationalObjectLifecycleManager,
   getEducationalObjectLifecycleManager,
-  getActiveTimelineScheduler
+  getActiveTimelineScheduler,
+  getActiveSceneEventRuntime
 } from './SceneRuntime.js';
 
 test('large scene builds runtime graph with relationships', () => {
@@ -216,4 +217,64 @@ test('runtime metadata exposes renderer adapter timeline identifiers only', () =
   assert.equal(Array.isArray(runtime.metadata.rendererAdapter.timeline.clipIds), true);
   assert.equal(Array.isArray(runtime.metadata.rendererAdapter.timeline.markerIds), true);
   assert.equal(Array.isArray(runtime.metadata.rendererAdapter.timeline.eventIds), true);
+});
+
+test('scene runtime attaches universal scene event runtime', () => {
+  const runtime = loadScene({
+    title: 'Scene Event Runtime Scene',
+    timelineTracks: [
+      {
+        id: 'track-1',
+        name: 'Main',
+        purpose: 'generic',
+        enabled: true,
+        priority: 1,
+        clips: [{ id: 'clip-1', start: 0, end: 1000, duration: 1000, objects: [] }],
+        events: [{ id: 'event-runtime-1', type: 'custom', time: 200, targets: ['clip-1'] }],
+        markers: [{ id: 'marker-runtime-1', type: 'chapter', time: 0 }],
+        dependencies: [],
+        metadata: {}
+      }
+    ],
+    interactions: [
+      {
+        id: 'interaction-runtime-1',
+        label: 'Tap to inspect',
+        targetObjectId: 'clip-1',
+        eventType: 'tap',
+        timeMs: 300
+      }
+    ]
+  });
+
+  assert.ok(runtime.sceneEventRuntime);
+  assert.ok(runtime.sceneEventSystem);
+  assert.equal(typeof runtime.sceneEventRuntime.tick, 'function');
+  assert.ok(getActiveSceneEventRuntime());
+  assert.ok(runtime.metadata.sceneEvents);
+  assert.equal(runtime.metadata.sceneEvents.eventCount >= 1, true);
+});
+
+test('scene event runtime dispatches unknown event types without code changes', () => {
+  const runtime = loadScene({
+    title: 'Unknown Event Type Scene',
+    timelineEvents: [
+      {
+        id: 'future-event-1',
+        type: 'future.semantic.signal',
+        time: 0,
+        targets: [],
+        payload: {},
+        priority: 1
+      }
+    ]
+  });
+
+  let seen = false;
+  runtime.sceneEventRuntime.on('type:future.semantic.signal', () => {
+    seen = true;
+  });
+
+  runtime.sceneEventRuntime.tick(1);
+  assert.equal(seen, true);
 });

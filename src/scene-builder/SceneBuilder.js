@@ -11,6 +11,17 @@ import { buildTimeline } from '../timeline/index.js';
 
 function buildRuntimeTimelineMetadata(scene = {}) {
   const timelineData = buildTimeline(scene);
+  const interactionIds = Array.isArray(scene?.interactions)
+    ? scene.interactions
+      .map((interaction, index) => String(interaction?.id || `interaction-${index + 1}`))
+    : [];
+
+  const sceneEventIds = [
+    ...(timelineData.events || []).map((event) => event.id),
+    ...(timelineData.markers || []).map((marker) => marker.id),
+    ...interactionIds
+  ];
+
   return {
     timelineData,
     metadata: {
@@ -20,6 +31,7 @@ function buildRuntimeTimelineMetadata(scene = {}) {
       clipIds: (timelineData.clips || []).map((clip) => clip.id),
       markerIds: (timelineData.markers || []).map((marker) => marker.id),
       eventIds: (timelineData.events || []).map((event) => event.id),
+      sceneEventIds,
       dependencyMetadata: (timelineData.dependencies || []).map((dependency) => ({
         id: dependency.id,
         type: dependency.type,
@@ -96,6 +108,9 @@ export function buildRuntimeSceneGraph(validatedSceneJson = {}) {
           clipIds: timelineMetadata.clipIds,
           markerIds: timelineMetadata.markerIds,
           eventIds: timelineMetadata.eventIds
+        },
+        sceneEvents: {
+          eventIds: timelineMetadata.sceneEventIds
         }
       }
     }
