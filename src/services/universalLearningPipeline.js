@@ -5,6 +5,7 @@ import { normalizeInput } from '../utils/inputNormalization.js';
 import { analyzeUniversalLearningIntent } from '../intent-analysis/index.js';
 import { analyzeVisualizationStrategy } from '../visualization-strategy/index.js';
 import { normalizeVisualizationStrategyProfile } from '../visualization-strategy/index.js';
+import { analyzeCapabilityTemplateRecommendation } from '../recommendation/index.js';
 import {
   normalizeVisionOutput,
   deriveDeterministicCounts,
@@ -440,6 +441,7 @@ export function buildUniversalLearningArtifacts({ sourceMeta, sourceModel, learn
   const visualizationStrategy = normalizeVisualizationStrategyProfile(
     sourceMeta?.visualizationStrategy || learningSession?.visualizationStrategy || {}
   );
+  const capabilityTemplateRecommendation = sourceMeta?.capabilityTemplateRecommendation || null;
 
   const aiTeacher = {
     ...learningSession?.aiTeacher,
@@ -482,6 +484,7 @@ export function buildUniversalLearningArtifacts({ sourceMeta, sourceModel, learn
     sourceMeta,
     detections,
     visualizationStrategy,
+    capabilityTemplateRecommendation,
     aiTeacher,
     lesson3d: {
       topic: sourceMeta?.subject || learningSession?.title || 'Universal lesson',
@@ -603,6 +606,36 @@ export async function runUniversalLearningPipeline({
     visualDescription: normalizedContent.visualDescription || extracted.visionSummary || '',
     intent: intentProfile
   });
+  const capabilityTemplateRecommendation = analyzeCapabilityTemplateRecommendation({
+    learningIntent: intentProfile,
+    visualizationStrategy,
+    sceneGraph: {
+      nodeCount: 0,
+      relationshipCount: 0
+    },
+    runtimeGraph: {
+      nodeCount: 0,
+      relationshipCount: 0
+    },
+    timeline: {
+      events: []
+    },
+    lessonMetadata: {
+      id: normalizedName,
+      lessonId: normalizedName,
+      title: normalizedContent.topicResolution.title || normalizedName,
+      topic: normalizedContent.topicResolution.subject || normalizedContent.subject,
+      performanceProfile: 'balanced',
+      sourceType,
+      learnerContext: {}
+    },
+    concepts: normalizedContent.detectedConcepts || [],
+    relationships: [],
+    steps: [],
+    goals: intelligenceProfile?.learningObjectives || [],
+    examples: [],
+    interactions: []
+  });
 
   const sourceModel = buildSourceModel({
     sourceName: normalizedName,
@@ -631,6 +664,7 @@ export async function runUniversalLearningPipeline({
     topic: normalizedContent.topic,
     intentProfile,
     visualizationStrategy,
+    capabilityTemplateRecommendation,
     detectDiagrams: detections.hasDiagrams,
     detectFormulas: detections.hasFormulas,
     detectTables: detections.hasTables,
@@ -676,6 +710,7 @@ export async function runUniversalLearningPipeline({
       intentConfidence: intentProfile.confidenceScore,
       intentPathway: intentProfile.learningPathway,
       visualizationStrategy,
+      capabilityTemplateRecommendation,
       chapters: intelligenceProfile?.chapters || [],
       topics: normalizedContent.topicResolution.subtopics || intelligenceProfile?.topics || [],
       subtopics: normalizedContent.topicResolution.subtopics || intelligenceProfile?.subtopics || [],

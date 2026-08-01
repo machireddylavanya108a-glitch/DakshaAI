@@ -781,6 +781,34 @@ test('84 synchronization runtime updates shared adapter state', () => {
         strategies: [],
         confidenceScore: 0.66
       },
+      capabilityTemplateRecommendation: {
+        schemaVersion: 'v2',
+        recommendedCapabilities: [],
+        recommendedTemplates: [],
+        requiredEducationalObjects: {
+          objectCountHint: 1,
+          objectTypes: [],
+          requiresHierarchy: false,
+          requiresRelationshipEdges: false,
+          supportsUnknownObjectTypes: true
+        },
+        animationCapabilities: [],
+        interactionCapabilities: [],
+        simulationCapabilities: [],
+        assessmentCapabilities: [],
+        narrationCapabilities: [],
+        confidenceScore: 0.6,
+        fallbackStrategy: {
+          mode: 'template-recommendation',
+          recommendProceduralGeneration: false,
+          reason: 'templates-available',
+          fallbackTemplateId: '',
+          confidence: 0.6,
+          supportsUnknownFutureTypes: true
+        },
+        diagnostics: {},
+        metadata: {}
+      },
       timeline: {
         timelineId: 'runtime-timeline-1',
         version: 'v2',
@@ -819,6 +847,10 @@ test('84 synchronization runtime updates shared adapter state', () => {
   assert.equal(state.adapters.aiTeacher.visualizationStrategyState.primaryStrategy.visualizationStyle, 'adaptive visualization');
   assert.equal(state.adapters.rendererAdapter.visualizationStrategyState.primaryStrategy.visualizationStyle, 'adaptive visualization');
   assert.equal(state.adapters.interactionEngine.visualizationStrategyState.primaryStrategy.visualizationStyle, 'adaptive visualization');
+  assert.equal(state.capabilityTemplateRecommendation.schemaVersion, 'v2');
+  assert.equal(state.adapters.aiTeacher.capabilityTemplateRecommendationState.schemaVersion, 'v2');
+  assert.equal(state.adapters.rendererAdapter.capabilityTemplateRecommendationState.schemaVersion, 'v2');
+  assert.equal(state.adapters.interactionEngine.capabilityTemplateRecommendationState.schemaVersion, 'v2');
 });
 
 test('85 synchronization runtime persists and recovers shared session', () => {

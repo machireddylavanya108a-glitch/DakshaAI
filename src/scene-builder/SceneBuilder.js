@@ -9,6 +9,7 @@ import { SceneStateManager } from './SceneStateManager.js';
 import { buildSceneBuilderDiagnostics } from './SceneBuilderDiagnostics.js';
 import { buildTimeline } from '../timeline/index.js';
 import { normalizeVisualizationStrategyProfile } from '../visualization-strategy/index.js';
+import { normalizeCapabilityTemplateRecommendation } from '../recommendation/index.js';
 
 const UNIVERSAL_INTERACTION_TYPES = new Set([
   'click',
@@ -117,6 +118,30 @@ function resolveVisualizationStrategyMetadata(scene = {}) {
       sceneComplexity: String(primary.sceneComplexity || 'medium'),
       interactionLevel: String(primary.interactionLevel || 'medium'),
       animationIntensity: String(primary.animationIntensity || 'medium')
+    }
+  };
+}
+
+function resolveCapabilityTemplateRecommendationMetadata(scene = {}) {
+  const source = scene?.metadata?.capabilityTemplateRecommendation
+    || scene?.classification?.capabilityTemplateRecommendation
+    || scene?.capabilityTemplateRecommendation
+    || {};
+
+  const recommendation = normalizeCapabilityTemplateRecommendation(source);
+  return {
+    recommendation,
+    summary: {
+      schemaVersion: recommendation.schemaVersion,
+      confidenceScore: Number(recommendation.confidenceScore || 0),
+      recommendedCapabilityCount: Array.isArray(recommendation.recommendedCapabilities)
+        ? recommendation.recommendedCapabilities.length
+        : 0,
+      recommendedTemplateCount: Array.isArray(recommendation.recommendedTemplates)
+        ? recommendation.recommendedTemplates.length
+        : 0,
+      proceduralGenerationRecommended: recommendation?.fallbackStrategy?.recommendProceduralGeneration === true,
+      fallbackMode: String(recommendation?.fallbackStrategy?.mode || 'template-recommendation')
     }
   };
 }
@@ -753,6 +778,7 @@ export function buildRuntimeSceneGraph(validatedSceneJson = {}) {
   const educationalInspectionMetadata = applyEducationalInspectionRuntimeMetadata(graph);
   const accessibilityRecoveryMetadata = applyAccessibilityRecoveryRuntimeMetadata(graph, validatedSceneJson);
   const visualizationStrategyMetadata = resolveVisualizationStrategyMetadata(validatedSceneJson);
+  const capabilityTemplateRecommendationMetadata = resolveCapabilityTemplateRecommendationMetadata(validatedSceneJson);
   const rootNode = graph.getNode(validatedSceneJson.sceneId);
   if (rootNode) {
     rootNode.runtimeData = {
@@ -793,6 +819,14 @@ export function buildRuntimeSceneGraph(validatedSceneJson = {}) {
         sceneComplexity: visualizationStrategyMetadata.summary.sceneComplexity,
         interactionLevel: visualizationStrategyMetadata.summary.interactionLevel,
         animationIntensity: visualizationStrategyMetadata.summary.animationIntensity
+      },
+      capabilityTemplateRecommendation: {
+        schemaVersion: capabilityTemplateRecommendationMetadata.summary.schemaVersion,
+        confidenceScore: capabilityTemplateRecommendationMetadata.summary.confidenceScore,
+        recommendedCapabilityCount: capabilityTemplateRecommendationMetadata.summary.recommendedCapabilityCount,
+        recommendedTemplateCount: capabilityTemplateRecommendationMetadata.summary.recommendedTemplateCount,
+        proceduralGenerationRecommended: capabilityTemplateRecommendationMetadata.summary.proceduralGenerationRecommended,
+        fallbackMode: capabilityTemplateRecommendationMetadata.summary.fallbackMode
       }
     };
     registry.update(rootNode.id, rootNode);
@@ -809,6 +843,7 @@ export function buildRuntimeSceneGraph(validatedSceneJson = {}) {
       subject: validatedSceneJson.subject,
       version: validatedSceneJson.version,
       visualizationStrategy: visualizationStrategyMetadata.profile,
+      capabilityTemplateRecommendation: capabilityTemplateRecommendationMetadata.recommendation,
       timeline: timelineMetadata,
       timelineData: runtimeTimeline.timelineData,
       narration: narrationMetadata,
@@ -864,7 +899,8 @@ export function buildRuntimeSceneGraph(validatedSceneJson = {}) {
             checkpoints: []
           }
         },
-        visualizationStrategyState: visualizationStrategyMetadata.profile
+        visualizationStrategyState: visualizationStrategyMetadata.profile,
+        capabilityTemplateRecommendationState: capabilityTemplateRecommendationMetadata.recommendation
       },
       interactionEngine: {
         timelineState: {
@@ -922,7 +958,8 @@ export function buildRuntimeSceneGraph(validatedSceneJson = {}) {
             checkpoints: []
           }
         },
-        visualizationStrategyState: visualizationStrategyMetadata.profile
+        visualizationStrategyState: visualizationStrategyMetadata.profile,
+        capabilityTemplateRecommendationState: capabilityTemplateRecommendationMetadata.recommendation
       },
       speechPlayback: {
         playbackState: 'Ready',
@@ -1360,7 +1397,8 @@ export function buildRuntimeSceneGraph(validatedSceneJson = {}) {
             checkpoints: []
           }
         },
-        visualizationStrategyState: visualizationStrategyMetadata.profile
+        visualizationStrategyState: visualizationStrategyMetadata.profile,
+        capabilityTemplateRecommendationState: capabilityTemplateRecommendationMetadata.recommendation
       }
     }
   };

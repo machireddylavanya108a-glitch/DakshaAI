@@ -8,7 +8,35 @@ test('buildUniversalLearningArtifacts returns the full learning suite', () => {
       sourceType: 'pdf',
       subject: 'Physics',
       difficulty: 'Medium',
-      language: 'English'
+      language: 'English',
+      capabilityTemplateRecommendation: {
+        schemaVersion: 'v2',
+        recommendedCapabilities: [],
+        recommendedTemplates: [],
+        requiredEducationalObjects: {
+          objectCountHint: 1,
+          objectTypes: ['concept-node'],
+          requiresHierarchy: false,
+          requiresRelationshipEdges: false,
+          supportsUnknownObjectTypes: true
+        },
+        animationCapabilities: [],
+        interactionCapabilities: [],
+        simulationCapabilities: [],
+        assessmentCapabilities: [],
+        narrationCapabilities: [],
+        confidenceScore: 0.5,
+        fallbackStrategy: {
+          mode: 'template-recommendation',
+          recommendProceduralGeneration: false,
+          reason: 'templates-available',
+          fallbackTemplateId: '',
+          confidence: 0.5,
+          supportsUnknownFutureTypes: true
+        },
+        diagnostics: {},
+        metadata: {}
+      }
     },
     sourceModel: {
       title: 'Physics PDF',
@@ -56,5 +84,7 @@ test('buildUniversalLearningArtifacts returns the full learning suite', () => {
   assert.ok(suite.visualizationStrategy);
   assert.ok(suite.visualizationStrategy.primaryStrategy);
   assert.ok(Array.isArray(suite.visualizationStrategy.strategies));
+  assert.ok(suite.capabilityTemplateRecommendation);
+  assert.equal(suite.capabilityTemplateRecommendation.schemaVersion, 'v2');
   assert.ok(suite.aiTeacher.narrationStrategy);
 });
