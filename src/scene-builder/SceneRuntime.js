@@ -3,6 +3,7 @@ import { buildRuntimeSceneGraph } from './SceneBuilder.js';
 import { TimelineScheduler, createTimelineSynchronizationRuntime } from '../timeline/runtime/index.js';
 import { createSceneEventRuntime } from '../scene-events/index.js';
 import { createNarrationSceneSynchronizationRuntime } from '../narration/index.js';
+import { createSpeechPlaybackRuntimeController } from '../speech/index.js';
 
 let activeRuntime = null;
 let educationalObjectLifecycleManager = null;
@@ -94,6 +95,29 @@ function attachNarrationSynchronizationRuntime(runtime) {
   return runtime;
 }
 
+function attachSpeechPlaybackRuntime(runtime) {
+  if (!runtime || typeof runtime !== 'object') return runtime;
+
+  const speechPlaybackRuntime = createSpeechPlaybackRuntimeController(runtime);
+  runtime.speechPlaybackRuntime = speechPlaybackRuntime;
+
+  const recovered = speechPlaybackRuntime.recoverSession();
+  const snapshot = speechPlaybackRuntime.synchronize('attach', {
+    recovered
+  });
+
+  runtime.metadata = {
+    ...(runtime.metadata || {}),
+    speechPlayback: {
+      ...snapshot,
+      recovered,
+      channels: speechPlaybackRuntime.constructor.supportedChannels()
+    }
+  };
+
+  return runtime;
+}
+
 function runLifecycleCleanupForRuntime(runtime) {
   if (!educationalObjectLifecycleManager || typeof educationalObjectLifecycleManager.cleanupScene !== 'function') {
     return;
@@ -120,9 +144,11 @@ function ensureRuntime() {
 
 export function buildScene(validatedSceneJson = {}) {
   activeRuntime = attachTimelineSynchronizationRuntime(
-    attachNarrationSynchronizationRuntime(
-      attachSceneEventRuntime(
-        attachTimelineScheduler(buildRuntimeSceneGraph(validatedSceneJson || {}))
+    attachSpeechPlaybackRuntime(
+      attachNarrationSynchronizationRuntime(
+        attachSceneEventRuntime(
+          attachTimelineScheduler(buildRuntimeSceneGraph(validatedSceneJson || {}))
+        )
       )
     )
   );
@@ -132,9 +158,11 @@ export function buildScene(validatedSceneJson = {}) {
 export function loadScene(sceneJson = {}) {
   const validatedScene = processSceneJsonPipeline(sceneJson || {}, { sourceType: 'runtime' });
   activeRuntime = attachTimelineSynchronizationRuntime(
-    attachNarrationSynchronizationRuntime(
-      attachSceneEventRuntime(
-        attachTimelineScheduler(buildRuntimeSceneGraph(validatedScene))
+    attachSpeechPlaybackRuntime(
+      attachNarrationSynchronizationRuntime(
+        attachSceneEventRuntime(
+          attachTimelineScheduler(buildRuntimeSceneGraph(validatedScene))
+        )
       )
     )
   );
@@ -146,7 +174,9 @@ export function destroyScene() {
   const runtime = ensureRuntime();
   runLifecycleCleanupForRuntime(runtime);
   runtime.timelineSynchronizationRuntime?.persistSession?.();
+  runtime.speechPlaybackRuntime?.persistSession?.();
   runtime.timelineSynchronizationRuntime?.destroy?.();
+  runtime.speechPlaybackRuntime?.destroy?.();
   runtime.narrationSynchronizationRuntime?.destroy?.();
   runtime.sceneEventRuntime?.destroy?.();
   runtime.stateManager.destroyAll();
@@ -164,6 +194,7 @@ export function reloadScene(sceneJson = {}) {
 export function resetScene() {
   const runtime = ensureRuntime();
   runtime.timelineSynchronizationRuntime?.synchronize?.('reset-before-state-manager');
+  runtime.speechPlaybackRuntime?.seek?.(0);
   runtime.narrationSynchronizationRuntime?.reset?.();
   runtime.sceneEventRuntime?.reset?.();
   runtime.stateManager.resetAll();
@@ -175,6 +206,7 @@ export function resetScene() {
 export function pauseScene() {
   const runtime = ensureRuntime();
   runtime.timelineSynchronizationRuntime?.pause?.('scene-runtime');
+  runtime.speechPlaybackRuntime?.pause?.('scene-runtime');
   runtime.narrationSynchronizationRuntime?.pause?.('scene-runtime');
   runtime.stateManager.pauseAll();
   runtime.timelineSynchronizationRuntime?.synchronize?.('pause-scene-state-manager');
@@ -184,6 +216,7 @@ export function pauseScene() {
 export function resumeScene() {
   const runtime = ensureRuntime();
   runtime.timelineSynchronizationRuntime?.resume?.('scene-runtime');
+  runtime.speechPlaybackRuntime?.resume?.('scene-runtime');
   runtime.narrationSynchronizationRuntime?.resume?.('scene-runtime');
   runtime.stateManager.resumeAll();
   runtime.timelineSynchronizationRuntime?.synchronize?.('resume-scene-state-manager');

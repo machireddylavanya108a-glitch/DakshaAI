@@ -149,6 +149,17 @@ export function buildRuntimeSceneGraph(validatedSceneJson = {}) {
           progress: 0,
           activeNarrationSegmentId: null,
           updatedAt: null
+        },
+        speechState: {
+          playbackState: 'Ready',
+          knownPlaybackState: true,
+          timelineTimeMs: 0,
+          narrationTimeMs: 0,
+          speed: 1,
+          muted: false,
+          volume: 1,
+          currentSegmentId: null,
+          updatedAt: null
         }
       },
       interactionEngine: {
@@ -159,6 +170,18 @@ export function buildRuntimeSceneGraph(validatedSceneJson = {}) {
           activeNarrationSegmentId: null,
           updatedAt: null
         }
+      },
+      speechPlayback: {
+        playbackState: 'Ready',
+        knownPlaybackState: true,
+        timelineTimeMs: 0,
+        narrationTimeMs: 0,
+        speed: 1,
+        muted: false,
+        volume: 1,
+        currentSegmentId: null,
+        totalSegments: (narrationMetadata.segments || []).length,
+        completedSegments: 0
       }
     }
   };

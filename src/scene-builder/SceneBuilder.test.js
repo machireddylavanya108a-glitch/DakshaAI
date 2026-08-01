@@ -303,6 +303,8 @@ test('scene runtime attaches timeline synchronization runtime', () => {
   assert.ok(runtime.timelineSynchronizationRuntime);
   assert.ok(runtime.timelineSynchronization);
   assert.ok(runtime.narrationSynchronizationRuntime);
+  assert.ok(runtime.speechPlaybackRuntime);
+  assert.equal(typeof runtime.speechPlaybackRuntime.play, 'function');
   assert.equal(typeof runtime.narrationSynchronizationRuntime.synchronize, 'function');
   assert.equal(typeof runtime.timelineSynchronizationRuntime.seekByTime, 'function');
   assert.ok(getActiveTimelineSynchronizationRuntime());
@@ -318,9 +320,12 @@ test('scene runtime attaches timeline synchronization runtime', () => {
 
   const shared = runtime.timelineSynchronizationRuntime.getSharedState();
   assert.ok(shared.narration);
+  assert.ok(shared.speechPlayback);
   assert.equal(shared.narration.segmentCount >= 1, true);
   assert.ok(shared.narration.synchronization);
+  assert.equal(typeof shared.speechPlayback.playbackState, 'string');
   assert.equal(typeof shared.adapters.aiTeacher.activeNarrationSegmentId, 'string');
+  assert.equal(typeof shared.adapters.aiTeacher.speechPlaybackState.playbackState, 'string');
 });
 
 test('timeline synchronization persists and recovers across runtime reload', () => {
