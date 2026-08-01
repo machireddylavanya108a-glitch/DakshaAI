@@ -407,6 +407,7 @@ test('scene runtime attaches timeline synchronization runtime', () => {
   assert.ok(runtime.narrationSynchronizationRuntime);
   assert.ok(runtime.speechPlaybackRuntime);
   assert.ok(runtime.adaptiveTeachingRuntime);
+  assert.ok(runtime.aiTeacherRuntime);
   assert.ok(runtime.interactionContractRuntime);
   assert.ok(runtime.inputCameraControlRuntime);
   assert.ok(runtime.educationalInspectionRuntime);
@@ -417,6 +418,7 @@ test('scene runtime attaches timeline synchronization runtime', () => {
   assert.equal(typeof runtime.educationalInspectionRuntime.inspectObject, 'function');
   assert.equal(typeof runtime.accessibilityStateRecoveryRuntime.navigateFocus, 'function');
   assert.equal(typeof runtime.adaptiveTeachingRuntime.evaluate, 'function');
+  assert.equal(typeof runtime.aiTeacherRuntime.createPlan, 'function');
   assert.equal(typeof runtime.speechPlaybackRuntime.play, 'function');
   assert.equal(typeof runtime.narrationSynchronizationRuntime.synchronize, 'function');
   assert.equal(typeof runtime.assetLoadingRuntime.load, 'function');
@@ -456,6 +458,7 @@ test('scene runtime attaches timeline synchronization runtime', () => {
   assert.ok(shared.narration);
   assert.ok(shared.speechPlayback);
   assert.ok(shared.adaptiveLearning);
+  assert.ok(shared.aiTeacherRuntime);
   assert.ok(shared.interactionContract);
   assert.ok(shared.inputCameraControl);
   assert.ok(shared.educationalInspection);
@@ -482,6 +485,7 @@ test('scene runtime attaches timeline synchronization runtime', () => {
   assert.ok(shared.narration.synchronization);
   assert.equal(typeof shared.speechPlayback.playbackState, 'string');
   assert.equal(typeof shared.adaptiveLearning.modeProfile.mode, 'string');
+  assert.equal(typeof shared.aiTeacherRuntime.schemaVersion, 'string');
   assert.equal(typeof shared.interactionContract.schemaVersion, 'string');
   assert.equal(typeof shared.inputCameraControl.schemaVersion, 'string');
   assert.equal(typeof shared.adapters.aiTeacher.activeNarrationSegmentId, 'string');
