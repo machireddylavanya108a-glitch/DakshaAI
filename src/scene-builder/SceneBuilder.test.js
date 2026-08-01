@@ -13,7 +13,8 @@ import {
   pauseScene,
   resumeScene,
   setEducationalObjectLifecycleManager,
-  getEducationalObjectLifecycleManager
+  getEducationalObjectLifecycleManager,
+  getActiveTimelineScheduler
 } from './SceneRuntime.js';
 
 test('large scene builds runtime graph with relationships', () => {
@@ -164,4 +165,55 @@ test('destroy scene invokes educational object lifecycle cleanup when available'
   assert.equal(cleanupCalls, 1);
   assert.equal(getEducationalObjectLifecycleManager(), manager);
   setEducationalObjectLifecycleManager(null);
+});
+
+test('scene runtime attaches universal timeline scheduler', () => {
+  const runtime = loadScene({
+    title: 'Scheduler Scene',
+    timelineTracks: [
+      {
+        id: 'track-1',
+        name: 'Main',
+        purpose: 'generic',
+        enabled: true,
+        priority: 1,
+        clips: [{ id: 'clip-1', start: 0, end: 1000, duration: 1000, objects: [] }],
+        events: [{ id: 'event-1', type: 'custom', time: 200, targets: ['clip-1'] }],
+        markers: [{ id: 'marker-1', type: 'chapter', time: 0 }],
+        dependencies: [],
+        metadata: {}
+      }
+    ]
+  });
+
+  assert.ok(runtime.timelineScheduler);
+  assert.equal(typeof runtime.timelineScheduler.tick, 'function');
+  assert.ok(getActiveTimelineScheduler());
+});
+
+test('runtime metadata exposes renderer adapter timeline identifiers only', () => {
+  const runtime = loadScene({
+    title: 'Renderer Adapter Meta Scene',
+    timelineTracks: [
+      {
+        id: 'track-1',
+        name: 'Main',
+        purpose: 'generic',
+        enabled: true,
+        priority: 1,
+        clips: [{ id: 'clip-1', start: 0, end: 1000, duration: 1000, objects: [] }],
+        events: [{ id: 'event-1', type: 'custom', time: 200, targets: ['clip-1'] }],
+        markers: [{ id: 'marker-1', type: 'chapter', time: 0 }],
+        dependencies: [{ id: 'dep-1', type: 'before', from: 'clip-1', to: 'event-1' }],
+        metadata: {}
+      }
+    ]
+  });
+
+  assert.ok(runtime.metadata.rendererAdapter);
+  assert.ok(runtime.metadata.rendererAdapter.timeline);
+  assert.equal(Array.isArray(runtime.metadata.rendererAdapter.timeline.trackIds), true);
+  assert.equal(Array.isArray(runtime.metadata.rendererAdapter.timeline.clipIds), true);
+  assert.equal(Array.isArray(runtime.metadata.rendererAdapter.timeline.markerIds), true);
+  assert.equal(Array.isArray(runtime.metadata.rendererAdapter.timeline.eventIds), true);
 });

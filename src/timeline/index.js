@@ -46,3 +46,4 @@ export {
 } from './TimelineDeserializer.js';
 
 export { buildTimeline } from './TimelineBuilder.js';
+export * from './runtime/index.js';

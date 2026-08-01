@@ -12,19 +12,22 @@ import { buildTimeline } from '../timeline/index.js';
 function buildRuntimeTimelineMetadata(scene = {}) {
   const timelineData = buildTimeline(scene);
   return {
-    timelineId: timelineData.timelineId,
-    version: timelineData.version,
-    trackIds: (timelineData.tracks || []).map((track) => track.id),
-    clipIds: (timelineData.clips || []).map((clip) => clip.id),
-    markerIds: (timelineData.markers || []).map((marker) => marker.id),
-    eventIds: (timelineData.events || []).map((event) => event.id),
-    dependencyMetadata: (timelineData.dependencies || []).map((dependency) => ({
-      id: dependency.id,
-      type: dependency.type,
-      from: dependency.from,
-      to: dependency.to,
-      metadata: dependency.metadata || {}
-    }))
+    timelineData,
+    metadata: {
+      timelineId: timelineData.timelineId,
+      version: timelineData.version,
+      trackIds: (timelineData.tracks || []).map((track) => track.id),
+      clipIds: (timelineData.clips || []).map((clip) => clip.id),
+      markerIds: (timelineData.markers || []).map((marker) => marker.id),
+      eventIds: (timelineData.events || []).map((event) => event.id),
+      dependencyMetadata: (timelineData.dependencies || []).map((dependency) => ({
+        id: dependency.id,
+        type: dependency.type,
+        from: dependency.from,
+        to: dependency.to,
+        metadata: dependency.metadata || {}
+      }))
+    }
   };
 }
 
@@ -62,7 +65,8 @@ export function buildRuntimeSceneGraph(validatedSceneJson = {}) {
     dependencyDiagnostics
   });
 
-  const timelineMetadata = buildRuntimeTimelineMetadata(validatedSceneJson);
+  const runtimeTimeline = buildRuntimeTimelineMetadata(validatedSceneJson);
+  const timelineMetadata = runtimeTimeline.metadata;
   const rootNode = graph.getNode(validatedSceneJson.sceneId);
   if (rootNode) {
     rootNode.runtimeData = {
@@ -82,7 +86,18 @@ export function buildRuntimeSceneGraph(validatedSceneJson = {}) {
       title: validatedSceneJson.title,
       subject: validatedSceneJson.subject,
       version: validatedSceneJson.version,
-      timeline: timelineMetadata
+      timeline: timelineMetadata,
+      timelineData: runtimeTimeline.timelineData,
+      rendererAdapter: {
+        timeline: {
+          timelineId: timelineMetadata.timelineId,
+          version: timelineMetadata.version,
+          trackIds: timelineMetadata.trackIds,
+          clipIds: timelineMetadata.clipIds,
+          markerIds: timelineMetadata.markerIds,
+          eventIds: timelineMetadata.eventIds
+        }
+      }
     }
   };
 }
