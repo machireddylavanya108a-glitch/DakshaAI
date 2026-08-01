@@ -145,6 +145,7 @@ export class TimelineSynchronizationRuntime {
     this.speechPlaybackRuntime = runtime?.speechPlaybackRuntime || null;
     this.adaptiveTeachingRuntime = runtime?.adaptiveTeachingRuntime || null;
     this.aiTeacherRuntime = runtime?.aiTeacherRuntime || null;
+    this.assessmentRuntime = runtime?.assessmentRuntime || null;
     this.interactionContractRuntime = runtime?.interactionContractRuntime || null;
     this.inputCameraControlRuntime = runtime?.inputCameraControlRuntime || null;
     this.educationalInspectionRuntime = runtime?.educationalInspectionRuntime || null;
@@ -167,6 +168,7 @@ export class TimelineSynchronizationRuntime {
     this.attachSpeechPlaybackRuntime(this.speechPlaybackRuntime);
     this.attachAdaptiveTeachingRuntime(this.adaptiveTeachingRuntime);
     this.attachAITeacherRuntime(this.aiTeacherRuntime);
+    this.attachAssessmentRuntime(this.assessmentRuntime);
     this.attachInteractionContractRuntime(this.interactionContractRuntime);
     this.attachInputCameraControlRuntime(this.inputCameraControlRuntime);
     this.attachEducationalInspectionRuntime(this.educationalInspectionRuntime);
@@ -193,6 +195,7 @@ export class TimelineSynchronizationRuntime {
     const speechPlaybackState = this.speechPlaybackRuntime?.snapshot?.() || this.runtime?.metadata?.speechPlayback || null;
     const adaptiveLearningState = this.adaptiveTeachingRuntime?.snapshot?.() || this.runtime?.metadata?.adaptiveLearning || null;
     const aiTeacherRuntimeState = this.aiTeacherRuntime?.snapshot?.() || this.runtime?.metadata?.aiTeacherRuntime || null;
+    const assessmentRuntimeState = this.assessmentRuntime?.snapshot?.() || this.runtime?.metadata?.assessmentRuntime || null;
     const interactionContractState = this.interactionContractRuntime?.snapshot?.() || this.runtime?.metadata?.interactionContract || null;
     const inputCameraControlState = this.inputCameraControlRuntime?.snapshot?.() || this.runtime?.metadata?.inputCameraControl || null;
     const educationalInspectionState = this.educationalInspectionRuntime?.snapshot?.() || this.runtime?.metadata?.educationalInspection || null;
@@ -233,6 +236,7 @@ export class TimelineSynchronizationRuntime {
       speechPlayback: speechPlaybackState,
       adaptiveLearning: adaptiveLearningState,
       aiTeacherRuntime: aiTeacherRuntimeState,
+      assessmentRuntime: assessmentRuntimeState,
       interactionContract: interactionContractState,
       inputCameraControl: inputCameraControlState,
       educationalInspection: educationalInspectionState,
@@ -268,6 +272,34 @@ export class TimelineSynchronizationRuntime {
           speechPlaybackState,
           adaptiveLearningState,
           aiTeacherRuntimeState,
+          assessmentRuntimeState,
+          interactionContractState,
+          inputCameraControlState,
+          educationalInspectionState,
+          accessibilityRecoveryState,
+          visualizationStrategyState,
+          capabilityTemplateRecommendationState,
+          confidenceConflictFallbackState,
+          assetRegistryState,
+          assetDiscoveryState,
+          assetLoadingState,
+          rendererCoreState,
+          animationTimelineIntegrationState,
+          adaptiveRenderingPerformanceState,
+          updatedAt: Date.now()
+        },
+        assessment: {
+          state: playback.state,
+          timeMs: playback.timeMs,
+          checkpointId: playback.checkpointId,
+          progress: playback.progress,
+          activeNarrationSegmentId: activeNarrationSegment?.id || null,
+          activeNarrationCueIds: activeNarrationCues.map((cue) => cue.id),
+          narrationSynchronizationState,
+          speechPlaybackState,
+          adaptiveLearningState,
+          aiTeacherRuntimeState,
+          assessmentRuntimeState,
           interactionContractState,
           inputCameraControlState,
           educationalInspectionState,
@@ -294,6 +326,7 @@ export class TimelineSynchronizationRuntime {
           speechPlaybackState,
           adaptiveLearningState,
           aiTeacherRuntimeState,
+          assessmentRuntimeState,
           interactionContractState,
           inputCameraControlState,
           educationalInspectionState,
@@ -319,6 +352,7 @@ export class TimelineSynchronizationRuntime {
           speechPlaybackState,
           adaptiveLearningState,
           aiTeacherRuntimeState,
+          assessmentRuntimeState,
           interactionContractState,
           inputCameraControlState,
           educationalInspectionState,
@@ -456,6 +490,19 @@ export class TimelineSynchronizationRuntime {
     this.unsubscribers.push(unsubscribe);
   }
 
+  attachAssessmentRuntime(assessmentRuntime) {
+    if (!assessmentRuntime || typeof assessmentRuntime.on !== 'function') return;
+
+    const unsubscribe = assessmentRuntime.on('*', ({ channel, payload }) => {
+      this.synchronize('assessment-runtime-event', {
+        channel: channel || 'assessment-runtime-event',
+        payload: payload || {}
+      });
+    });
+
+    this.unsubscribers.push(unsubscribe);
+  }
+
   attachInteractionContractRuntime(interactionContractRuntime) {
     if (!interactionContractRuntime || typeof interactionContractRuntime.on !== 'function') return;
 
@@ -581,6 +628,7 @@ export class TimelineSynchronizationRuntime {
         ...(this.runtime.metadata?.interactionEngine || {}),
         timelineState: this.sharedState.adapters.interactionEngine,
         aiTeacherRuntimeState: this.sharedState.aiTeacherRuntime,
+        assessmentRuntimeState: this.sharedState.assessmentRuntime,
         contractState: this.sharedState.interactionContract,
         inputCameraControlState: this.sharedState.inputCameraControl,
         educationalInspectionState: this.sharedState.educationalInspection,
@@ -657,6 +705,17 @@ export class TimelineSynchronizationRuntime {
         rendererCoreState: this.sharedState.rendererCore,
         animationTimelineIntegrationState: this.sharedState.animationTimelineIntegration,
         adaptiveRenderingPerformanceState: this.sharedState.adaptiveRenderingPerformance
+      },
+      assessmentAdapter: {
+        ...(this.runtime.metadata?.assessmentAdapter || {}),
+        timelineState: this.sharedState.adapters.assessment,
+        runtimeState: this.sharedState.assessmentRuntime,
+        adaptiveLearningState: this.sharedState.adaptiveLearning,
+        aiTeacherRuntimeState: this.sharedState.aiTeacherRuntime,
+        interactionContractState: this.sharedState.interactionContract,
+        inputCameraControlState: this.sharedState.inputCameraControl,
+        educationalInspectionState: this.sharedState.educationalInspection,
+        accessibilityRecoveryState: this.sharedState.accessibilityRecovery
       }
     };
 
@@ -756,6 +815,7 @@ export class TimelineSynchronizationRuntime {
     this.speechPlaybackRuntime?.handleExternalTimelineMutation?.('pause', { reason });
     this.adaptiveTeachingRuntime?.handleExternalTimelineMutation?.('pause', { reason });
     this.aiTeacherRuntime?.handleExternalTimelineMutation?.('pause', { reason });
+    this.assessmentRuntime?.handleExternalTimelineMutation?.('pause', { reason });
     this.interactionContractRuntime?.handleExternalTimelineMutation?.('pause', { reason });
     this.inputCameraControlRuntime?.handleExternalTimelineMutation?.('pause', { reason });
     this.educationalInspectionRuntime?.handleExternalTimelineMutation?.('pause', { reason });
@@ -772,6 +832,7 @@ export class TimelineSynchronizationRuntime {
     this.speechPlaybackRuntime?.handleExternalTimelineMutation?.('resume', { reason });
     this.adaptiveTeachingRuntime?.handleExternalTimelineMutation?.('resume', { reason });
     this.aiTeacherRuntime?.handleExternalTimelineMutation?.('resume', { reason });
+    this.assessmentRuntime?.handleExternalTimelineMutation?.('resume', { reason });
     this.interactionContractRuntime?.handleExternalTimelineMutation?.('resume', { reason });
     this.inputCameraControlRuntime?.handleExternalTimelineMutation?.('resume', { reason });
     this.educationalInspectionRuntime?.handleExternalTimelineMutation?.('resume', { reason });
@@ -787,6 +848,7 @@ export class TimelineSynchronizationRuntime {
     this.speechPlaybackRuntime?.handleExternalTimelineMutation?.('replay', { fromTimeMs: Number(fromTimeMs || 0) });
     this.adaptiveTeachingRuntime?.handleExternalTimelineMutation?.('replay', { fromTimeMs: Number(fromTimeMs || 0) });
     this.aiTeacherRuntime?.handleExternalTimelineMutation?.('replay', { fromTimeMs: Number(fromTimeMs || 0) });
+    this.assessmentRuntime?.handleExternalTimelineMutation?.('replay', { fromTimeMs: Number(fromTimeMs || 0) });
     this.interactionContractRuntime?.handleExternalTimelineMutation?.('replay', { fromTimeMs: Number(fromTimeMs || 0) });
     this.inputCameraControlRuntime?.handleExternalTimelineMutation?.('replay', { fromTimeMs: Number(fromTimeMs || 0) });
     this.educationalInspectionRuntime?.handleExternalTimelineMutation?.('replay', { fromTimeMs: Number(fromTimeMs || 0) });
@@ -802,6 +864,7 @@ export class TimelineSynchronizationRuntime {
     this.speechPlaybackRuntime?.handleExternalTimelineMutation?.('restart', {});
     this.adaptiveTeachingRuntime?.handleExternalTimelineMutation?.('restart', {});
     this.aiTeacherRuntime?.handleExternalTimelineMutation?.('restart', {});
+    this.assessmentRuntime?.handleExternalTimelineMutation?.('restart', {});
     this.interactionContractRuntime?.handleExternalTimelineMutation?.('restart', {});
     this.inputCameraControlRuntime?.handleExternalTimelineMutation?.('restart', {});
     this.educationalInspectionRuntime?.handleExternalTimelineMutation?.('restart', {});
@@ -817,6 +880,7 @@ export class TimelineSynchronizationRuntime {
     this.speechPlaybackRuntime?.handleExternalTimelineMutation?.('speed-change', { speed: Number(speed || 1) });
     this.adaptiveTeachingRuntime?.handleExternalTimelineMutation?.('speed-change', { speed: Number(speed || 1) });
     this.aiTeacherRuntime?.handleExternalTimelineMutation?.('speed-change', { speed: Number(speed || 1) });
+    this.assessmentRuntime?.handleExternalTimelineMutation?.('speed-change', { speed: Number(speed || 1) });
     this.interactionContractRuntime?.handleExternalTimelineMutation?.('speed-change', { speed: Number(speed || 1) });
     this.inputCameraControlRuntime?.handleExternalTimelineMutation?.('speed-change', { speed: Number(speed || 1) });
     this.educationalInspectionRuntime?.handleExternalTimelineMutation?.('speed-change', { speed: Number(speed || 1) });
@@ -832,6 +896,7 @@ export class TimelineSynchronizationRuntime {
     this.speechPlaybackRuntime?.handleExternalTimelineMutation?.('seek-time', { timeMs: Number(timeMs || 0) });
     this.adaptiveTeachingRuntime?.handleExternalTimelineMutation?.('seek-time', { timeMs: Number(timeMs || 0) });
     this.aiTeacherRuntime?.handleExternalTimelineMutation?.('seek-time', { timeMs: Number(timeMs || 0) });
+    this.assessmentRuntime?.handleExternalTimelineMutation?.('seek-time', { timeMs: Number(timeMs || 0) });
     this.interactionContractRuntime?.handleExternalTimelineMutation?.('seek-time', { timeMs: Number(timeMs || 0) });
     this.inputCameraControlRuntime?.handleExternalTimelineMutation?.('seek-time', { timeMs: Number(timeMs || 0) });
     this.educationalInspectionRuntime?.handleExternalTimelineMutation?.('seek-time', { timeMs: Number(timeMs || 0) });
@@ -847,6 +912,7 @@ export class TimelineSynchronizationRuntime {
     this.speechPlaybackRuntime?.handleExternalTimelineMutation?.('seek-chapter', { chapterId: chapterId || null });
     this.adaptiveTeachingRuntime?.handleExternalTimelineMutation?.('seek-chapter', { chapterId: chapterId || null });
     this.aiTeacherRuntime?.handleExternalTimelineMutation?.('seek-chapter', { chapterId: chapterId || null });
+    this.assessmentRuntime?.handleExternalTimelineMutation?.('seek-chapter', { chapterId: chapterId || null });
     this.interactionContractRuntime?.handleExternalTimelineMutation?.('seek-chapter', { chapterId: chapterId || null });
     this.inputCameraControlRuntime?.handleExternalTimelineMutation?.('seek-chapter', { chapterId: chapterId || null });
     this.educationalInspectionRuntime?.handleExternalTimelineMutation?.('seek-chapter', { chapterId: chapterId || null });
@@ -862,6 +928,7 @@ export class TimelineSynchronizationRuntime {
     this.speechPlaybackRuntime?.handleExternalTimelineMutation?.('seek-clip', { clipId: clipId || null });
     this.adaptiveTeachingRuntime?.handleExternalTimelineMutation?.('seek-clip', { clipId: clipId || null });
     this.aiTeacherRuntime?.handleExternalTimelineMutation?.('seek-clip', { clipId: clipId || null });
+    this.assessmentRuntime?.handleExternalTimelineMutation?.('seek-clip', { clipId: clipId || null });
     this.interactionContractRuntime?.handleExternalTimelineMutation?.('seek-clip', { clipId: clipId || null });
     this.inputCameraControlRuntime?.handleExternalTimelineMutation?.('seek-clip', { clipId: clipId || null });
     this.educationalInspectionRuntime?.handleExternalTimelineMutation?.('seek-clip', { clipId: clipId || null });
@@ -877,6 +944,7 @@ export class TimelineSynchronizationRuntime {
     this.speechPlaybackRuntime?.handleExternalTimelineMutation?.('seek-event', { eventId: eventId || null });
     this.adaptiveTeachingRuntime?.handleExternalTimelineMutation?.('seek-event', { eventId: eventId || null });
     this.aiTeacherRuntime?.handleExternalTimelineMutation?.('seek-event', { eventId: eventId || null });
+    this.assessmentRuntime?.handleExternalTimelineMutation?.('seek-event', { eventId: eventId || null });
     this.interactionContractRuntime?.handleExternalTimelineMutation?.('seek-event', { eventId: eventId || null });
     this.inputCameraControlRuntime?.handleExternalTimelineMutation?.('seek-event', { eventId: eventId || null });
     this.educationalInspectionRuntime?.handleExternalTimelineMutation?.('seek-event', { eventId: eventId || null });
@@ -892,6 +960,7 @@ export class TimelineSynchronizationRuntime {
     this.speechPlaybackRuntime?.handleExternalTimelineMutation?.('seek-marker', { markerId: markerId || null });
     this.adaptiveTeachingRuntime?.handleExternalTimelineMutation?.('seek-marker', { markerId: markerId || null });
     this.aiTeacherRuntime?.handleExternalTimelineMutation?.('seek-marker', { markerId: markerId || null });
+    this.assessmentRuntime?.handleExternalTimelineMutation?.('seek-marker', { markerId: markerId || null });
     this.interactionContractRuntime?.handleExternalTimelineMutation?.('seek-marker', { markerId: markerId || null });
     this.inputCameraControlRuntime?.handleExternalTimelineMutation?.('seek-marker', { markerId: markerId || null });
     this.educationalInspectionRuntime?.handleExternalTimelineMutation?.('seek-marker', { markerId: markerId || null });
@@ -907,6 +976,7 @@ export class TimelineSynchronizationRuntime {
     this.speechPlaybackRuntime?.handleExternalTimelineMutation?.('seek-checkpoint', { checkpointId: checkpointId || null });
     this.adaptiveTeachingRuntime?.handleExternalTimelineMutation?.('seek-checkpoint', { checkpointId: checkpointId || null });
     this.aiTeacherRuntime?.handleExternalTimelineMutation?.('seek-checkpoint', { checkpointId: checkpointId || null });
+    this.assessmentRuntime?.handleExternalTimelineMutation?.('seek-checkpoint', { checkpointId: checkpointId || null });
     this.interactionContractRuntime?.handleExternalTimelineMutation?.('seek-checkpoint', { checkpointId: checkpointId || null });
     this.inputCameraControlRuntime?.handleExternalTimelineMutation?.('seek-checkpoint', { checkpointId: checkpointId || null });
     this.educationalInspectionRuntime?.handleExternalTimelineMutation?.('seek-checkpoint', { checkpointId: checkpointId || null });
@@ -922,6 +992,7 @@ export class TimelineSynchronizationRuntime {
     this.speechPlaybackRuntime?.handleExternalTimelineMutation?.('seek-percentage', { percentage: Number(percentage || 0) });
     this.adaptiveTeachingRuntime?.handleExternalTimelineMutation?.('seek-percentage', { percentage: Number(percentage || 0) });
     this.aiTeacherRuntime?.handleExternalTimelineMutation?.('seek-percentage', { percentage: Number(percentage || 0) });
+    this.assessmentRuntime?.handleExternalTimelineMutation?.('seek-percentage', { percentage: Number(percentage || 0) });
     this.interactionContractRuntime?.handleExternalTimelineMutation?.('seek-percentage', { percentage: Number(percentage || 0) });
     this.inputCameraControlRuntime?.handleExternalTimelineMutation?.('seek-percentage', { percentage: Number(percentage || 0) });
     this.educationalInspectionRuntime?.handleExternalTimelineMutation?.('seek-percentage', { percentage: Number(percentage || 0) });
@@ -937,6 +1008,7 @@ export class TimelineSynchronizationRuntime {
     this.speechPlaybackRuntime?.handleExternalTimelineMutation?.('resume-checkpoint', { checkpointId: checkpointId || null });
     this.adaptiveTeachingRuntime?.handleExternalTimelineMutation?.('resume-checkpoint', { checkpointId: checkpointId || null });
     this.aiTeacherRuntime?.handleExternalTimelineMutation?.('resume-checkpoint', { checkpointId: checkpointId || null });
+    this.assessmentRuntime?.handleExternalTimelineMutation?.('resume-checkpoint', { checkpointId: checkpointId || null });
     this.interactionContractRuntime?.handleExternalTimelineMutation?.('resume-checkpoint', { checkpointId: checkpointId || null });
     this.inputCameraControlRuntime?.handleExternalTimelineMutation?.('resume-checkpoint', { checkpointId: checkpointId || null });
     this.educationalInspectionRuntime?.handleExternalTimelineMutation?.('resume-checkpoint', { checkpointId: checkpointId || null });
