@@ -10,6 +10,7 @@ import { runUniversalAICourseAuthoringCurriculumEngine } from '../course-authori
 import { runUniversalAIPersonalizationAdaptiveLearningEngine } from '../personalization-adaptive/index.js';
 import { runUniversalAIKnowledgeGraphMemoryIntelligenceEngine } from '../knowledge-memory/index.js';
 import { runUniversalMultimodalAITutorLiveTeachingEngine } from '../multimodal-tutor/index.js';
+import { runUniversalAIVoiceConversationLiveClassroomEngine } from '../voice-conversation/index.js';
 
 const STORE_KEY = '__daksha_universal_ai_lesson_generator_store__';
 const LESSON_GRAPH_SCHEMA_VERSION = 'v1';
@@ -1280,6 +1281,96 @@ export class UniversalAILessonGenerator {
       }
     });
 
+    const voiceConversationResult = runUniversalAIVoiceConversationLiveClassroomEngine({
+      runtimeGraph: {
+        nodeCount: runtimeGraphNodeCount,
+        relationshipCount: runtimeGraphRelationshipCount,
+        nodes: asArray(lessonGraph?.lessonGraph?.nodes),
+        edges: asArray(lessonGraph?.lessonGraph?.edges)
+      },
+      lessonGraph,
+      timeline: {
+        timelineId: safeString(sceneResult?.sceneId || lessonGraph.lessonId) || lessonGraph.lessonId,
+        timelineSteps: asArray(timelineData.timelineSteps),
+        clips: asArray(timelineData.timelineSteps).map((step) => ({
+          id: safeString(step.id || ''),
+          start: toFiniteNumber(step.startMs, 0),
+          duration: toFiniteNumber(step.durationMs, 1000)
+        }))
+      },
+      aiTeacherEvents: asArray(teacherPlan.steps).map((step, index) => ({
+        id: `voice-teacher-event-${index + 1}`,
+        type: 'ai-teacher-step',
+        payload: step
+      })),
+      knowledgeGraph: knowledgeMemoryResult?.output?.knowledgeGraph || {},
+      learningAnalytics: {
+        output: {
+          masteryScore: clamp(toFiniteNumber(intentProfile.confidenceScore, 0.6), 0, 1),
+          learningConfidence: clamp(toFiniteNumber(intentProfile.confidenceScore, 0.6), 0, 1)
+        }
+      },
+      userProfile: {
+        learningLevel: safeString(sourceMeta.difficulty || 'intermediate') || 'intermediate',
+        preferredLanguage: safeString(sourceMeta.language || normalizedInput.language || 'English') || 'English',
+        supportedLanguages: [safeString(sourceMeta.language || normalizedInput.language || 'English') || 'English', 'English'],
+        futureLearnerAttributes: {
+          adaptivePersona: 'future-compatible'
+        }
+      },
+      personalization: personalizationAdaptiveResult?.output || {},
+      interactionEvents: asArray(timelineData.timelineSteps).map((step, index) => ({
+        id: `voice-interaction-${index + 1}`,
+        type: 'conversation-interaction',
+        payload: step
+      })),
+      conversationTypes: [
+        'one-to-one-ai-tutor',
+        'one-to-many-classroom',
+        'many-to-many-collaborative-classroom',
+        'live-q-and-a',
+        'code-review-session'
+      ],
+      conversationCapabilities: [
+        'explain',
+        'answer',
+        'ask',
+        'clarify',
+        'summarize',
+        'repeat',
+        'simplify',
+        'expand',
+        'compare',
+        'challenge',
+        'encourage',
+        'coach',
+        'moderate',
+        'facilitate-discussion'
+      ],
+      participants: [
+        {
+          participantId: 'teacher-1',
+          role: 'teacher',
+          displayName: 'AI Teacher',
+          language: safeString(sourceMeta.language || normalizedInput.language || 'English') || 'English'
+        },
+        {
+          participantId: 'student-1',
+          role: 'learner',
+          displayName: 'Primary Learner',
+          language: safeString(sourceMeta.language || normalizedInput.language || 'English') || 'English'
+        }
+      ],
+      preferredLanguages: [safeString(sourceMeta.language || normalizedInput.language || 'English') || 'English'],
+      learningIntent: intentProfile,
+      pipeline: {
+        sourceMeta,
+        sourceModel,
+        learningSession,
+        detections
+      }
+    });
+
     const report = {
       schemaVersion: LESSON_GRAPH_SCHEMA_VERSION,
       generatedAt: new Date().toISOString(),
@@ -1290,6 +1381,7 @@ export class UniversalAILessonGenerator {
       personalizationAdaptive: personalizationAdaptiveResult?.output || null,
       knowledgeMemory: knowledgeMemoryResult?.output || null,
       multimodalTutor: multimodalTutorResult?.output || null,
+      voiceConversation: voiceConversationResult?.output || null,
       validation,
       diagnostics: {
         durationMs: Math.max(0, Date.now() - startedAt),
@@ -1320,6 +1412,8 @@ export class UniversalAILessonGenerator {
       knowledgeMemoryValidation: knowledgeMemoryResult?.validation || null,
       multimodalTutor: multimodalTutorResult?.output || null,
       multimodalTutorValidation: multimodalTutorResult?.validation || null,
+      voiceConversation: voiceConversationResult?.output || null,
+      voiceConversationValidation: voiceConversationResult?.validation || null,
       validation,
       snapshot: this.snapshot()
     };

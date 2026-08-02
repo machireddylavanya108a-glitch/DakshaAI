@@ -14,6 +14,7 @@ import { createUniversalAICourseAuthoringCurriculumEngine } from '../course-auth
 import { createUniversalAIPersonalizationAdaptiveLearningEngine } from '../personalization-adaptive/index.js';
 import { createUniversalAIKnowledgeGraphMemoryIntelligenceEngine } from '../knowledge-memory/index.js';
 import { createUniversalMultimodalAITutorLiveTeachingEngine } from '../multimodal-tutor/index.js';
+import { createUniversalAIVoiceConversationLiveClassroomEngine } from '../voice-conversation/index.js';
 import { createUniversalInputCameraControlRuntime } from '../input-camera/index.js';
 import { createUniversalEducationalInspectionRuntime } from '../inspection/index.js';
 import { createUniversalAccessibilityStateRecoveryRuntime } from '../accessibility/index.js';
@@ -460,6 +461,46 @@ function attachUniversalMultimodalTutorRuntime(runtime) {
   return runtime;
 }
 
+function attachUniversalVoiceConversationRuntime(runtime) {
+  if (!runtime || typeof runtime !== 'object') return runtime;
+
+  const voiceConversationRuntime = createUniversalAIVoiceConversationLiveClassroomEngine(runtime);
+  runtime.voiceConversationRuntime = voiceConversationRuntime;
+
+  const recovered = voiceConversationRuntime.recoverSession();
+  const snapshot = voiceConversationRuntime.synchronize('attach', {
+    runtimeGraph: runtime?.graph?.toJSON?.() || runtime?.graph || null,
+    lessonGraph: runtime?.metadata?.lessonGraph || null,
+    timeline: runtime?.metadata?.timeline || runtime?.metadata?.timelineData || null,
+    aiTeacherEvents: runtime?.metadata?.aiTeacherAdapter?.runtimeState?.history?.recentEvents || null,
+    knowledgeGraph: runtime?.metadata?.knowledgeMemoryAdapter?.output?.knowledgeGraph || null,
+    learningAnalytics: runtime?.metadata?.learningAnalyticsAdapter || null,
+    userProfile: runtime?.metadata?.userLearningProfile || runtime?.metadata?.learningProfile || null,
+    personalization: runtime?.metadata?.personalizationAdaptiveAdapter || null,
+    interactionEvents: runtime?.sceneEventRuntime?.events || null,
+    assessmentResults: runtime?.metadata?.assessmentAdapter || null,
+    learningIntent: runtime?.metadata?.intentProfile || runtime?.metadata?.learningIntent || null,
+    pipeline: runtime?.metadata?.pipeline || runtime?.metadata?.sourceMeta || null
+  });
+
+  runtime.metadata = {
+    ...(runtime.metadata || {}),
+    voiceConversationRuntime: {
+      ...snapshot,
+      recovered,
+      channels: voiceConversationRuntime.constructor.supportedChannels()
+    },
+    voiceConversationAdapter: {
+      ...(runtime.metadata?.voiceConversationAdapter || {}),
+      runtimeState: snapshot,
+      recovered,
+      channels: voiceConversationRuntime.constructor.supportedChannels()
+    }
+  };
+
+  return runtime;
+}
+
 function attachInteractionContractRuntime(runtime) {
   if (!runtime || typeof runtime !== 'object') return runtime;
 
@@ -735,6 +776,7 @@ export function buildScene(validatedSceneJson = {}) {
       attachEducationalInspectionRuntime(
         attachInputCameraControlRuntime(
           attachInteractionContractRuntime(
+            attachUniversalVoiceConversationRuntime(
             attachUniversalMultimodalTutorRuntime(
             attachUniversalAIKnowledgeMemoryRuntime(
             attachUniversalAIPersonalizationAdaptiveRuntime(
@@ -751,6 +793,7 @@ export function buildScene(validatedSceneJson = {}) {
                   )
                 )
               )
+            )
             )
             )
             )
@@ -783,6 +826,7 @@ export function loadScene(sceneJson = {}) {
       attachEducationalInspectionRuntime(
         attachInputCameraControlRuntime(
           attachInteractionContractRuntime(
+            attachUniversalVoiceConversationRuntime(
             attachUniversalMultimodalTutorRuntime(
             attachUniversalAIKnowledgeMemoryRuntime(
             attachUniversalAIPersonalizationAdaptiveRuntime(
@@ -799,6 +843,7 @@ export function loadScene(sceneJson = {}) {
                   )
                 )
               )
+            )
             )
             )
             )
@@ -841,6 +886,7 @@ export function destroyScene() {
   runtime.personalizationAdaptiveRuntime?.persistSession?.();
   runtime.knowledgeMemoryRuntime?.persistSession?.();
   runtime.multimodalTutorRuntime?.persistSession?.();
+  runtime.voiceConversationRuntime?.persistSession?.();
   runtime.interactionContractRuntime?.persistSession?.();
   runtime.inputCameraControlRuntime?.persistSession?.();
   runtime.educationalInspectionRuntime?.persistSession?.();
@@ -860,6 +906,7 @@ export function destroyScene() {
   runtime.personalizationAdaptiveRuntime?.destroy?.();
   runtime.knowledgeMemoryRuntime?.destroy?.();
   runtime.multimodalTutorRuntime?.destroy?.();
+  runtime.voiceConversationRuntime?.destroy?.();
   runtime.interactionContractRuntime?.destroy?.();
   runtime.inputCameraControlRuntime?.destroy?.();
   runtime.educationalInspectionRuntime?.destroy?.();
@@ -892,6 +939,7 @@ export function resetScene() {
   runtime.personalizationAdaptiveRuntime?.synchronize?.('reset');
   runtime.knowledgeMemoryRuntime?.synchronize?.('reset');
   runtime.multimodalTutorRuntime?.synchronize?.('reset');
+  runtime.voiceConversationRuntime?.synchronize?.('reset');
   runtime.interactionContractRuntime?.synchronize?.('reset');
   runtime.inputCameraControlRuntime?.synchronize?.('reset');
   runtime.educationalInspectionRuntime?.synchronize?.('reset');
@@ -929,6 +977,7 @@ export function pauseScene() {
   runtime.personalizationAdaptiveRuntime?.markInterrupted?.('scene-paused');
   runtime.knowledgeMemoryRuntime?.markInterrupted?.('scene-paused');
   runtime.multimodalTutorRuntime?.markInterrupted?.('scene-paused');
+  runtime.voiceConversationRuntime?.markInterrupted?.('scene-paused');
   runtime.interactionContractRuntime?.handleExternalTimelineMutation?.('pause', { source: 'scene-runtime' });
   runtime.inputCameraControlRuntime?.handleExternalTimelineMutation?.('pause', { source: 'scene-runtime' });
   runtime.educationalInspectionRuntime?.handleExternalTimelineMutation?.('pause', { source: 'scene-runtime' });
@@ -959,6 +1008,7 @@ export function resumeScene() {
   runtime.personalizationAdaptiveRuntime?.handleExternalTimelineMutation?.('resume', { source: 'scene-runtime' });
   runtime.knowledgeMemoryRuntime?.handleExternalTimelineMutation?.('resume', { source: 'scene-runtime' });
   runtime.multimodalTutorRuntime?.handleExternalTimelineMutation?.('resume', { source: 'scene-runtime' });
+  runtime.voiceConversationRuntime?.handleExternalTimelineMutation?.('resume', { source: 'scene-runtime' });
   runtime.interactionContractRuntime?.handleExternalTimelineMutation?.('resume', { source: 'scene-runtime' });
   runtime.inputCameraControlRuntime?.handleExternalTimelineMutation?.('resume', { source: 'scene-runtime' });
   runtime.educationalInspectionRuntime?.handleExternalTimelineMutation?.('resume', { source: 'scene-runtime' });
