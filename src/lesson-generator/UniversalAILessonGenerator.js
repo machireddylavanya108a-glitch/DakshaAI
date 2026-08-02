@@ -8,6 +8,7 @@ import { buildRuntimeSceneGraph } from '../scene-builder/SceneBuilder.js';
 import { runUniversalAIContentCreationEngine } from '../content-creation/index.js';
 import { runUniversalAICourseAuthoringCurriculumEngine } from '../course-authoring/index.js';
 import { runUniversalAIPersonalizationAdaptiveLearningEngine } from '../personalization-adaptive/index.js';
+import { runUniversalAIKnowledgeGraphMemoryIntelligenceEngine } from '../knowledge-memory/index.js';
 
 const STORE_KEY = '__daksha_universal_ai_lesson_generator_store__';
 const LESSON_GRAPH_SCHEMA_VERSION = 'v1';
@@ -1138,6 +1139,61 @@ export class UniversalAILessonGenerator {
       }
     });
 
+    const knowledgeMemoryResult = runUniversalAIKnowledgeGraphMemoryIntelligenceEngine({
+      lessonGraph,
+      curriculumGraph: curriculumAuthoringResult?.output || {},
+      runtimeGraph: {
+        nodeCount: runtimeGraphNodeCount,
+        relationshipCount: runtimeGraphRelationshipCount,
+        nodes: asArray(lessonGraph?.lessonGraph?.nodes),
+        edges: asArray(lessonGraph?.lessonGraph?.edges)
+      },
+      learningAnalytics: {
+        output: {
+          masteryScore: clamp(toFiniteNumber(intentProfile.confidenceScore, 0.6), 0, 1),
+          learningConfidence: clamp(toFiniteNumber(intentProfile.confidenceScore, 0.6), 0, 1)
+        }
+      },
+      aiTeacherEvents: asArray(teacherPlan.steps).map((step, index) => ({
+        id: `knowledge-teacher-event-${index + 1}`,
+        type: 'ai-teacher-step',
+        payload: step
+      })),
+      assessmentResults: {
+        output: {
+          masteryScore: clamp(toFiniteNumber(intentProfile.confidenceScore, 0.6), 0, 1),
+          completionScore: 0.6,
+          learningConfidence: clamp(toFiniteNumber(intentProfile.confidenceScore, 0.6), 0, 1)
+        }
+      },
+      userLearningProfile: {
+        learningLevel: safeString(sourceMeta.difficulty || 'intermediate') || 'intermediate',
+        language: safeString(sourceMeta.language || normalizedInput.language || 'English') || 'English'
+      },
+      sessionHistory: [{
+        sessionId: lessonGraph.lessonId,
+        durationMinutes: Math.max(20, Math.round(asArray(timelineData.timelineSteps).length * 4))
+      }],
+      interactionEvents: asArray(timelineData.timelineSteps).map((step, index) => ({
+        id: `knowledge-interaction-${index + 1}`,
+        type: 'timeline-interaction',
+        payload: step
+      })),
+      timelineEvents: asArray(timelineData.timelineSteps).map((step, index) => ({
+        id: `knowledge-timeline-${index + 1}`,
+        type: 'TimelineStep',
+        payload: step
+      })),
+      personalization: personalizationAdaptiveResult?.output || {},
+      learningIntent: intentProfile,
+      pipeline: {
+        sourceMeta,
+        sourceModel,
+        learningSession,
+        detections
+      }
+    });
+
     const report = {
       schemaVersion: LESSON_GRAPH_SCHEMA_VERSION,
       generatedAt: new Date().toISOString(),
@@ -1146,6 +1202,7 @@ export class UniversalAILessonGenerator {
       contentCreation: contentCreationResult?.output || null,
       curriculumAuthoring: curriculumAuthoringResult?.output || null,
       personalizationAdaptive: personalizationAdaptiveResult?.output || null,
+      knowledgeMemory: knowledgeMemoryResult?.output || null,
       validation,
       diagnostics: {
         durationMs: Math.max(0, Date.now() - startedAt),
@@ -1172,6 +1229,8 @@ export class UniversalAILessonGenerator {
       curriculumAuthoringValidation: curriculumAuthoringResult?.validation || null,
       personalizationAdaptive: personalizationAdaptiveResult?.output || null,
       personalizationAdaptiveValidation: personalizationAdaptiveResult?.validation || null,
+      knowledgeMemory: knowledgeMemoryResult?.output || null,
+      knowledgeMemoryValidation: knowledgeMemoryResult?.validation || null,
       validation,
       snapshot: this.snapshot()
     };
