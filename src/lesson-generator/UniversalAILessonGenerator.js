@@ -5,6 +5,7 @@ import { generateUniversalScene } from '../scene-generator/index.js';
 import { buildTimeline, validateTimeline } from '../timeline/index.js';
 import { buildTeacherSynchronizationPlan } from '../utils/teacherSynchronizationEngine.js';
 import { buildRuntimeSceneGraph } from '../scene-builder/SceneBuilder.js';
+import { runUniversalAIContentCreationEngine } from '../content-creation/index.js';
 
 const STORE_KEY = '__daksha_universal_ai_lesson_generator_store__';
 const LESSON_GRAPH_SCHEMA_VERSION = 'v1';
@@ -1014,11 +1015,39 @@ export class UniversalAILessonGenerator {
       this.warn(validation.errors.join(' | '));
     }
 
+    const contentCreationResult = runUniversalAIContentCreationEngine({
+      lessonGraph,
+      runtimeGraph: {
+        nodeCount: runtimeGraphNodeCount,
+        relationshipCount: runtimeGraphRelationshipCount,
+        nodes: asArray(lessonGraph?.lessonGraph?.nodes),
+        edges: asArray(lessonGraph?.lessonGraph?.edges)
+      },
+      learningIntent: intentProfile,
+      visualizationStrategy,
+      userLearningProfile: {
+        learningLevel: safeString(sourceMeta.difficulty || 'intermediate') || 'intermediate',
+        learnerModes: ['revision-mode'],
+        language: safeString(sourceMeta.language || normalizedInput.language || 'English') || 'English'
+      },
+      aiTeacherMetadata: {
+        teachingPlan: teacherPlan,
+        diagnostics: isObject(sceneResult?.diagnostics) ? sceneResult.diagnostics : {}
+      },
+      pipeline: {
+        sourceMeta,
+        sourceModel,
+        learningSession,
+        detections
+      }
+    });
+
     const report = {
       schemaVersion: LESSON_GRAPH_SCHEMA_VERSION,
       generatedAt: new Date().toISOString(),
       sourceType: normalizedInput.sourceType,
       lessonGraph,
+      contentCreation: contentCreationResult?.output || null,
       validation,
       diagnostics: {
         durationMs: Math.max(0, Date.now() - startedAt),
@@ -1039,6 +1068,8 @@ export class UniversalAILessonGenerator {
     const result = {
       report,
       lessonGraph,
+      contentCreation: contentCreationResult?.output || null,
+      contentCreationValidation: contentCreationResult?.validation || null,
       validation,
       snapshot: this.snapshot()
     };
