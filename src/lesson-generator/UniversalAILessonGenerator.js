@@ -6,6 +6,7 @@ import { buildTimeline, validateTimeline } from '../timeline/index.js';
 import { buildTeacherSynchronizationPlan } from '../utils/teacherSynchronizationEngine.js';
 import { buildRuntimeSceneGraph } from '../scene-builder/SceneBuilder.js';
 import { runUniversalAIContentCreationEngine } from '../content-creation/index.js';
+import { runUniversalAICourseAuthoringCurriculumEngine } from '../course-authoring/index.js';
 
 const STORE_KEY = '__daksha_universal_ai_lesson_generator_store__';
 const LESSON_GRAPH_SCHEMA_VERSION = 'v1';
@@ -1042,12 +1043,49 @@ export class UniversalAILessonGenerator {
       }
     });
 
+    const curriculumAuthoringResult = runUniversalAICourseAuthoringCurriculumEngine({
+      lessonGraph,
+      runtimeGraph: {
+        nodeCount: runtimeGraphNodeCount,
+        relationshipCount: runtimeGraphRelationshipCount,
+        nodes: asArray(lessonGraph?.lessonGraph?.nodes),
+        edges: asArray(lessonGraph?.lessonGraph?.edges)
+      },
+      learningIntent: intentProfile,
+      learningAnalytics: {
+        output: {
+          masteryScore: clamp(toFiniteNumber(intentProfile.confidenceScore, 0.6), 0, 1)
+        }
+      },
+      assessmentResults: {
+        output: {
+          questionBank: asArray(learningSession.quiz)
+        }
+      },
+      aiTeacherMetadata: {
+        teachingPlan: teacherPlan,
+        diagnostics: isObject(sceneResult?.diagnostics) ? sceneResult.diagnostics : {}
+      },
+      userLearningProfile: {
+        learningLevel: safeString(sourceMeta.difficulty || 'intermediate') || 'intermediate',
+        learnerModes: ['revision-mode'],
+        language: safeString(sourceMeta.language || normalizedInput.language || 'English') || 'English'
+      },
+      pipeline: {
+        sourceMeta,
+        sourceModel,
+        learningSession,
+        detections
+      }
+    });
+
     const report = {
       schemaVersion: LESSON_GRAPH_SCHEMA_VERSION,
       generatedAt: new Date().toISOString(),
       sourceType: normalizedInput.sourceType,
       lessonGraph,
       contentCreation: contentCreationResult?.output || null,
+      curriculumAuthoring: curriculumAuthoringResult?.output || null,
       validation,
       diagnostics: {
         durationMs: Math.max(0, Date.now() - startedAt),
@@ -1070,6 +1108,8 @@ export class UniversalAILessonGenerator {
       lessonGraph,
       contentCreation: contentCreationResult?.output || null,
       contentCreationValidation: contentCreationResult?.validation || null,
+      curriculumAuthoring: curriculumAuthoringResult?.output || null,
+      curriculumAuthoringValidation: curriculumAuthoringResult?.validation || null,
       validation,
       snapshot: this.snapshot()
     };
