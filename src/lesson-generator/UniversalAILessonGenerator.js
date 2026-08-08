@@ -11,6 +11,7 @@ import { runUniversalAIPersonalizationAdaptiveLearningEngine } from '../personal
 import { runUniversalAIKnowledgeGraphMemoryIntelligenceEngine } from '../knowledge-memory/index.js';
 import { runUniversalMultimodalAITutorLiveTeachingEngine } from '../multimodal-tutor/index.js';
 import { runUniversalAIVoiceConversationLiveClassroomEngine } from '../voice-conversation/index.js';
+import { runUniversalAIMentorCoachInterviewerEngine } from '../mentor-coach-interviewer/index.js';
 
 const STORE_KEY = '__daksha_universal_ai_lesson_generator_store__';
 const LESSON_GRAPH_SCHEMA_VERSION = 'v1';
@@ -1371,6 +1372,92 @@ export class UniversalAILessonGenerator {
       }
     });
 
+    const mentorCoachInterviewerResult = runUniversalAIMentorCoachInterviewerEngine({
+      runtimeGraph: {
+        nodeCount: runtimeGraphNodeCount,
+        relationshipCount: runtimeGraphRelationshipCount,
+        nodes: asArray(lessonGraph?.lessonGraph?.nodes),
+        edges: asArray(lessonGraph?.lessonGraph?.edges)
+      },
+      lessonGraph,
+      curriculumGraph: curriculumAuthoringResult?.output || {},
+      knowledgeGraph: knowledgeMemoryResult?.output?.knowledgeGraph || {},
+      learningAnalytics: {
+        output: {
+          masteryScore: clamp(toFiniteNumber(intentProfile.confidenceScore, 0.6), 0, 1),
+          learningConfidence: clamp(toFiniteNumber(intentProfile.confidenceScore, 0.6), 0, 1)
+        }
+      },
+      assessmentResults: {
+        output: {
+          mistakes: 0,
+          masteryScore: clamp(toFiniteNumber(intentProfile.confidenceScore, 0.6), 0, 1),
+          learningConfidence: clamp(toFiniteNumber(intentProfile.confidenceScore, 0.6), 0, 1)
+        }
+      },
+      aiTeacherEvents: asArray(teacherPlan.steps).map((step, index) => ({
+        id: `mentor-teacher-event-${index + 1}`,
+        type: 'ai-teacher-step',
+        payload: step
+      })),
+      userProfile: {
+        learningLevel: safeString(sourceMeta.difficulty || 'intermediate') || 'intermediate',
+        preferredLanguage: safeString(sourceMeta.language || normalizedInput.language || 'English') || 'English',
+        supportedLanguages: [safeString(sourceMeta.language || normalizedInput.language || 'English') || 'English', 'English'],
+        communicationAbility: clamp(toFiniteNumber(intentProfile.confidenceScore, 0.6), 0, 1),
+        careerGoals: [safeString(sourceMeta.subject || normalizedInput.topic) || 'career-growth-goal'],
+        futureLearnerAttributes: {
+          adaptivePersona: 'future-compatible'
+        }
+      },
+      personalization: personalizationAdaptiveResult?.output || {},
+      timelineEvents: asArray(timelineData.timelineSteps).map((step, index) => ({
+        id: `mentor-timeline-event-${index + 1}`,
+        type: 'timeline-step',
+        payload: step
+      })),
+      sessionHistory: [{
+        sessionId: lessonGraph.lessonId,
+        durationMinutes: Math.max(20, Math.round(asArray(timelineData.timelineSteps).length * 4))
+      }],
+      interactionEvents: asArray(timelineData.timelineSteps).map((step, index) => ({
+        id: `mentor-interaction-${index + 1}`,
+        type: 'mentor-interaction',
+        payload: step
+      })),
+      mentorTypes: [
+        'universal-mentor',
+        'skill-coach',
+        'project-coach',
+        'technical-interview',
+        'behavioral-interview',
+        'project-review'
+      ],
+      capabilities: [
+        'mentor',
+        'coach',
+        'interview',
+        'evaluate',
+        'guide',
+        'motivate',
+        'challenge',
+        'encourage',
+        'recommend',
+        'explain',
+        'assess',
+        'review',
+        'score',
+        'forecast'
+      ],
+      learningIntent: intentProfile,
+      pipeline: {
+        sourceMeta,
+        sourceModel,
+        learningSession,
+        detections
+      }
+    });
+
     const report = {
       schemaVersion: LESSON_GRAPH_SCHEMA_VERSION,
       generatedAt: new Date().toISOString(),
@@ -1382,6 +1469,7 @@ export class UniversalAILessonGenerator {
       knowledgeMemory: knowledgeMemoryResult?.output || null,
       multimodalTutor: multimodalTutorResult?.output || null,
       voiceConversation: voiceConversationResult?.output || null,
+      mentorCoachInterviewer: mentorCoachInterviewerResult?.output || null,
       validation,
       diagnostics: {
         durationMs: Math.max(0, Date.now() - startedAt),
@@ -1414,6 +1502,8 @@ export class UniversalAILessonGenerator {
       multimodalTutorValidation: multimodalTutorResult?.validation || null,
       voiceConversation: voiceConversationResult?.output || null,
       voiceConversationValidation: voiceConversationResult?.validation || null,
+      mentorCoachInterviewer: mentorCoachInterviewerResult?.output || null,
+      mentorCoachInterviewerValidation: mentorCoachInterviewerResult?.validation || null,
       validation,
       snapshot: this.snapshot()
     };

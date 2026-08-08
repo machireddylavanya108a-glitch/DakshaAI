@@ -15,6 +15,7 @@ import { createUniversalAIPersonalizationAdaptiveLearningEngine } from '../perso
 import { createUniversalAIKnowledgeGraphMemoryIntelligenceEngine } from '../knowledge-memory/index.js';
 import { createUniversalMultimodalAITutorLiveTeachingEngine } from '../multimodal-tutor/index.js';
 import { createUniversalAIVoiceConversationLiveClassroomEngine } from '../voice-conversation/index.js';
+import { createUniversalCollaborativeLearningGroupTeachingEngine } from '../collaboration/index.js';
 import { createUniversalInputCameraControlRuntime } from '../input-camera/index.js';
 import { createUniversalEducationalInspectionRuntime } from '../inspection/index.js';
 import { createUniversalAccessibilityStateRecoveryRuntime } from '../accessibility/index.js';
@@ -501,6 +502,48 @@ function attachUniversalVoiceConversationRuntime(runtime) {
   return runtime;
 }
 
+function attachUniversalCollaborativeLearningRuntime(runtime) {
+  if (!runtime || typeof runtime !== 'object') return runtime;
+
+  const collaborativeRuntime = createUniversalCollaborativeLearningGroupTeachingEngine(runtime);
+  runtime.collaborativeLearningRuntime = collaborativeRuntime;
+
+  const recovered = collaborativeRuntime.recoverSession();
+  const snapshot = collaborativeRuntime.synchronize('attach', {
+    runtimeGraph: runtime?.graph?.toJSON?.() || runtime?.graph || null,
+    lessonGraph: runtime?.metadata?.lessonGraph || null,
+    curriculumGraph: runtime?.metadata?.curriculumAuthoringAdapter?.output || null,
+    timeline: runtime?.metadata?.timeline || runtime?.metadata?.timelineData || null,
+    aiTeacherEvents: runtime?.metadata?.aiTeacherAdapter?.runtimeState?.history?.recentEvents || null,
+    knowledgeGraph: runtime?.metadata?.knowledgeMemoryAdapter?.output?.knowledgeGraph || null,
+    learningAnalytics: runtime?.metadata?.learningAnalyticsAdapter || null,
+    assessmentResults: runtime?.metadata?.assessmentAdapter || null,
+    userProfiles: runtime?.metadata?.collaborationParticipants || runtime?.metadata?.userProfiles || runtime?.metadata?.userLearningProfile ? [runtime?.metadata?.userLearningProfile || runtime?.metadata?.learningProfile || {}] : [],
+    personalization: runtime?.metadata?.personalizationAdaptiveAdapter || null,
+    collaborationEvents: runtime?.sceneEventRuntime?.events || null,
+    sessionState: runtime?.metadata?.sessionState || null,
+    learningIntent: runtime?.metadata?.intentProfile || runtime?.metadata?.learningIntent || null,
+    pipeline: runtime?.metadata?.pipeline || runtime?.metadata?.sourceMeta || null
+  });
+
+  runtime.metadata = {
+    ...(runtime.metadata || {}),
+    collaborativeLearningRuntime: {
+      ...snapshot,
+      recovered,
+      channels: collaborativeRuntime.constructor.supportedChannels()
+    },
+    collaborativeLearningAdapter: {
+      ...(runtime.metadata?.collaborativeLearningAdapter || {}),
+      runtimeState: snapshot,
+      recovered,
+      channels: collaborativeRuntime.constructor.supportedChannels()
+    }
+  };
+
+  return runtime;
+}
+
 function attachInteractionContractRuntime(runtime) {
   if (!runtime || typeof runtime !== 'object') return runtime;
 
@@ -769,47 +812,49 @@ function ensureRuntime() {
 export function buildScene(validatedSceneJson = {}) {
   activeRuntime = attachTimelineSynchronizationRuntime(
     attachUniversalAdaptiveRenderingPerformanceRuntime(
-    attachUniversalAnimationTimelineIntegrationRuntime(
-    attachUniversalRendererCore(
-    attachAssetLoadingRuntime(
-    attachAccessibilityStateRecoveryRuntime(
-      attachEducationalInspectionRuntime(
-        attachInputCameraControlRuntime(
-          attachInteractionContractRuntime(
-            attachUniversalVoiceConversationRuntime(
-            attachUniversalMultimodalTutorRuntime(
-            attachUniversalAIKnowledgeMemoryRuntime(
-            attachUniversalAIPersonalizationAdaptiveRuntime(
-            attachUniversalAICurriculumAuthoringRuntime(
-            attachUniversalAITeacherRuntime(
-            attachUniversalAssessmentRuntime(
-            attachUniversalLearningAnalyticsRuntime(
-            attachUniversalAIContentCreationRuntime(
-            attachAdaptiveTeachingRuntime(
-              attachSpeechPlaybackRuntime(
-                attachNarrationSynchronizationRuntime(
-                  attachSceneEventRuntime(
-                    attachTimelineScheduler(buildRuntimeSceneGraph(validatedSceneJson || {}))
+      attachUniversalAnimationTimelineIntegrationRuntime(
+        attachUniversalRendererCore(
+          attachAssetLoadingRuntime(
+            attachAccessibilityStateRecoveryRuntime(
+              attachEducationalInspectionRuntime(
+                attachInputCameraControlRuntime(
+                  attachInteractionContractRuntime(
+                    attachUniversalVoiceConversationRuntime(
+                      attachUniversalCollaborativeLearningRuntime(
+                        attachUniversalMultimodalTutorRuntime(
+                          attachUniversalAIKnowledgeMemoryRuntime(
+                            attachUniversalAIPersonalizationAdaptiveRuntime(
+                              attachUniversalAICurriculumAuthoringRuntime(
+                                attachUniversalAITeacherRuntime(
+                                  attachUniversalAssessmentRuntime(
+                                    attachUniversalLearningAnalyticsRuntime(
+                                      attachUniversalAIContentCreationRuntime(
+                                        attachAdaptiveTeachingRuntime(
+                                          attachSpeechPlaybackRuntime(
+                                            attachNarrationSynchronizationRuntime(
+                                              attachSceneEventRuntime(
+                                                attachTimelineScheduler(buildRuntimeSceneGraph(validatedSceneJson || {}))
+                                              )
+                                            )
+                                          )
+                                        )
+                                      )
+                                    )
+                                  )
+                                )
+                              )
+                            )
+                          )
+                        )
+                      )
+                    )
                   )
                 )
               )
             )
-            )
-            )
-            )
-            )
-            )
-            )
-            )
-            )
-            )
           )
         )
       )
-    )
-    )
-    )
-    )
     )
   );
   return activeRuntime;
@@ -819,14 +864,15 @@ export function loadScene(sceneJson = {}) {
   const validatedScene = processSceneJsonPipeline(sceneJson || {}, { sourceType: 'runtime' });
   activeRuntime = attachTimelineSynchronizationRuntime(
     attachUniversalAdaptiveRenderingPerformanceRuntime(
-    attachUniversalAnimationTimelineIntegrationRuntime(
-    attachUniversalRendererCore(
-    attachAssetLoadingRuntime(
-    attachAccessibilityStateRecoveryRuntime(
+      attachUniversalAnimationTimelineIntegrationRuntime(
+        attachUniversalRendererCore(
+          attachAssetLoadingRuntime(
+            attachAccessibilityStateRecoveryRuntime(
       attachEducationalInspectionRuntime(
         attachInputCameraControlRuntime(
           attachInteractionContractRuntime(
             attachUniversalVoiceConversationRuntime(
+            attachUniversalCollaborativeLearningRuntime(
             attachUniversalMultimodalTutorRuntime(
             attachUniversalAIKnowledgeMemoryRuntime(
             attachUniversalAIPersonalizationAdaptiveRuntime(
@@ -887,6 +933,7 @@ export function destroyScene() {
   runtime.knowledgeMemoryRuntime?.persistSession?.();
   runtime.multimodalTutorRuntime?.persistSession?.();
   runtime.voiceConversationRuntime?.persistSession?.();
+  runtime.collaborativeLearningRuntime?.persistSession?.();
   runtime.interactionContractRuntime?.persistSession?.();
   runtime.inputCameraControlRuntime?.persistSession?.();
   runtime.educationalInspectionRuntime?.persistSession?.();
@@ -907,6 +954,7 @@ export function destroyScene() {
   runtime.knowledgeMemoryRuntime?.destroy?.();
   runtime.multimodalTutorRuntime?.destroy?.();
   runtime.voiceConversationRuntime?.destroy?.();
+  runtime.collaborativeLearningRuntime?.destroy?.();
   runtime.interactionContractRuntime?.destroy?.();
   runtime.inputCameraControlRuntime?.destroy?.();
   runtime.educationalInspectionRuntime?.destroy?.();
@@ -940,6 +988,7 @@ export function resetScene() {
   runtime.knowledgeMemoryRuntime?.synchronize?.('reset');
   runtime.multimodalTutorRuntime?.synchronize?.('reset');
   runtime.voiceConversationRuntime?.synchronize?.('reset');
+  runtime.collaborativeLearningRuntime?.synchronize?.('reset');
   runtime.interactionContractRuntime?.synchronize?.('reset');
   runtime.inputCameraControlRuntime?.synchronize?.('reset');
   runtime.educationalInspectionRuntime?.synchronize?.('reset');
